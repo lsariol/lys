@@ -35,7 +35,7 @@ Rules:
 	var gptResponse GPTResponse
 
 	reqBody := ChatRequest{
-		Model:        "gpt-5.6-terra",
+		Model:        "gpt-5.4-mini",
 		Instructions: developerPrompt,
 		Input:        fmt.Sprintf("Username: %s, Prompt: %s", username, prompt),
 		ToolChoice:   "auto",
