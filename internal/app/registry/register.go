@@ -14,6 +14,7 @@ import (
 	"github.com/lsariol/botsuite/internal/commands/cmds/randomdog"
 	"github.com/lsariol/botsuite/internal/commands/cmds/request"
 	"github.com/lsariol/botsuite/internal/commands/cmds/settings"
+	"github.com/lsariol/botsuite/internal/commands/cmds/sleeper"
 	"github.com/lsariol/botsuite/internal/commands/cmds/uptime"
 )
 
@@ -30,6 +31,7 @@ func (r *Registry) RegisterAll() {
 	r.Register(settings.Settings{})
 	r.Register(chatgpt.ChatGPT{})
 	r.Register(letterboxd.Letterboxd{})
+	r.Register(sleeper.Sleeper{})
 
 }
 
