@@ -19,16 +19,9 @@ func (c *Config) InitilizeDatabaseConfig(cove *coveclient.Client, env string) er
 	var dbString string
 	var err error
 
-	if env == "PROD" {
-		dbString, err = cove.GetSecret("BOTSUITE_DB_CONNECTION_STRING")
-		if err != nil {
-			return fmt.Errorf("get secret BOTSUITE_DB_CONNECTION_STRING: %w", err)
-		}
-	} else {
-		dbString, err = cove.GetSecret("BOTSUITE_DB_CONNECTION_STRING_DEV")
-		if err != nil {
-			return fmt.Errorf("get secret BOTSUITE_DB_CONNECTION_STRING_DEV: %w", err)
-		}
+	dbString, err = cove.GetSecret("BOTSUITE_DATABASE_URL")
+	if err != nil {
+		return fmt.Errorf("get secret BOTSUITE_DATABASE_URL: %w", err)
 	}
 
 	c.Database.ConnectionString = dbString

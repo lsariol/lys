@@ -5,14 +5,13 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
-	"github.com/lsariol/coveclient"
 	"github.com/joho/godotenv"
 	"github.com/lsariol/botsuite/internal/config"
 	"github.com/lsariol/botsuite/internal/database"
 	"github.com/lsariol/botsuite/internal/runtime/settings"
+	"github.com/lsariol/coveclient"
 )
 
 type Deps struct {
@@ -38,15 +37,7 @@ func (d *Deps) Initilize() error {
 
 	_ = godotenv.Load(".env")
 
-	env := strings.ToUpper(os.Getenv("APP_ENV"))
-	prod := env == "PROD"
-
-	var cove *coveclient.Client
-	if prod {
-		cove = coveclient.New(os.Getenv("COVE_CLIENT_URL"), os.Getenv("COVE_CLIENT_SECRET"), "botsuite")
-	} else {
-		cove = coveclient.New(os.Getenv("COVE_CLIENT_URL_DEV"), os.Getenv("COVE_CLIENT_SECRET_DEV"), "botsuite")
-	}
+	cove := coveclient.New(os.Getenv("COVE_URL"), os.Getenv("COVE_TOKEN"), "botsuite")
 
 	err := cfg.Initilize(cove)
 	if err != nil {

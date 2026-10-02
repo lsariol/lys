@@ -7,7 +7,7 @@ require github.com/gorilla/websocket v1.5.3
 require (
 	github.com/jackc/pgx/v5 v5.7.6
 	github.com/joho/godotenv v1.5.1
-	github.com/lsariol/coveclient v0.2.0
+	github.com/lsariol/coveclient v1.0.0-rc.1
 )
 
 require (
