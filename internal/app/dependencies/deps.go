@@ -37,7 +37,7 @@ func (d *Deps) Initilize() error {
 
 	_ = godotenv.Load(".env")
 
-	cove := coveclient.New(os.Getenv("COVE_URL"), os.Getenv("COVE_TOKEN"), "botsuite")
+	cove := coveclient.New(os.Getenv("COVE_URL"), os.Getenv("COVE_TOKEN"))
 
 	err := cfg.Initilize(cove)
 	if err != nil {
