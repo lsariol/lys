@@ -7,14 +7,14 @@ import (
 	"net/http"
 
 	"github.com/lsariol/coveclient"
-	"github.com/lsariol/botsuite/internal/adapters/adapter"
-	"github.com/lsariol/botsuite/internal/adapters/twitch/auth"
-	"github.com/lsariol/botsuite/internal/adapters/twitch/chat"
-	twitchdb "github.com/lsariol/botsuite/internal/adapters/twitch/database"
-	"github.com/lsariol/botsuite/internal/adapters/twitch/eventsub"
-	"github.com/lsariol/botsuite/internal/app/registry"
-	"github.com/lsariol/botsuite/internal/config"
-	"github.com/lsariol/botsuite/internal/runtime/settings"
+	"github.com/lsariol/lys/internal/adapters/adapter"
+	"github.com/lsariol/lys/internal/adapters/twitch/auth"
+	"github.com/lsariol/lys/internal/adapters/twitch/chat"
+	twitchdb "github.com/lsariol/lys/internal/adapters/twitch/database"
+	"github.com/lsariol/lys/internal/adapters/twitch/eventsub"
+	"github.com/lsariol/lys/internal/app/registry"
+	"github.com/lsariol/lys/internal/config"
+	"github.com/lsariol/lys/internal/runtime/settings"
 )
 
 var _ adapter.Adapter = (*TwitchClient)(nil)

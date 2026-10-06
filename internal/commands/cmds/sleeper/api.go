@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/lsariol/botsuite/internal/app/dependencies"
+	"github.com/lsariol/lys/internal/app/dependencies"
 )
 
 func getPlayoffBracket(sleeperLeagueID string, ctx context.Context, deps *dependencies.Deps) (*[]SleeperPlayoffMatchup, error) {

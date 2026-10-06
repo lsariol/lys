@@ -26,19 +26,19 @@ func NewTwitchConfig() *TwitchConfig {
 
 func (c *Config) InitilizeTwitchConfig(cove *coveclient.Client) error {
 
-	clientID, err := cove.GetSecret("BOTSUITE_TWITCH_CLIENT_ID")
+	clientID, err := cove.GetSecret("LYS_TWITCH_CLIENT_ID")
 	if err != nil {
-		return fmt.Errorf("get secret BOTSUITE_TWITCH_CLIENT_ID: %w", err)
+		return fmt.Errorf("get secret LYS_TWITCH_CLIENT_ID: %w", err)
 	}
 
-	clientSecret, err := cove.GetSecret("BOTSUITE_TWITCH_CLIENT_SECRET")
+	clientSecret, err := cove.GetSecret("LYS_TWITCH_CLIENT_SECRET")
 	if err != nil {
-		return fmt.Errorf("get secret BOTSUITE_TWITCH_CLIENT_SECRET: %w", err)
+		return fmt.Errorf("get secret LYS_TWITCH_CLIENT_SECRET: %w", err)
 	}
 
-	botID, err := cove.GetSecret("BOTSUITE_TWITCH_BOT_ID")
+	botID, err := cove.GetSecret("LYS_TWITCH_BOT_ID")
 	if err != nil {
-		return fmt.Errorf("get secret BOTSUITE_TWITCH_BOT_ID: %w", err)
+		return fmt.Errorf("get secret LYS_TWITCH_BOT_ID: %w", err)
 	}
 
 	c.Twitch.App.ClientID = clientID

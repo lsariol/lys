@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/lsariol/botsuite/internal/app/dependencies"
+	"github.com/lsariol/lys/internal/app/dependencies"
 )
 
 func storeGame(game OneUpGame, deps *dependencies.Deps) error {

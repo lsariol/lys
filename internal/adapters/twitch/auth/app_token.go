@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"strings"
 
-	twitchdb "github.com/lsariol/botsuite/internal/adapters/twitch/database"
+	twitchdb "github.com/lsariol/lys/internal/adapters/twitch/database"
 )
 
 func (c *AuthClient) RefreshAppAccessToken(ctx context.Context) error {
@@ -60,7 +60,7 @@ func (c *AuthClient) GetAppAccessTokens(ctx context.Context) (twitchdb.TwitchApp
 
 	var appAccessToken twitchdb.TwitchAppAccessToken
 
-	token, err := c.Cove.GetSecret("BOTSUITE_TWITCH_ACCESS_TOKEN")
+	token, err := c.Cove.GetSecret("LYS_TWITCH_ACCESS_TOKEN")
 	if err != nil {
 		return appAccessToken, fmt.Errorf("cove getSecret: %w", err)
 	}
@@ -72,7 +72,7 @@ func (c *AuthClient) GetAppAccessTokens(ctx context.Context) (twitchdb.TwitchApp
 
 func (c *AuthClient) StoreAppAccessTokens(ctx context.Context, appAccessToken string) error {
 
-	err := c.Cove.UpdateSecret("BOTSUITE_TWITCH_ACCESS_TOKEN", appAccessToken)
+	err := c.Cove.UpdateSecret("LYS_TWITCH_ACCESS_TOKEN", appAccessToken)
 	if err != nil {
 		return fmt.Errorf("cove updateSecret: %w", err)
 	}

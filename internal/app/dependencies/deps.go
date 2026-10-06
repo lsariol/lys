@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-	"github.com/lsariol/botsuite/internal/config"
-	"github.com/lsariol/botsuite/internal/database"
-	"github.com/lsariol/botsuite/internal/runtime/settings"
 	"github.com/lsariol/coveclient"
+	"github.com/lsariol/lys/internal/config"
+	"github.com/lsariol/lys/internal/database"
+	"github.com/lsariol/lys/internal/runtime/settings"
 )
 
 type Deps struct {

@@ -6,8 +6,8 @@ import (
 	"net/http"
 
 	"github.com/lsariol/coveclient"
-	twitchdb "github.com/lsariol/botsuite/internal/adapters/twitch/database"
-	"github.com/lsariol/botsuite/internal/config"
+	twitchdb "github.com/lsariol/lys/internal/adapters/twitch/database"
+	"github.com/lsariol/lys/internal/config"
 )
 
 type AuthClient struct {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	twitchdb "github.com/lsariol/botsuite/internal/adapters/twitch/database"
+	twitchdb "github.com/lsariol/lys/internal/adapters/twitch/database"
 )
 
 func (s *Store) LoadAllTwitchChannelSettings(ctx context.Context) error {

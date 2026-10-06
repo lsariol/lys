@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lsariol/botsuite/internal/app/dependencies"
+	"github.com/lsariol/lys/internal/app/dependencies"
 )
 
 var playerCatalog struct {

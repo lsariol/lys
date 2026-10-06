@@ -3,8 +3,8 @@ package feed
 import (
 	"context"
 
-	"github.com/lsariol/botsuite/internal/app/dependencies"
-	"github.com/lsariol/botsuite/internal/feed/sources"
+	"github.com/lsariol/lys/internal/app/dependencies"
+	"github.com/lsariol/lys/internal/feed/sources"
 )
 
 // Outbounder is an optional interface a Source may implement so Feed.AddSource

@@ -1,6 +1,6 @@
 package commands
 
-import "github.com/lsariol/botsuite/internal/adapters/adapter"
+import "github.com/lsariol/lys/internal/adapters/adapter"
 
 func SuppressedReply() (adapter.Response, error) {
 	return adapter.Response{SuppressReply: true, Error: true}, nil

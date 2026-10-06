@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/lsariol/botsuite/internal/feed"
+	"github.com/lsariol/lys/internal/feed"
 )
 
 // inboundNotification mirrors the JSON body accepted by POST /notifications.

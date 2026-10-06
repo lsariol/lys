@@ -6,8 +6,8 @@ import (
 	"log"
 	"strings"
 
-	"github.com/lsariol/botsuite/internal/adapters/adapter"
-	"github.com/lsariol/botsuite/internal/app/dependencies"
+	"github.com/lsariol/lys/internal/adapters/adapter"
+	"github.com/lsariol/lys/internal/app/dependencies"
 )
 
 func matchup(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps) (adapter.Response, error) {

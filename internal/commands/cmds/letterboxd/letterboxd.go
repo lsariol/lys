@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lsariol/botsuite/internal/adapters/adapter"
-	"github.com/lsariol/botsuite/internal/app/dependencies"
+	"github.com/lsariol/lys/internal/adapters/adapter"
+	"github.com/lsariol/lys/internal/app/dependencies"
 )
 
 type Letterboxd struct{}

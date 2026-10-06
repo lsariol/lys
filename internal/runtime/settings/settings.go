@@ -3,7 +3,7 @@ package settings
 import (
 	"sync"
 
-	twitchdb "github.com/lsariol/botsuite/internal/adapters/twitch/database"
+	twitchdb "github.com/lsariol/lys/internal/adapters/twitch/database"
 )
 
 type Store struct {

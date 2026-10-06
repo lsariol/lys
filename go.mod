@@ -1,4 +1,4 @@
-module github.com/lsariol/botsuite
+module github.com/lsariol/lys
 
 go 1.25.1
 

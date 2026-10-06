@@ -3,11 +3,11 @@ package router
 import (
 	"context"
 
-	"github.com/lsariol/botsuite/internal/adapters/adapter"
-	"github.com/lsariol/botsuite/internal/app/dependencies"
-	"github.com/lsariol/botsuite/internal/app/registry"
-	"github.com/lsariol/botsuite/internal/commands"
-	"github.com/lsariol/botsuite/internal/feed"
+	"github.com/lsariol/lys/internal/adapters/adapter"
+	"github.com/lsariol/lys/internal/app/dependencies"
+	"github.com/lsariol/lys/internal/app/registry"
+	"github.com/lsariol/lys/internal/commands"
+	"github.com/lsariol/lys/internal/feed"
 )
 
 type Router struct {

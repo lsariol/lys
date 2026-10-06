@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lsariol/botsuite/internal/adapters/adapter"
-	"github.com/lsariol/botsuite/internal/adapters/twitch/eventsub"
+	"github.com/lsariol/lys/internal/adapters/adapter"
+	"github.com/lsariol/lys/internal/adapters/twitch/eventsub"
 )
 
 func (c *TwitchClient) ingestLoop(ctx context.Context, in <-chan eventsub.EventSubMessage) error {

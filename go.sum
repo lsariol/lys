@@ -15,8 +15,8 @@ github.com/jackc/puddle/v2 v2.2.2 h1:PR8nw+E/1w0GLuRFSmiioY6UooMp6KJv0/61nB7icHo
 github.com/jackc/puddle/v2 v2.2.2/go.mod h1:vriiEXHvEE654aYKXXjOvZM39qJ0q+azkZFrfEOc3H4=
 github.com/joho/godotenv v1.5.1 h1:7eLL/+HRGLY0ldzfGMeQkb7vMd0as4CfYvUVzLqw0N0=
 github.com/joho/godotenv v1.5.1/go.mod h1:f4LDr5Voq0i2e/R5DDNOoa2zzDfwtkZa6DnEwAbqwq4=
-github.com/lsariol/coveclient v1.0.0-rc.1 h1:x18nBHLPGvG7yUCDGr+wKni6omySDz4YIOE96mZ/H2w=
-github.com/lsariol/coveclient v1.0.0-rc.1/go.mod h1:3Yg4K8pBWD4mjjJpb0nCL9EEWuQJiWr8D3CRRUoboXY=
+github.com/lsariol/lys v0.0.0-20261005164948-aea12c37d201 h1:JH/3aUc5ovUQhubobvs1+IoU4ohs29wiCiLt+20yyXI=
+github.com/lsariol/lys v0.0.0-20261005164948-aea12c37d201/go.mod h1:Rb11P8QCZyO0scs3KZvixdCNyMHr24XSmVRoPc4ojzw=
 github.com/lsariol/coveclient v1.0.0 h1:0ri24sL597oMc3VHJQrA6m7+MGuvHK6eQJWLAbhqqLw=
 github.com/lsariol/coveclient v1.0.0/go.mod h1:3Yg4K8pBWD4mjjJpb0nCL9EEWuQJiWr8D3CRRUoboXY=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=

@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/lsariol/botsuite/internal/adapters/adapter"
-	"github.com/lsariol/botsuite/internal/app/dependencies"
-	"github.com/lsariol/botsuite/internal/commands"
+	"github.com/lsariol/lys/internal/adapters/adapter"
+	"github.com/lsariol/lys/internal/app/dependencies"
+	"github.com/lsariol/lys/internal/commands"
 )
 
 type OneUpPuzzle struct{}

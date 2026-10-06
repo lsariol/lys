@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/lsariol/botsuite/internal/config"
+	"github.com/lsariol/lys/internal/config"
 )
 
 type Database struct {

@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	notificationsource "github.com/lsariol/botsuite/internal/feed/sources/notification"
+	notificationsource "github.com/lsariol/lys/internal/feed/sources/notification"
 )
 
 // Server is the HTTP server that accepts inbound notifications.

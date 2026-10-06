@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/lsariol/botsuite/internal/adapters/twitch/auth"
-	twitchdb "github.com/lsariol/botsuite/internal/adapters/twitch/database"
-	"github.com/lsariol/botsuite/internal/config"
+	"github.com/lsariol/lys/internal/adapters/twitch/auth"
+	twitchdb "github.com/lsariol/lys/internal/adapters/twitch/database"
+	"github.com/lsariol/lys/internal/config"
 )
 
 // CLI URLS

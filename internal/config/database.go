@@ -19,9 +19,9 @@ func (c *Config) InitilizeDatabaseConfig(cove *coveclient.Client, env string) er
 	var dbString string
 	var err error
 
-	dbString, err = cove.GetSecret("BOTSUITE_DATABASE_URL")
+	dbString, err = cove.GetSecret("LYS_DATABASE_URL")
 	if err != nil {
-		return fmt.Errorf("get secret BOTSUITE_DATABASE_URL: %w", err)
+		return fmt.Errorf("get secret LYS_DATABASE_URL: %w", err)
 	}
 
 	c.Database.ConnectionString = dbString

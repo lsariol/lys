@@ -8,7 +8,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/lsariol/botsuite/internal/adapters/adapter"
+	"github.com/lsariol/lys/internal/adapters/adapter"
 )
 
 func (c *ChatClient) SendChat(ctx context.Context, r adapter.Response) (*SendChatMessageResponse, *HelixError, error) {

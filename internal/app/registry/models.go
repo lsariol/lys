@@ -3,7 +3,7 @@ package registry
 import (
 	"regexp"
 
-	"github.com/lsariol/botsuite/internal/commands"
+	"github.com/lsariol/lys/internal/commands"
 )
 
 type RegistryCommand struct {

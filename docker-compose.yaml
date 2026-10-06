@@ -1,14 +1,14 @@
-name: botsuite
+name: lys
 
 services:
-  botsuite:
+  lys:
     build:
       context: .
       dockerfile: Dockerfile
     environment:
       APP_ENV: PROD
       COVE_URL: http://cove:2100
-      COVE_TOKEN: ${BOTSUITE_COVE_TOKEN}
+      COVE_TOKEN: ${LYS_COVE_TOKEN}
       NOTIFICATION_PORT: 2400
     container_name: botsuite
     ports:

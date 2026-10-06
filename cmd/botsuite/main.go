@@ -7,15 +7,15 @@ import (
 	"os/signal"
 	"syscall"
 
-	twitchbot "github.com/lsariol/botsuite/internal/adapters/twitch/bot"
-	twitchdb "github.com/lsariol/botsuite/internal/adapters/twitch/database"
-	"github.com/lsariol/botsuite/internal/app/dependencies"
-	"github.com/lsariol/botsuite/internal/app/registry"
-	"github.com/lsariol/botsuite/internal/app/router"
-	"github.com/lsariol/botsuite/internal/feed"
-	notificationsource "github.com/lsariol/botsuite/internal/feed/sources/notification"
-	notificationserver "github.com/lsariol/botsuite/internal/notification"
-	"github.com/lsariol/botsuite/internal/runtime/settings"
+	twitchbot "github.com/lsariol/lys/internal/adapters/twitch/bot"
+	twitchdb "github.com/lsariol/lys/internal/adapters/twitch/database"
+	"github.com/lsariol/lys/internal/app/dependencies"
+	"github.com/lsariol/lys/internal/app/registry"
+	"github.com/lsariol/lys/internal/app/router"
+	"github.com/lsariol/lys/internal/feed"
+	notificationsource "github.com/lsariol/lys/internal/feed/sources/notification"
+	notificationserver "github.com/lsariol/lys/internal/notification"
+	"github.com/lsariol/lys/internal/runtime/settings"
 )
 
 func main() {

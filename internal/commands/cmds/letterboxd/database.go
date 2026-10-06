@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/lsariol/botsuite/internal/app/dependencies"
+	"github.com/lsariol/lys/internal/app/dependencies"
 )
 
 func alreadyWatching(ctx context.Context, userID string, deps *dependencies.Deps) (bool, error) {

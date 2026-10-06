@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/lsariol/botsuite/internal/app/dependencies"
+	"github.com/lsariol/lys/internal/app/dependencies"
 )
 
 // status types can only be 'new', 'in_progress', 'completed', 'rejected'

@@ -16,9 +16,9 @@ func NewCommandsConfig() *CommandsConfig {
 
 func (c *Config) InitilizeCommandsConfig(cove *coveclient.Client) error {
 
-	chatGPTKey, err := cove.GetSecret("BOTSUITE_OPENAI_API_KEY")
+	chatGPTKey, err := cove.GetSecret("LYS_OPENAI_API_KEY")
 	if err != nil {
-		return fmt.Errorf("get secret BOTSUITE_OPENAI_API_KEY: %w", err)
+		return fmt.Errorf("get secret LYS_OPENAI_API_KEY: %w", err)
 	}
 
 	c.Commands.ChatGPTKey = chatGPTKey

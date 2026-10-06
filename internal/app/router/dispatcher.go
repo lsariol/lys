@@ -5,11 +5,11 @@ import (
 	"log"
 	"time"
 
-	"github.com/lsariol/botsuite/internal/adapters/adapter"
-	"github.com/lsariol/botsuite/internal/app/dependencies"
-	"github.com/lsariol/botsuite/internal/app/middleware"
-	"github.com/lsariol/botsuite/internal/commands"
-	"github.com/lsariol/botsuite/internal/feed"
+	"github.com/lsariol/lys/internal/adapters/adapter"
+	"github.com/lsariol/lys/internal/app/dependencies"
+	"github.com/lsariol/lys/internal/app/middleware"
+	"github.com/lsariol/lys/internal/commands"
+	"github.com/lsariol/lys/internal/feed"
 )
 
 func (r *Router) DispatchCommand(parentCtx context.Context, envelope adapter.Envelope, cmd commands.Command, deps *dependencies.Deps) {

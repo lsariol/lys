@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lsariol/botsuite/internal/adapters/adapter"
+	"github.com/lsariol/lys/internal/adapters/adapter"
 )
 
 func TestStandingsInvalidArguments(t *testing.T) {

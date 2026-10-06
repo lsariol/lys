@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/lsariol/botsuite/internal/adapters/adapter"
+	"github.com/lsariol/lys/internal/adapters/adapter"
 )
 
 func packageGame(e adapter.Envelope) (OneUpGame, error) {
