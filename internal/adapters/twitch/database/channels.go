@@ -7,14 +7,14 @@ import (
 
 func (s *Store) AddChannel(ctx context.Context, ch AddChannelParams) error {
 	query := `
-	INSERT INTO botsuite.twitch_channels (user_id, username, access_token, refresh_token)
+	INSERT INTO lys.twitch_channels (user_id, username, access_token, refresh_token)
 	VALUES ($1, $2, $3, $4)
 	ON CONFLICT (user_id) DO UPDATE
 		SET username = EXCLUDED.username,
 			access_token = EXCLUDED.access_token,
 			refresh_token = EXCLUDED.refresh_token,
 			active = TRUE,
-			times_joined = botsuite.twitch_channels.times_joined + 1,
+			times_joined = lys.twitch_channels.times_joined + 1,
 			last_joined = NOW();`
 
 	_, err := s.pool.Exec(ctx, query, ch.UserID, ch.Username, ch.AccessToken, ch.RefreshToken)
@@ -31,7 +31,7 @@ func (s *Store) RemoveChannel(ctx context.Context, channelID string) error {
 
 func (s *Store) BanChannel(ctx context.Context, channelID string) error {
 	query := `
-	UPDATE botsuite.twitch_channels
+	UPDATE lys.twitch_channels
 	SET banned = TRUE
 	WHERE user_id = $1;
 `
@@ -45,7 +45,7 @@ func (s *Store) BanChannel(ctx context.Context, channelID string) error {
 
 func (s *Store) UnbanChannel(ctx context.Context, channelID string) error {
 	query := `
-	UPDATE botsuite.twitch_channels
+	UPDATE lys.twitch_channels
 	SET banned = FALSE
 	WHERE user_id = $1;
 `
@@ -61,7 +61,7 @@ func (s *Store) GetAllChannels(ctx context.Context) (map[string]TwitchChannel, e
 
 	query := `
 	SELECT user_id, username
-	FROM botsuite.twitch_channels 
+	FROM lys.twitch_channels 
 	WHERE 
 		active = TRUE
 		AND
@@ -91,8 +91,8 @@ func (s *Store) GetPerChannelSettings(ctx context.Context) (map[string]TwitchCha
 
 	query := `
 	SELECT tc.user_ID, tc.username, ts.command_prefix
-	FROM botsuite.twitch_channels AS tc
-	LEFT JOIN botsuite.twitch_settings AS ts
+	FROM lys.twitch_channels AS tc
+	LEFT JOIN lys.twitch_settings AS ts
 	ON tc.user_id = ts.user_id
 	WHERE 
 		tc.active = TRUE
@@ -122,7 +122,7 @@ func (s *Store) GetPerChannelSettings(ctx context.Context) (map[string]TwitchCha
 // Action can either be 'grant', 'revoke', 'ban', 'unban'
 func (s *Store) LogEvent(ctx context.Context, ch AddChannelParams, action string) error {
 	query := `
-	INSERT INTO botsuite.twitch_channel_events (user_id, username, action)
+	INSERT INTO lys.twitch_channel_events (user_id, username, action)
 	VALUES ($1, $2, $3)
 	`
 	_, err := s.pool.Exec(ctx, query, ch.UserID, ch.Username, action)

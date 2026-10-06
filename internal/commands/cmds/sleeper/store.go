@@ -16,7 +16,7 @@ func FindLeagueLinkConflict(leagueID string, channelID string, ctx context.Conte
 
 	const query string = `
 		SELECT twitch_channel_id, sleeper_league_id
-		FROM botsuite.sleeper_leagues
+		FROM lys.sleeper_leagues
 		WHERE twitch_channel_id = $1
 			OR sleeper_league_id = $2
 		LIMIT 1`
@@ -36,7 +36,7 @@ func FindLeagueLinkConflict(leagueID string, channelID string, ctx context.Conte
 func addLeagueLink(league *League, channelID string, ctx context.Context, deps *dependencies.Deps) (error, bool) {
 
 	const query = `
-	INSERT INTO botsuite.sleeper_leagues(
+	INSERT INTO lys.sleeper_leagues(
 	twitch_channel_id,
 	sleeper_league_id,
 	league_name,
@@ -60,7 +60,7 @@ func getLeagueByChannel(ctx context.Context, channelID string, deps *dependencie
 		sleeper_league_id,
 		league_name,
 		season
-		FROM botsuite.sleeper_leagues
+		FROM lys.sleeper_leagues
 		WHERE twitch_channel_id = $1
 		`
 
@@ -86,7 +86,7 @@ func getConnectionByUserID(ctx context.Context, leagueID uuid.UUID, twitchUserID
 		sleeper_user_id,
 		sleeper_username,
 		sleeper_roster_id
-		FROM botsuite.sleeper_connections
+		FROM lys.sleeper_connections
 		WHERE league_id = $1
 			AND twitch_user_id = $2`
 
@@ -124,7 +124,7 @@ func getConnectionByUsername(ctx context.Context, leagueID uuid.UUID, twitchUser
 		sleeper_user_id,
 		sleeper_username,
 		sleeper_roster_id
-		FROM botsuite.sleeper_connections
+		FROM lys.sleeper_connections
 		WHERE league_id = $1
 			AND LOWER(twitch_username) = LOWER($2)`
 
@@ -165,7 +165,7 @@ func getConnectionByUsername(ctx context.Context, leagueID uuid.UUID, twitchUser
 func linkUser(ctx context.Context, leagueID uuid.UUID, twitchUserID string, twitchUsername string, sleeperUserID string, sleeperUsername string, sleeperRosterID int, deps *dependencies.Deps) error {
 
 	const query = `
-	INSERT INTO botsuite.sleeper_connections(
+	INSERT INTO lys.sleeper_connections(
 	league_id,
 	twitch_user_id,
 	twitch_username,
@@ -187,7 +187,7 @@ func updateTwitchUsername(ctx context.Context, twitchUserID string, twitchUserna
 	}
 
 	const query = `
-		UPDATE botsuite.sleeper_connections
+		UPDATE lys.sleeper_connections
 		SET twitch_username = $2
 		WHERE twitch_user_id = $1
 			AND twitch_username IS DISTINCT FROM $2`
@@ -200,11 +200,11 @@ func updateTwitchUsername(ctx context.Context, twitchUserID string, twitchUserna
 func removeLeagueLink(ctx context.Context, leagueID uuid.UUID, deps *dependencies.Deps) error {
 
 	const userQuery = `
-		DELETE FROM botsuite.sleeper_connections
+		DELETE FROM lys.sleeper_connections
 		WHERE league_id = $1`
 
 	const leagueQuery = `
-		DELETE FROM botsuite.sleeper_leagues
+		DELETE FROM lys.sleeper_leagues
 		WHERE id = $1`
 
 	tx, err := deps.DB.Pool.Begin(ctx)
@@ -229,7 +229,7 @@ func removeLeagueLink(ctx context.Context, leagueID uuid.UUID, deps *dependencie
 func removeUser(ctx context.Context, leagueID uuid.UUID, twitchUserID string, deps *dependencies.Deps) (bool, error) {
 
 	const query = `
-		DELETE FROM botsuite.sleeper_connections
+		DELETE FROM lys.sleeper_connections
 		WHERE league_id = $1
 			AND twitch_user_id = $2`
 
@@ -243,7 +243,7 @@ func removeUser(ctx context.Context, leagueID uuid.UUID, twitchUserID string, de
 
 func registerUser(ctx context.Context, username, userID, lbUsername, feedURL, alertChannel string, deps *dependencies.Deps) error {
 	query := `
-		INSERT INTO botsuite.letterboxd_feed_subscriptions
+		INSERT INTO lys.letterboxd_feed_subscriptions
 			(username, user_id, letterboxd_username, feed_url, alert_channels)
 		VALUES ($1, $2, $3, $4, $5)
 	`
@@ -258,7 +258,7 @@ func registerUser(ctx context.Context, username, userID, lbUsername, feedURL, al
 
 func unregisterUser(ctx context.Context, userID string, deps *dependencies.Deps) (lbUsername string, found bool, err error) {
 	query := `
-		DELETE FROM botsuite.letterboxd_feed_subscriptions
+		DELETE FROM lys.letterboxd_feed_subscriptions
 		WHERE user_id = $1
 		RETURNING letterboxd_username
 	`

@@ -10,7 +10,7 @@ services:
       COVE_URL: http://cove:2100
       COVE_TOKEN: ${LYS_COVE_TOKEN}
       NOTIFICATION_PORT: 2400
-    container_name: botsuite
+    container_name: lys
     ports:
       - "2400:2400"
     healthcheck:

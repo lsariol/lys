@@ -8,7 +8,7 @@ import (
 )
 
 func alreadyWatching(ctx context.Context, userID string, deps *dependencies.Deps) (bool, error) {
-	query := `SELECT EXISTS(SELECT 1 FROM botsuite.letterboxd_feed_subscriptions WHERE user_id = $1)`
+	query := `SELECT EXISTS(SELECT 1 FROM lys.letterboxd_feed_subscriptions WHERE user_id = $1)`
 
 	var exists bool
 	err := deps.DB.Pool.QueryRow(ctx, query, userID).Scan(&exists)
@@ -21,7 +21,7 @@ func alreadyWatching(ctx context.Context, userID string, deps *dependencies.Deps
 
 func addSubscription(ctx context.Context, username, userID, lbUsername, feedURL, alertChannel string, deps *dependencies.Deps) error {
 	query := `
-		INSERT INTO botsuite.letterboxd_feed_subscriptions
+		INSERT INTO lys.letterboxd_feed_subscriptions
 			(username, user_id, letterboxd_username, feed_url, alert_channels)
 		VALUES ($1, $2, $3, $4, $5)
 	`
@@ -36,7 +36,7 @@ func addSubscription(ctx context.Context, username, userID, lbUsername, feedURL,
 
 func removeSubscription(ctx context.Context, userID string, deps *dependencies.Deps) (lbUsername string, found bool, err error) {
 	query := `
-		DELETE FROM botsuite.letterboxd_feed_subscriptions
+		DELETE FROM lys.letterboxd_feed_subscriptions
 		WHERE user_id = $1
 		RETURNING letterboxd_username
 	`

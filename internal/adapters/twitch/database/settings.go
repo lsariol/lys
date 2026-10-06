@@ -8,7 +8,7 @@ import (
 func (s *Store) UpdateChannelPrefix(ctx context.Context, channelID string, newPrefix string) error {
 
 	const query = `
-	UPDATE botsuite.twitch_settings
+	UPDATE lys.twitch_settings
 	SET command_prefix = $2
 	WHERE user_id = $1;
 	`

@@ -8,7 +8,7 @@ import (
 // func (s *Store) GetTokens(ctx context.Context) (*TwitchTokens, error) {
 // 	query := `
 // 	SELECT access_token, refresh_token
-// 	FROM botsuite.twitch_channels
+// 	FROM lys.twitch_channels
 // 	WHERE user_id = '965482552' AND username = 'botmoba';
 // 	`
 
@@ -23,7 +23,7 @@ import (
 
 // func (s *Store) StoreTokens(ctx context.Context, user string, refresh string) error {
 // 	query := `
-// 	UPDATE botsuite.twitch_channels
+// 	UPDATE lys.twitch_channels
 // 	SET
 // 		access_token = $1,
 // 		refresh_token = $2
@@ -48,7 +48,7 @@ import (
 func (s *Store) GetUserAccessTokens(ctx context.Context) (*TwitchUserAccessTokens, error) {
 	query := `
 	SELECT access_token, refresh_token 
-	FROM botsuite.twitch_channels
+	FROM lys.twitch_channels
 	WHERE user_id = '965482552' AND username = 'botmoba';
 	`
 
@@ -63,7 +63,7 @@ func (s *Store) GetUserAccessTokens(ctx context.Context) (*TwitchUserAccessToken
 
 func (s *Store) StoreUserAccessTokens(ctx context.Context, user string, refresh string) error {
 	query := `
-	UPDATE botsuite.twitch_channels
+	UPDATE lys.twitch_channels
 	SET 
 		access_token = $1,
 		refresh_token = $2

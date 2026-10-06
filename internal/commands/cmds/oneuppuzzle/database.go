@@ -11,7 +11,7 @@ import (
 func storeGame(game OneUpGame, deps *dependencies.Deps) error {
 
 	query := `
-	INSERT INTO botsuite.game_events (user_id, username, channel_id, channel_name, game_code, raw_message, details)
+	INSERT INTO lys.game_events (user_id, username, channel_id, channel_name, game_code, raw_message, details)
 	VALUES ($1, $2, $3, $4, $5, $6, $7);
 	`
 
@@ -28,7 +28,7 @@ func storeGame(game OneUpGame, deps *dependencies.Deps) error {
 func storeFlaggedGame(game OneUpGame, deps *dependencies.Deps) error {
 
 	query := `
-	INSERT INTO botsuite.game_events (user_id, username, channel_id, channel_name, game_code, raw_message, details, is_flagged)
+	INSERT INTO lys.game_events (user_id, username, channel_id, channel_name, game_code, raw_message, details, is_flagged)
 	VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
 	`
 
@@ -56,7 +56,7 @@ func puzzleStatsByChannel(ctx context.Context, channelID string, deps *dependenc
 		-- fastest username
 		(
 			SELECT username
-			FROM botsuite.game_events
+			FROM lys.game_events
 			WHERE channel_id = $1
 			AND game_code  = 'oneuppuzzle'
 			AND is_flagged = FALSE
@@ -67,7 +67,7 @@ func puzzleStatsByChannel(ctx context.Context, channelID string, deps *dependenc
 		-- slowest username
 		(
 			SELECT username
-			FROM botsuite.game_events
+			FROM lys.game_events
 			WHERE channel_id = $1
 			AND game_code  = 'oneuppuzzle'
 			AND is_flagged = FALSE
@@ -75,7 +75,7 @@ func puzzleStatsByChannel(ctx context.Context, channelID string, deps *dependenc
 			LIMIT 1
 		) AS slowest_user
 
-	FROM botsuite.game_events
+	FROM lys.game_events
 	WHERE channel_id = $1
 	AND game_code  = 'oneuppuzzle'
 	AND is_flagged = FALSE;
@@ -109,7 +109,7 @@ func puzzleStatsByUser(ctx context.Context, username string, deps *dependencies.
 		MIN((details->>'time_seconds')::int)     			AS fastest,
 		MAX((details->>'time_seconds')::int)     			AS slowest,
 		CAST(AVG((details->>'time_seconds')::int) AS int)	AS avg_time
-	FROM botsuite.game_events
+	FROM lys.game_events
 	WHERE username  = $1
 	AND game_code = 'oneuppuzzle'
 	AND is_flagged = FALSE;
@@ -150,7 +150,7 @@ func puzzleStatsByPuzzleID(ctx context.Context, gameID int, deps *dependencies.D
 		-- fastest username
 		(
 			SELECT username
-			FROM botsuite.game_events
+			FROM lys.game_events
 			WHERE (details->'puzzle_id')::INT = $1
 			AND game_code  = 'oneuppuzzle'
 			AND is_flagged = FALSE
@@ -161,7 +161,7 @@ func puzzleStatsByPuzzleID(ctx context.Context, gameID int, deps *dependencies.D
 		-- slowest username
 		(
 			SELECT username
-			FROM botsuite.game_events
+			FROM lys.game_events
 			WHERE (details->'puzzle_id')::INT = $1
 			AND game_code  = 'oneuppuzzle'
 			AND is_flagged = FALSE
@@ -169,7 +169,7 @@ func puzzleStatsByPuzzleID(ctx context.Context, gameID int, deps *dependencies.D
 			LIMIT 1
 		) AS slowest_user
 
-	FROM botsuite.game_events
+	FROM lys.game_events
 	WHERE (details->'puzzle_id')::INT = $1
 	AND game_code  = 'oneuppuzzle'
 	AND is_flagged = FALSE;
@@ -212,7 +212,7 @@ func puzzleStatsByChannelAndPuzzleID(ctx context.Context, channelID string, game
 		-- fastest username
 		(
 			SELECT username
-			FROM botsuite.game_events
+			FROM lys.game_events
 			WHERE (details->'puzzle_id')::INT = $2
 			AND channel_id = $1
 			AND game_code  = 'oneuppuzzle'
@@ -224,7 +224,7 @@ func puzzleStatsByChannelAndPuzzleID(ctx context.Context, channelID string, game
 		-- slowest username
 		(
 			SELECT username
-			FROM botsuite.game_events
+			FROM lys.game_events
 			WHERE (details->'puzzle_id')::INT = $2
 			AND channel_id = $1
 			AND game_code  = 'oneuppuzzle'
@@ -233,7 +233,7 @@ func puzzleStatsByChannelAndPuzzleID(ctx context.Context, channelID string, game
 			LIMIT 1
 		) AS slowest_user
 
-	FROM botsuite.game_events
+	FROM lys.game_events
 	WHERE (details->'puzzle_id')::INT = $2
 	AND channel_id = $1
 	AND game_code  = 'oneuppuzzle'
@@ -273,7 +273,7 @@ func isPuzzleRecorded(ctx context.Context, userID string, gameID int, deps *depe
 	query := `
 		SELECT EXISTS (
 			SELECT 1
-			FROM botsuite.game_events
+			FROM lys.game_events
 			WHERE user_id = $1
 			AND game_code = 'oneuppuzzle'
 			AND

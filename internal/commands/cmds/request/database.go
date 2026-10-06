@@ -12,7 +12,7 @@ import (
 func storeRequest(ctx context.Context, featureRequest FeatureRequest, deps *dependencies.Deps) (int64, error) {
 
 	query := `
-	INSERT INTO botsuite.feature_requests (user_id, username, channel_id, channel_name, platform, body)
+	INSERT INTO lys.feature_requests (user_id, username, channel_id, channel_name, platform, body)
 	VALUES ($1, $2, $3, $4, $5, $6)
 	RETURNING id;
 	`
@@ -28,7 +28,7 @@ func storeRequest(ctx context.Context, featureRequest FeatureRequest, deps *depe
 
 func updateStatus(ctx context.Context, newStatus string, requestID int64, deps *dependencies.Deps) error {
 	query := `
-	UPDATE botsuite.feature_requests
+	UPDATE lys.feature_requests
 	SET status = $1
 	WHERE id = $2;
 	`
@@ -48,7 +48,7 @@ func updateStatus(ctx context.Context, newStatus string, requestID int64, deps *
 func getRecentRequests(ctx context.Context, limit int, deps *dependencies.Deps) ([]FeatureRequest, error) {
 	query := `
 		SELECT id, occurred_at, user_id, username, channel_id, channel_name, platform, body, status
-		FROM botsuite.feature_requests
+		FROM lys.feature_requests
 		ORDER BY occurred_at DESC
 		LIMIT $1;
 	`
@@ -83,7 +83,7 @@ func getNewRequests(ctx context.Context, limit int, deps *dependencies.Deps) ([]
 
 	query := `
 		SELECT id, occurred_at, user_id, username, channel_id, channel_name, platform, body, status
-		FROM botsuite.feature_requests
+		FROM lys.feature_requests
 		WHERE status = 'new'
 		ORDER BY id DESC
 		LIMIT $1;
@@ -121,7 +121,7 @@ func getNewRequests(ctx context.Context, limit int, deps *dependencies.Deps) ([]
 func getRecentRequestsByChannel(ctx context.Context, channelID string, limit int, deps *dependencies.Deps) ([]FeatureRequest, error) {
 
 	query := `
-		SELECT * FROM botsuite.feature_requests
+		SELECT * FROM lys.feature_requests
 		WHERE channel_id = $1
 		ORDER BY occurred_at DESC
 		LIMIT $2;
@@ -149,7 +149,7 @@ func getRecentRequestsByChannel(ctx context.Context, channelID string, limit int
 func getNewRequestsByChannel(ctx context.Context, channelID string, limit int, deps *dependencies.Deps) ([]FeatureRequest, error) {
 
 	query := `
-		SELECT * FROM botsuite.feature_requests
+		SELECT * FROM lys.feature_requests
 		WHERE status = 'new'
 		AND
 		channel_id = $1
