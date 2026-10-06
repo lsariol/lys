@@ -1,0 +1,5 @@
+A list of things we need for 1.0.0 release
+
+1) Support Database Migrations
+    LOTS of new changes to the database, so we need to track those and implement them at runtime through goose migrations. 
+2) New proposed sql schema added under 'newschema' needs to be looked at and considered before moving on with anything migraiton related. 

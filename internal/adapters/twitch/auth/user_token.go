@@ -12,8 +12,8 @@ import (
 func (c *AuthClient) RefreshUserAccessToken(ctx context.Context) error {
 
 	data := url.Values{}
-	data.Set("client_id", c.Config.App.ClientID)
-	data.Set("client_secret", c.Config.App.ClientSecret)
+	data.Set("client_id", c.Config.ClientID)
+	data.Set("client_secret", c.Config.ClientSecret)
 	data.Set("grant_type", "refresh_token")
 	data.Set("refresh_token", c.Tokens.GetUserRefreshToken())
 
@@ -37,7 +37,7 @@ func (c *AuthClient) RefreshUserAccessToken(ctx context.Context) error {
 		if err := json.NewDecoder(resp.Body).Decode(&fail); err != nil {
 			return fmt.Errorf("json decode: %w", err)
 		}
-		return fmt.Errorf("RefreshUserAccessToken: StatusCode not OK: Code %d: Message %s: Error: %s: %w", fail.Status, fail.Message, fail.Error, err)
+		return fmt.Errorf("RefreshUserAccessToken: StatusCode not OK. Code %d: Message %s: Error: %s: %w", fail.Status, fail.Message, fail.Error, err)
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&success); err != nil {

@@ -17,7 +17,7 @@ func (c *ChatClient) SendChat(ctx context.Context, r adapter.Response) (*SendCha
 
 	body := SendChatBody{
 		BroadcasterID: r.ChannelID,
-		SenderID:      c.Config.Bot.ID,
+		SenderID:      c.Config.BotAccountID,
 		Message:       r.Text,
 	}
 
@@ -29,7 +29,7 @@ func (c *ChatClient) SendChat(ctx context.Context, r adapter.Response) (*SendCha
 	}
 
 	req.Header.Set("Authorization", "Bearer "+c.Auth.Tokens.GetAppAccessToken())
-	req.Header.Set("Client-Id", c.Config.App.ClientID)
+	req.Header.Set("Client-Id", c.Config.ClientID)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.HTTP.Do(req)

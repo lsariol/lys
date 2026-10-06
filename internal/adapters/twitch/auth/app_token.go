@@ -14,8 +14,8 @@ import (
 func (c *AuthClient) RefreshAppAccessToken(ctx context.Context) error {
 
 	vals := url.Values{}
-	vals.Set("client_id", c.Config.App.ClientID)
-	vals.Set("client_secret", c.Config.App.ClientSecret)
+	vals.Set("client_id", c.Config.ClientID)
+	vals.Set("client_secret", c.Config.ClientSecret)
 	vals.Set("grant_type", "client_credentials")
 	urlVals := vals.Encode()
 

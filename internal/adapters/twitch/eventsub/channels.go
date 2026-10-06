@@ -22,7 +22,7 @@ func (c *EventSubClient) JoinAllChannels(ctx context.Context) error {
 			"version": "1",
 			"condition": map[string]string{
 				"broadcaster_user_id": channel.UserID,
-				"user_id":             c.Config.Bot.ID,
+				"user_id":             c.Config.BotAccountID,
 			},
 			"transport": map[string]string{
 				"method":     "websocket",
@@ -37,7 +37,7 @@ func (c *EventSubClient) JoinAllChannels(ctx context.Context) error {
 		}
 
 		req.Header.Set("Authorization", "Bearer "+c.Auth.Tokens.GetUserAccessToken()) // MUST be a user token for WebSocket subs
-		req.Header.Set("Client-Id", c.Config.App.ClientID)
+		req.Header.Set("Client-Id", c.Config.ClientID)
 		req.Header.Set("Content-Type", "application/json")
 
 		resp, err := c.HTTP.Do(req)
@@ -77,7 +77,7 @@ func (c *EventSubClient) Leave(ctx context.Context, targets []string) error {
 		}
 
 		req.Header.Set("Authorization", "Bearer "+c.Auth.Tokens.GetUserAccessToken()) // MUST be a user token for WebSocket subs
-		req.Header.Set("Client-Id", c.Config.App.ClientID)
+		req.Header.Set("Client-Id", c.Config.ClientID)
 
 		resp, err := c.HTTP.Do(req)
 		if err != nil {
