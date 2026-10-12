@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	"github.com/lsariol/coveclient"
@@ -28,28 +27,30 @@ func New(db *twitchdb.Store, cc *coveclient.Client, cfg *config.TwitchConfig, ht
 	}
 }
 
+// Old? Not needed with Cove handling tokens now
 func (c *AuthClient) Initilize(ctx context.Context) error {
 
-	userAccessTokens, err := c.DB.GetUserAccessTokens(ctx)
-	if err != nil {
-		return fmt.Errorf("GetUserAccessTokens: %w", err)
-	}
-	c.Tokens.SetUserAccessTokens(userAccessTokens.UserAccessToken, userAccessTokens.UserRefreshToken)
+	// tokens := c.Config.TokenPair
+	// userAccessTokens, err := c.DB.GetUserAccessTokens(ctx)
+	// if err != nil {
+	// 	return fmt.Errorf("GetUserAccessTokens: %w", err)
+	// }
+	// c.Tokens.SetUserAccessTokens(userAccessTokens.UserAccessToken, userAccessTokens.UserRefreshToken)
 
-	appAccessToken, err := c.GetAppAccessTokens(ctx)
-	if err != nil {
-		return fmt.Errorf("GetAppAccessTokens: %w", err)
-	}
-	c.Tokens.SetAppAccessTokens(appAccessToken.TwitchAppAccessToken)
+	// appAccessToken, err := c.GetAppAccessTokens(ctx)
+	// if err != nil {
+	// 	return fmt.Errorf("GetAppAccessTokens: %w", err)
+	// }
+	// c.Tokens.SetAppAccessTokens(appAccessToken.TwitchAppAccessToken)
 
 	return nil
 }
 
 func (c *AuthClient) Shutdown(ctx context.Context) error {
 
-	if err := c.DB.StoreUserAccessTokens(ctx, c.Tokens.GetUserAccessToken(), c.Tokens.GetUserRefreshToken()); err != nil {
-		return fmt.Errorf("store tokens: %w", err)
-	}
+	// if err := c.DB.StoreUserAccessTokens(ctx, c.Tokens.GetUserAccessToken(), c.Tokens.GetUserRefreshToken()); err != nil {
+	// 	return fmt.Errorf("store tokens: %w", err)
+	// }
 
 	return nil
 }

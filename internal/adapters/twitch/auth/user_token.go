@@ -15,7 +15,7 @@ func (c *AuthClient) RefreshUserAccessToken(ctx context.Context) error {
 	data.Set("client_id", c.Config.ClientID)
 	data.Set("client_secret", c.Config.ClientSecret)
 	data.Set("grant_type", "refresh_token")
-	data.Set("refresh_token", c.Tokens.GetUserRefreshToken())
+	data.Set("refresh_token", c.Config.TokenPair.RefreshToken)
 
 	req, err := http.NewRequest("POST", "https://id.twitch.tv/oauth2/token", strings.NewReader(data.Encode()))
 	if err != nil {
@@ -46,7 +46,8 @@ func (c *AuthClient) RefreshUserAccessToken(ctx context.Context) error {
 
 	c.Tokens.SetUserAccessTokens(success.AccessToken, success.RefreshToken)
 
-	c.DB.StoreUserAccessTokens(ctx, c.Tokens.GetUserAccessToken(), c.Tokens.GetUserRefreshToken())
+	c.updateTokens()
+	//c.DB.StoreUserAccessTokens(ctx, c.Tokens.GetUserAccessToken(), c.Tokens.GetUserRefreshToken())
 
 	return nil
 

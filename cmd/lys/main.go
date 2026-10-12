@@ -33,7 +33,9 @@ func main() {
 		log.Fatalf("Error loading deps: %v", err)
 	}
 
-	runMigrate(*deps, args[1:])
+	if len(args) > 1 {
+		runMigrate(*deps, args[1:])
+	}
 
 	// Create Database Connection
 	if err := deps.DB.Connect(ctx); err != nil {
