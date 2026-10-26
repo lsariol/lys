@@ -3,3 +3,18 @@ A list of things we need for 1.0.0 release
 1) Support Database Migrations
     LOTS of new changes to the database, so we need to track those and implement them at runtime through goose migrations. 
 2) New proposed sql schema added under 'newschema' needs to be looked at and considered before moving on with anything migraiton related. 
+3) Figure out configuration
+4) app acceess and refresh token for bot account lives in cove
+5) Onboarding through website lys.mobasity.com 
+6) Should adapters do anything other than package message and send it to the router? 
+7) Support "events"
+    Events should be 'timed' or 'automatic' things that get passed into the router for routing back to adapters. Think Letterboxd watcher, strava announcements, ect
+8) scheduled messages 
+9) All game tracking
+10) should the bot reply to the specific message it was called from, or just send chat messages to the same channel?
+11) Database rework
+12) backoff/retries on APIs 
+13) Fix the deps object. I dont think thats a good thing to have. 
+14) lys.mobasity.com website
+15) 'onboard' a new bot account. This should be an automated process for the account that the bot will speak through. This should be simple and automated, not built into the normal main.go.
+16) Add health checks
