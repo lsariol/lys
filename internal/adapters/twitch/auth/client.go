@@ -2,24 +2,34 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"sync"
 
 	"github.com/lsariol/coveclient"
-	twitchdb "github.com/lsariol/lys/internal/adapters/twitch/database"
 	"github.com/lsariol/lys/internal/config"
 )
 
+// Cove keys holding the bot account's user token pair.
+const (
+	keyUserAccessToken  = "LYS_TWITCH_ACCESS_TOKEN"
+	keyUserRefreshToken = "LYS_TWITCH_REFRESH_TOKEN"
+)
+
+const tokenURL = "https://id.twitch.tv/oauth2/token"
+
+// AuthClient holds the bot's Twitch tokens and keeps them fresh.
 type AuthClient struct {
-	DB     *twitchdb.Store
 	Cove   *coveclient.Client
 	HTTP   *http.Client
 	Config *config.TwitchConfig
 	Tokens *SafeTwitchTokens
+
+	refreshMu sync.Mutex
 }
 
-func New(db *twitchdb.Store, cc *coveclient.Client, cfg *config.TwitchConfig, http *http.Client) *AuthClient {
+func New(cc *coveclient.Client, cfg *config.TwitchConfig, http *http.Client) *AuthClient {
 	return &AuthClient{
-		DB:     db,
 		Cove:   cc,
 		Config: cfg,
 		HTTP:   http,
@@ -27,30 +37,37 @@ func New(db *twitchdb.Store, cc *coveclient.Client, cfg *config.TwitchConfig, ht
 	}
 }
 
-// Old? Not needed with Cove handling tokens now
+// Initilize loads the bot's user tokens from Cove, refreshes them, checks they
+// belong to the bot account, and fetches an app token.
 func (c *AuthClient) Initilize(ctx context.Context) error {
 
-	// tokens := c.Config.TokenPair
-	// userAccessTokens, err := c.DB.GetUserAccessTokens(ctx)
-	// if err != nil {
-	// 	return fmt.Errorf("GetUserAccessTokens: %w", err)
-	// }
-	// c.Tokens.SetUserAccessTokens(userAccessTokens.UserAccessToken, userAccessTokens.UserRefreshToken)
+	access, err := c.Cove.GetSecret(keyUserAccessToken)
+	if err != nil {
+		return fmt.Errorf("Cove: get %s: %w (store the bot account's user access token there)", keyUserAccessToken, err)
+	}
 
-	// appAccessToken, err := c.GetAppAccessTokens(ctx)
-	// if err != nil {
-	// 	return fmt.Errorf("GetAppAccessTokens: %w", err)
-	// }
-	// c.Tokens.SetAppAccessTokens(appAccessToken.TwitchAppAccessToken)
+	refresh, err := c.Cove.GetSecret(keyUserRefreshToken)
+	if err != nil {
+		return fmt.Errorf("Cove: get %s: %w (store the bot account's refresh token there)", keyUserRefreshToken, err)
+	}
 
-	return nil
-}
+	c.Tokens.SetUserAccessTokens(access, refresh)
 
-func (c *AuthClient) Shutdown(ctx context.Context) error {
+	if err := c.RefreshUserAccessToken(ctx); err != nil {
+		return fmt.Errorf("refresh user access token: %w", err)
+	}
 
-	// if err := c.DB.StoreUserAccessTokens(ctx, c.Tokens.GetUserAccessToken(), c.Tokens.GetUserRefreshToken()); err != nil {
-	// 	return fmt.Errorf("store tokens: %w", err)
-	// }
+	info, err := ValidateToken(c.Tokens.GetUserAccessToken(), c.HTTP)
+	if err != nil {
+		return fmt.Errorf("Twitch: validate user access token: %w", err)
+	}
+	if info.UserId != c.Config.BotAccountID {
+		return fmt.Errorf("Twitch: the tokens in %s belong to %q (%s), not the bot account %s: store the bot account's tokens there", keyUserAccessToken, info.Login, info.UserId, c.Config.BotAccountID)
+	}
+
+	if err := c.RefreshAppAccessToken(ctx); err != nil {
+		return fmt.Errorf("refresh app access token: %w", err)
+	}
 
 	return nil
 }

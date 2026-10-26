@@ -42,7 +42,7 @@ type TwitchClient struct {
 
 func New(http *http.Client, cfg *config.TwitchConfig, cove *coveclient.Client, settingsStore *settings.Store, dbStore *twitchdb.Store, routerSink chan<- adapter.Envelope, rReg *registry.ReadRegister) *TwitchClient {
 
-	auth := auth.New(dbStore, cove, cfg, http)
+	auth := auth.New(cove, cfg, http)
 	es := eventsub.New(http, cfg, auth, dbStore)
 	c := chat.New(http, cfg, auth, dbStore)
 
@@ -87,9 +87,6 @@ func (c *TwitchClient) Run(ctx context.Context) error {
 // Stores any persistant data living in memory, and closes all connections
 func (c *TwitchClient) Shutdown(ctx context.Context) {
 
-	if err := c.Auth.Shutdown(ctx); err != nil {
-		log.Println("Error in Auth shutdown: %w", err)
-	}
 	if err := c.Chat.Shutdown(); err != nil {
 		log.Println("Error in Chat shutdown: %w", err)
 	}

@@ -67,7 +67,9 @@ func (c *ChatClient) Run(ctx context.Context) error {
 				return nil
 			}
 
-			c.DeliverResponse(ctx, response)
+			if err := c.DeliverResponse(ctx, response); err != nil {
+				log.Printf("[Chat] deliver response: %v", err)
+			}
 		}
 	}
 }
@@ -81,6 +83,11 @@ func (c *ChatClient) Shutdown() error {
 // HelixError
 
 func (c *ChatClient) DeliverResponse(ctx context.Context, r adapter.Response) error {
+	return c.deliver(ctx, r, true)
+}
+
+// deliver sends r; on a 401 it refreshes the app token and, if retry is set, tries once more.
+func (c *ChatClient) deliver(ctx context.Context, r adapter.Response, retry bool) error {
 
 	//Replace this with a sophisticated rate limiter
 
@@ -108,6 +115,10 @@ func (c *ChatClient) DeliverResponse(ctx context.Context, r adapter.Response) er
 			log.Println("Bad/expired token, missing user:write:chat scope, client-ID mismatch")
 			log.Printf("401: %s\n", helixErr.Message)
 
+			if !retry {
+				return fmt.Errorf("Twitch: send chat message: 401 with a fresh app token: %s (check the bot's user:write:chat and user:bot scopes and the channel's channel:bot grant)", helixErr.Message)
+			}
+
 			// Refresh App Access Token
 			if err := c.Auth.RefreshAppAccessToken(ctx); err != nil {
 				return fmt.Errorf("refresh app access token: %w", err)
@@ -116,7 +127,7 @@ func (c *ChatClient) DeliverResponse(ctx context.Context, r adapter.Response) er
 			log.Println("Failed to send message. App Access token has been refreshed, attempting again.")
 
 			time.Sleep(time.Second * 1)
-			return c.DeliverResponse(ctx, r)
+			return c.deliver(ctx, r, false)
 
 		// Not permitted to send that (banned)
 		case 403:

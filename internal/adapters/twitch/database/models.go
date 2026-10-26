@@ -15,15 +15,6 @@ type TwitchChannel struct {
 	SubscriptionID string
 }
 
-type TwitchUserAccessTokens struct {
-	UserAccessToken  string
-	UserRefreshToken string
-}
-
-type TwitchAppAccessToken struct {
-	TwitchAppAccessToken string
-}
-
 type TwitchChannelSettings struct {
 	UserID        string
 	Username      string
