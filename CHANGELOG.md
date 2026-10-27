@@ -22,6 +22,7 @@ The first release under the Lys name: a rework of BotSuite.
 - Adding, blocking or unblocking a channel (with `lys channel …` too) takes effect within seconds, without a restart.
 - When Twitch says the bot was banned in a channel, or the channel's account is gone, Lys leaves it and `lys channel list` shows it as revoked; `lys channel add` brings it back.
 - When Twitch revokes the bot account's own authorization, `/health` turns unhealthy and the log says to run `lys bot authorize`.
+- An enrollment API for the website: `POST /channels` adds a channel (the bot joins within seconds) and `DELETE /channels/{platform}/{id}` turns Lys off in it, keeping its settings. It needs the shared token `SHARED_LYS_ENROLLMENT_TOKEN` and is only reachable on the server's internal network.
 
 ### Changed
 - Renamed from BotSuite to Lys: the database, schema, roles, Cove keys and container are all `lys` now.

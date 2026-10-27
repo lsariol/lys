@@ -11,8 +11,9 @@ services:
       COVE_TOKEN: ${LYS_COVE_TOKEN}
       NOTIFICATION_PORT: 2400
       SHARED_LYS_NOTIFICATION_TOKEN: ${SHARED_LYS_NOTIFICATION_TOKEN}
+      SHARED_LYS_ENROLLMENT_TOKEN: ${SHARED_LYS_ENROLLMENT_TOKEN}
     container_name: lys
-    # Only the spark network reaches the inlet (LetterboxdWatcher posts to http://lys:2400).
+    # Only the spark network reaches the inlet and the enrollment API (http://lys:2400).
     expose:
       - "2400"
     healthcheck:

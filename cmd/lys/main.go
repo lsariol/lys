@@ -35,6 +35,7 @@ import (
 	"github.com/lsariol/lys/internal/config"
 	"github.com/lsariol/lys/internal/connections"
 	"github.com/lsariol/lys/internal/database"
+	"github.com/lsariol/lys/internal/enroll"
 	"github.com/lsariol/lys/internal/identity"
 	"github.com/lsariol/lys/internal/router"
 	"github.com/lsariol/lys/internal/scheduler"
@@ -155,7 +156,11 @@ func run(ctx context.Context, cfg *config.Config, cove *coveclient.Client, db *d
 	if port == "" {
 		return errors.New("NOTIFICATION_PORT is not set: set it to the port the HTTP server listens on (2400 in the compose file)")
 	}
-	srv := server.New(":"+port, r.Health, map[string]http.Handler{"POST /notifications": notifications})
+	routes := map[string]http.Handler{"POST /notifications": notifications}
+	for pattern, h := range enroll.New(conns, os.Getenv("SHARED_LYS_ENROLLMENT_TOKEN")).Routes() {
+		routes[pattern] = h
+	}
+	srv := server.New(":"+port, r.Health, routes)
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

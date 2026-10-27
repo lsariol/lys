@@ -126,9 +126,9 @@ func (s *Store) Enroll(ctx context.Context, e Enrollment) (c Connection, created
 
 	err = pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		var id int64
-		var wasAuthorized bool
-		err := tx.QueryRow(ctx, `SELECT id, authorized FROM lys.platform_connections
-			WHERE platform = $1 AND external_id = $2 FOR UPDATE`, e.Platform, e.ExternalID).Scan(&id, &wasAuthorized)
+		var wasAuthorized, wasEnabled bool
+		err := tx.QueryRow(ctx, `SELECT id, authorized, enabled FROM lys.platform_connections
+			WHERE platform = $1 AND external_id = $2 FOR UPDATE`, e.Platform, e.ExternalID).Scan(&id, &wasAuthorized, &wasEnabled)
 
 		switch {
 		case errors.Is(err, pgx.ErrNoRows):
@@ -156,6 +156,11 @@ func (s *Store) Enroll(ctx context.Context, e Enrollment) (c Connection, created
 			}
 			if !wasAuthorized {
 				if err := event(ctx, tx, id, "reauthorized", nil); err != nil {
+					return err
+				}
+			}
+			if !wasEnabled {
+				if err := event(ctx, tx, id, "enabled", nil); err != nil {
 					return err
 				}
 			}
@@ -231,6 +236,40 @@ func (s *Store) SetBlocked(ctx context.Context, id int64, blocked bool, reason s
 	})
 	if err != nil {
 		return fmt.Errorf("database: block channel %d: %w", id, err)
+	}
+	return nil
+}
+
+// Disable records that the channel's owner turned Lys off. Lys leaves; the
+// channel's settings and history stay, and Enroll turns it back on.
+func (s *Store) Disable(ctx context.Context, platform, externalID string) error {
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		var id int64
+		var wasEnabled bool
+		err := tx.QueryRow(ctx, `SELECT id, enabled FROM lys.platform_connections
+			WHERE platform = $1 AND external_id = $2 FOR UPDATE`, platform, externalID).Scan(&id, &wasEnabled)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("%w: %s %q", ErrNotFound, platform, externalID)
+		}
+		if err != nil || !wasEnabled {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `UPDATE lys.platform_connections SET enabled = false WHERE id = $1`, id); err != nil {
+			return err
+		}
+		if err := event(ctx, tx, id, "disabled", nil); err != nil {
+			return err
+		}
+		if platform == "twitch" {
+			// Rollback copy; its trigger logs the revoke.
+			if _, err := tx.Exec(ctx, `UPDATE lys.twitch_channels SET active = false WHERE user_id = $1`, externalID); err != nil {
+				return err
+			}
+		}
+		return notify(ctx, tx, platform)
+	})
+	if err != nil {
+		return fmt.Errorf("database: disable %s channel %q: %w", platform, externalID, err)
 	}
 	return nil
 }
