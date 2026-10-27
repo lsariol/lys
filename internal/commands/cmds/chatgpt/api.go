@@ -13,6 +13,9 @@ import (
 	"github.com/lsariol/lys/internal/app/dependencies"
 )
 
+// responsesURL is OpenAI's Responses endpoint; tests point it at a local server.
+var responsesURL = "https://api.openai.com/v1/responses"
+
 type ChatRequest struct {
 	Model        string              `json:"model"`                  // e.g. "gpt-4o", "gpt-4", "gpt-3.5-turbo", etc.
 	Instructions string              `json:"instructions,omitempty"` // your custom instructions / prompt
@@ -44,17 +47,12 @@ Rules:
 
 	jsonBody, err := json.Marshal(reqBody)
 	if err != nil {
-		return gptResponse, err
+		return gptResponse, fmt.Errorf("OpenAI: encode request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodPost,
-		"https://api.openai.com/v1/responses",
-		bytes.NewReader(jsonBody),
-	)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, responsesURL, bytes.NewReader(jsonBody))
 	if err != nil {
-		panic(err)
+		return gptResponse, fmt.Errorf("OpenAI: new request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -62,15 +60,25 @@ Rules:
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		panic(err)
+		return gptResponse, fmt.Errorf("OpenAI: %w", err)
 	}
 	defer resp.Body.Close()
 
-	bodyBytes, _ := io.ReadAll(resp.Body)
-
-	err = json.Unmarshal(bodyBytes, &gptResponse)
+	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return gptResponse, err
+		return gptResponse, fmt.Errorf("OpenAI: read response: %w", err)
+	}
+
+	if err := json.Unmarshal(bodyBytes, &gptResponse); err != nil {
+		return gptResponse, fmt.Errorf("OpenAI: status %d: decode response: %w", resp.StatusCode, err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		msg := ""
+		if gptResponse.Error != nil {
+			msg = gptResponse.Error.Message
+		}
+		return gptResponse, fmt.Errorf("OpenAI: status %d: %s (a 401 means LYS_OPENAI_API_KEY in Cove is wrong)", resp.StatusCode, msg)
 	}
 
 	return gptResponse, nil
@@ -85,11 +93,11 @@ func callChatGPT(ctx context.Context, e adapter.Envelope, deps *dependencies.Dep
 	}
 
 	for _, output := range gptResponse.Output {
-		if output.Type != "message" {
+		if output.Type != "message" || len(output.Content) == 0 {
 			continue
 		}
 		return output.Content[0].Text, nil
 	}
 
-	return "Weird error. Idk how the code even got here tbh.", nil
+	return "", fmt.Errorf("OpenAI: response has no message (status %q)", gptResponse.Status)
 }
