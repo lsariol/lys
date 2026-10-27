@@ -54,8 +54,8 @@ func Post(chat Activity) scheduler.Handler {
 	}
 }
 
-// Timer posts a channel's message on repeat. The channel's owner and
-// moderators manage them.
+// Timer posts a channel's message on repeat. Only the channel's owner and
+// moderators manage them; the bot's owner gets no say in other channels.
 type Timer struct {
 	jobs Jobs
 	now  func() time.Time
@@ -78,7 +78,7 @@ func (t *Timer) Run(ctx context.Context, e commands.Request) (commands.Reply, er
 	if len(e.Args) == 0 {
 		return commands.Reply{Text: usage}, nil
 	}
-	if !commands.HasPrivilege(e) && !e.User.Roles.Has(core.RoleModerator) {
+	if !commands.IsChannelOwner(e) && !e.User.Roles.Has(core.RoleModerator) {
 		return commands.Reply{Text: "Only the channel's owner and moderators can manage timers."}, nil
 	}
 	if e.Connection.ID == 0 {

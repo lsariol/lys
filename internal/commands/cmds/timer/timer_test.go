@@ -70,6 +70,12 @@ func TestTimer(t *testing.T) {
 	if got := run(0, "add", "30m", "hi"); !strings.Contains(got, "owner and moderators") {
 		t.Fatalf("a viewer added a timer: %q", got)
 	}
+	if reply, _ := tm.Run(context.Background(), commands.Request{
+		Message:    core.Message{Platform: "twitch", Channel: core.Channel{ID: "100"}, User: core.User{ID: "42217464"}},
+		Connection: core.Connection{ID: 9}, Prefix: "!", Args: []string{"add", "30m", "hi"},
+	}); !strings.Contains(reply.Text, "owner and moderators") {
+		t.Fatalf("the bot's owner added a timer in someone else's channel: %q", reply.Text)
+	}
 	if got := run(core.RoleModerator, "list"); got != "This channel has no timers. Add one with !timer add <every> <message>." {
 		t.Errorf("empty list: %q", got)
 	}
