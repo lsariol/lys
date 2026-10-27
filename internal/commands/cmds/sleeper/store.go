@@ -25,7 +25,7 @@ func FindLeagueLinkConflict(leagueID string, channelID string, ctx context.Conte
 	err := deps.DB.Pool.QueryRow(ctx, query, channelID, leagueID).Scan(&link.TwitchChannelID, &link.SleeperLeagueID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, err
+			return nil, nil
 		}
 		return nil, err
 	}

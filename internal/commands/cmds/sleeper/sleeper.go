@@ -59,7 +59,7 @@ func (Sleeper) Execute(ctx context.Context, e adapter.Envelope, deps *dependenci
 	case "highscore":
 		return highscore(ctx, e, deps)
 	case "trades":
-		return adapter.Response{Text: fmt.Sprintf("🏈 Recent trades: %s ↔ noto — Lamb + 2nd for Bijan | Alex ↔ Chris — Andrews for Flowers", e.Args[1])}, nil
+		return trades(e.Args), nil
 	case "whohas":
 		return whohas(ctx, e, deps)
 	case "playoffs":
@@ -69,4 +69,12 @@ func (Sleeper) Execute(ctx context.Context, e adapter.Envelope, deps *dependenci
 		return adapter.Response{Text: "🏈 Invalid command"}, nil
 	}
 
+}
+
+// trades answers "!ff trades <name>"; args includes "trades".
+func trades(args []string) adapter.Response {
+	if len(args) < 2 {
+		return adapter.Response{Text: "🏈 Usage: !ff trades <name>"}
+	}
+	return adapter.Response{Text: fmt.Sprintf("🏈 Recent trades: %s ↔ noto — Lamb + 2nd for Bijan | Alex ↔ Chris — Andrews for Flowers", args[1])}
 }

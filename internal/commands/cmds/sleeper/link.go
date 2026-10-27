@@ -32,8 +32,14 @@ func link(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps) (ada
 		}
 
 		sleeperUsers, err := getPlayersInLeague(league.SleeperLeagueID, ctx, deps)
+		if err != nil {
+			return adapter.Response{Text: "Unable to link user due to an invalid response from the Sleeper API."}, fmt.Errorf("Sleeper: get league users: %w", err)
+		}
 
 		sleeperRosters, err := getRosters(league.SleeperLeagueID, ctx, deps)
+		if err != nil {
+			return adapter.Response{Text: "Unable to link user due to an invalid response from the Sleeper API."}, fmt.Errorf("Sleeper: get league rosters: %w", err)
+		}
 
 		for _, user := range *sleeperUsers {
 			if strings.EqualFold(user.DisplayName, e.Args[2]) {
@@ -58,8 +64,7 @@ func link(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps) (ada
 			}
 		}
 
-		return adapter.Response{Text: "Legit dont know how you got here in the code. Probably check your command syntax or something idk."}, err
-		//err := linkUser(ctx, string(league.ID), e.UserID)
+		return adapter.Response{Text: fmt.Sprintf("No one in the '%s' League with a team goes by '%s' on Sleeper.", league.LeagueName, e.Args[2])}, nil
 
 	case "league":
 
