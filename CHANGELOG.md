@@ -14,6 +14,12 @@ The first release under the Lys name: a rework of BotSuite.
 - `lys channel list`, `lys channel add`, `lys channel block` and `lys channel unblock` manage channels from the command line.
 - `lys bot authorize` signs Lys in as its Twitch bot account and stores the tokens in Cove, replacing the manual token exchange.
 - `lys help` lists every command and guide; `lys help <command>` shows its usage, flags and examples.
+- `!remind <10m|1h30m|2d> <message>` posts a reminder in the same channel later (1 minute to 30 days, up to 10 waiting per person), with `!remind list` and `!remind cancel <id>`.
+- `!timer add <every> <message>` posts a message on repeat (every 5 minutes to 24 hours, up to 10 per channel), for the channel's owner and moderators, with `!timer list` and `!timer remove <id>`.
+- Reminders and timers survive restarts; a failed one is retried with backoff, and two Lys instances never run the same one.
+- Lys announces new Letterboxd diary entries itself, replacing LetterboxdWatcher, with the same wording; the "see other entries" link now opens the member's activity page.
+- Sleeper trades and waiver claims are announced in the league's channel, once each; a league's first check only records what already happened. `!ff alerts` shows which are announced, and `!ff alerts <trades|waivers> <on|off>` changes it.
+- Adding, blocking or unblocking a channel (with `lys channel …` too) takes effect within seconds, without a restart.
 
 ### Changed
 - Renamed from BotSuite to Lys: the database, schema, roles, Cove keys and container are all `lys` now.
