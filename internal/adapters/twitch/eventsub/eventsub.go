@@ -13,8 +13,8 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/lsariol/lys/internal/adapters/twitch/auth"
-	twitchdb "github.com/lsariol/lys/internal/adapters/twitch/database"
 	"github.com/lsariol/lys/internal/config"
+	"github.com/lsariol/lys/internal/core"
 )
 
 // CLI URLS
@@ -33,10 +33,10 @@ const (
 type EventSubClient struct {
 	HTTP        *http.Client
 	WS          *websocket.Conn
-	DB          *twitchdb.Store
+	Directory   core.Directory
 	Config      *config.TwitchConfig
 	Auth        *auth.AuthClient
-	Channels    map[string]twitchdb.TwitchChannel
+	Channels    map[string]Channel // by broadcaster ID
 	SessionData SessionData
 	out         chan EventSubMessage
 
@@ -44,15 +44,22 @@ type EventSubClient struct {
 	connected    atomic.Bool // joined and reading; false while reconnecting
 }
 
-func New(http *http.Client, cfg *config.TwitchConfig, auth *auth.AuthClient, db *twitchdb.Store) *EventSubClient {
+// Channel is a joined broadcaster and its chat subscription.
+type Channel struct {
+	UserID         string
+	Username       string
+	SubscriptionID string
+}
+
+func New(http *http.Client, cfg *config.TwitchConfig, auth *auth.AuthClient, directory core.Directory) *EventSubClient {
 
 	return &EventSubClient{
-		HTTP:     http,
-		Config:   cfg,
-		Auth:     auth,
-		DB:       db,
-		Channels: make(map[string]twitchdb.TwitchChannel),
-		out:      make(chan EventSubMessage, 100),
+		HTTP:      http,
+		Config:    cfg,
+		Auth:      auth,
+		Directory: directory,
+		Channels:  make(map[string]Channel),
+		out:       make(chan EventSubMessage, 100),
 	}
 }
 
@@ -229,12 +236,15 @@ func (c *EventSubClient) ConsumeEvent(ctx context.Context, event EventSubMessage
 
 func (c *EventSubClient) loadChannels(ctx context.Context) error {
 
-	channels, err := c.DB.GetAllChannels(ctx)
+	channels, err := c.Directory.Channels(ctx, "twitch")
 	if err != nil {
-		return fmt.Errorf("get all channels: %w", err)
+		return fmt.Errorf("list channels: %w", err)
 	}
 
-	c.Channels = channels
+	c.Channels = make(map[string]Channel, len(channels))
+	for _, ch := range channels {
+		c.Channels[ch.ID] = Channel{UserID: ch.ID, Username: ch.Name}
+	}
 
 	return nil
 }

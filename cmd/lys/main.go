@@ -14,7 +14,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/lsariol/coveclient"
 	twitchbot "github.com/lsariol/lys/internal/adapters/twitch/bot"
-	twitchdb "github.com/lsariol/lys/internal/adapters/twitch/database"
+	"github.com/lsariol/lys/internal/botaccounts"
 	"github.com/lsariol/lys/internal/channelconfig"
 	"github.com/lsariol/lys/internal/commands"
 	"github.com/lsariol/lys/internal/commands/cmds/catfacts"
@@ -29,7 +29,9 @@ import (
 	"github.com/lsariol/lys/internal/commands/cmds/sleeper"
 	"github.com/lsariol/lys/internal/commands/cmds/uptime"
 	"github.com/lsariol/lys/internal/config"
+	"github.com/lsariol/lys/internal/connections"
 	"github.com/lsariol/lys/internal/database"
+	"github.com/lsariol/lys/internal/identity"
 	"github.com/lsariol/lys/internal/router"
 	"github.com/lsariol/lys/internal/server"
 	"github.com/lsariol/lys/internal/sources"
@@ -103,9 +105,14 @@ func run(ctx context.Context, cfg *config.Config, cove *coveclient.Client, db *d
 		Timeout: 10 * time.Second,
 	}
 
-	twitchStore := twitchdb.NewStore(db.Pool, cfg.Database.ConnectionString)
-	channels := channelconfig.New(twitchStore)
+	conns := connections.New(db.Pool)
+	channels := channelconfig.New(conns)
 	if err := channels.Load(ctx); err != nil {
+		return err
+	}
+
+	bots := botaccounts.New(db.Pool)
+	if err := useBotAccount(ctx, bots, cfg.Twitch); err != nil {
 		return err
 	}
 
@@ -128,8 +135,8 @@ func run(ctx context.Context, cfg *config.Config, cove *coveclient.Client, db *d
 		}
 	}
 
-	r := router.New(registry, channels, workers)
-	r.Add(twitchbot.New(httpClient, cfg.Twitch, cove, twitchStore))
+	r := router.New(registry, channels, identity.New(db.Pool), workers)
+	r.Add(twitchbot.New(httpClient, cfg.Twitch, cove, conns, bots))
 
 	notifications := inlet.New(os.Getenv("SHARED_LYS_NOTIFICATION_TOKEN"))
 
@@ -158,6 +165,22 @@ func run(ctx context.Context, cfg *config.Config, cove *coveclient.Client, db *d
 	}
 
 	return r.Run(ctx)
+}
+
+// useBotAccount points the Twitch config at the default bot account in
+// bot_accounts. Without one, LYS_TWITCH_BOT_ID from Cove is used, and the
+// account is recorded once Twitch confirms its token.
+func useBotAccount(ctx context.Context, bots *botaccounts.Store, cfg *config.TwitchConfig) error {
+	bot, found, err := bots.Default(ctx, twitchbot.Platform)
+	if err != nil || !found {
+		return err
+	}
+	cfg.BotAccountID = bot.ExternalID
+	cfg.AccessTokenKey = bot.AccessTokenKey
+	if bot.RefreshTokenKey != "" {
+		cfg.RefreshTokenKey = bot.RefreshTokenKey
+	}
+	return nil
 }
 
 const migrateUsage = "Usage: lys migrate [status|up]"

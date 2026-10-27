@@ -40,9 +40,10 @@ const panicReply = "Something went wrong running that command."
 
 // Router runs commands for incoming messages and delivers outgoing ones.
 type Router struct {
-	registry *commands.Registry
-	config   core.ChannelConfig
-	workers  int
+	registry   *commands.Registry
+	config     core.ChannelConfig
+	identities core.Identities
+	workers    int
 
 	in       chan core.Message
 	adapters map[string]Adapter
@@ -50,14 +51,15 @@ type Router struct {
 }
 
 // New returns a router that runs up to workers commands at once.
-func New(registry *commands.Registry, config core.ChannelConfig, workers int) *Router {
+func New(registry *commands.Registry, config core.ChannelConfig, identities core.Identities, workers int) *Router {
 	return &Router{
-		registry: registry,
-		config:   config,
-		workers:  max(workers, 1),
-		in:       make(chan core.Message, inboxSize),
-		adapters: make(map[string]Adapter),
-		outboxes: make(map[string]chan core.Outbound),
+		registry:   registry,
+		config:     config,
+		identities: identities,
+		workers:    max(workers, 1),
+		in:         make(chan core.Message, inboxSize),
+		adapters:   make(map[string]Adapter),
+		outboxes:   make(map[string]chan core.Outbound),
 	}
 }
 
@@ -164,6 +166,12 @@ func (r *Router) handle(ctx context.Context, m core.Message) {
 	if !ok {
 		return
 	}
+
+	id, err := r.identities.Resolve(ctx, m.Platform, m.User)
+	if err != nil {
+		log.Printf("[Router] %v; running %q without an identity", err, req.Command)
+	}
+	req.Identity = id
 
 	reply := r.run(ctx, cmd, req)
 	if err := r.Publish(ctx, core.Outbound{Platform: m.Platform, Channel: m.Channel, Text: reply.Text}); err != nil {

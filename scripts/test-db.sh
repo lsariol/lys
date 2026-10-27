@@ -35,12 +35,17 @@ up)
 	docker exec -i "$NAME" psql -U Admin -d postgres -q \
 		-v migrator_password=migrator -v app_password=app -v reader_password=reader \
 		-f - <scripts/db/setup.sql >/dev/null
+	# A second, empty database for the test that migrates step by step.
+	docker exec "$NAME" psql -U Admin -d postgres -q -c "CREATE DATABASE lys_copy_db OWNER lys_owner" >/dev/null
+	docker exec "$NAME" psql -U Admin -d postgres -q -c "GRANT CONNECT ON DATABASE lys_copy_db TO lys_migrator" >/dev/null
+	docker exec "$NAME" psql -U Admin -d lys_copy_db -q -c "CREATE EXTENSION citext" >/dev/null
 	echo "Test database ready on 127.0.0.1:$PORT. Next: eval \"\$(scripts/test-db.sh env)\"" >&2
 	;;
 env)
 	echo "export LYS_TEST_MIGRATOR_DATABASE_URL='postgres://lys_migrator:migrator@127.0.0.1:$PORT/lys_db?sslmode=disable'"
 	echo "export LYS_TEST_DATABASE_URL='postgres://lys_app:app@127.0.0.1:$PORT/lys_db?sslmode=disable'"
 	echo "export LYS_TEST_READER_DATABASE_URL='postgres://lys_reader:reader@127.0.0.1:$PORT/lys_db?sslmode=disable'"
+	echo "export LYS_TEST_COPY_MIGRATOR_DATABASE_URL='postgres://lys_migrator:migrator@127.0.0.1:$PORT/lys_copy_db?sslmode=disable'"
 	;;
 down)
 	docker rm -f "$NAME" >/dev/null

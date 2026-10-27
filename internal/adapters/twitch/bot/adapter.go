@@ -11,8 +11,8 @@ import (
 	"github.com/lsariol/coveclient"
 	"github.com/lsariol/lys/internal/adapters/twitch/auth"
 	"github.com/lsariol/lys/internal/adapters/twitch/chat"
-	twitchdb "github.com/lsariol/lys/internal/adapters/twitch/database"
 	"github.com/lsariol/lys/internal/adapters/twitch/eventsub"
+	"github.com/lsariol/lys/internal/botaccounts"
 	"github.com/lsariol/lys/internal/config"
 	"github.com/lsariol/lys/internal/core"
 )
@@ -20,24 +20,30 @@ import (
 // Platform is the name Twitch messages carry.
 const Platform = "twitch"
 
+// BotAccounts records the bot account once Twitch has confirmed its token.
+type BotAccounts interface {
+	SaveDefault(ctx context.Context, a botaccounts.Account) error
+}
+
 type TwitchClient struct {
 	Chat     *chat.ChatClient
 	EventSub *eventsub.EventSubClient
 	Auth     *auth.AuthClient
 	Config   *config.TwitchConfig
-	DB       *twitchdb.Store
+	Bots     BotAccounts
 }
 
-func New(http *http.Client, cfg *config.TwitchConfig, cove *coveclient.Client, dbStore *twitchdb.Store) *TwitchClient {
+// New returns the Twitch adapter. It joins the channels directory lists for "twitch".
+func New(http *http.Client, cfg *config.TwitchConfig, cove *coveclient.Client, directory core.Directory, bots BotAccounts) *TwitchClient {
 
 	auth := auth.New(cove, cfg, http)
 
 	return &TwitchClient{
 		Chat:     chat.New(http, cfg, auth),
-		EventSub: eventsub.New(http, cfg, auth, dbStore),
+		EventSub: eventsub.New(http, cfg, auth, directory),
 		Auth:     auth,
 		Config:   cfg,
-		DB:       dbStore,
+		Bots:     bots,
 	}
 }
 

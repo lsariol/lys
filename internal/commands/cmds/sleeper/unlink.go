@@ -42,7 +42,7 @@ func unlink(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Repl
 
 	case "league":
 
-		if !commands.HasPrivilege(e.User.ID, e.Channel.ID) {
+		if !commands.HasPrivilege(e) {
 			return commands.Reply{Text: "You do not have privileges to use this command."}, nil
 		}
 

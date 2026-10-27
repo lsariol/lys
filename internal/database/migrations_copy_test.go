@@ -3,18 +3,23 @@ package database
 import (
 	"context"
 	"database/sql"
+	"os"
 	"testing"
 )
 
-// TestIdentityCopy runs before the other tests (file order): it migrates to
-// the baseline, adds old-style rows, then checks 00002 copies them.
+// copyMigratorURL is a second, empty database, so other tests' migrations
+// don't get there first.
+var copyMigratorURL = os.Getenv("LYS_TEST_COPY_MIGRATOR_DATABASE_URL")
+
+// TestIdentityCopy migrates to the baseline, adds old-style rows, then checks
+// 00002 copies them.
 func TestIdentityCopy(t *testing.T) {
-	if migratorURL == "" {
-		t.Skip("LYS_TEST_MIGRATOR_DATABASE_URL isn't set (see scripts/test-db.sh)")
+	if copyMigratorURL == "" {
+		t.Skip("LYS_TEST_COPY_MIGRATOR_DATABASE_URL isn't set (see scripts/test-db.sh)")
 	}
 	ctx := context.Background()
 
-	provider, db, err := newMigrationProvider(ctx, migratorURL)
+	provider, db, err := newMigrationProvider(ctx, copyMigratorURL)
 	if err != nil {
 		t.Fatal(err)
 	}

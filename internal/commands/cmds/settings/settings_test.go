@@ -55,6 +55,11 @@ func TestPrefix(t *testing.T) {
 	if _, err := run(request("42217464", "prefix", "set", "$")); err != nil || cfg.set["twitch:100"] != "$" {
 		t.Errorf("bot owner: err %v, stored %v", err, cfg.set)
 	}
+	broadcaster := request("other-platform-id", "prefix", "set", "%")
+	broadcaster.User.Roles = core.RoleBroadcaster
+	if _, err := run(broadcaster); err != nil || cfg.set["twitch:100"] != "%" {
+		t.Errorf("broadcaster role: err %v, stored %v", err, cfg.set)
+	}
 	if got, _ := run(request("100")); got != "" {
 		t.Errorf("no arguments replied: %q", got)
 	}

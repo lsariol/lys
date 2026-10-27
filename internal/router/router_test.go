@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -67,6 +68,16 @@ func (fakeConfig) Prefix(platform, channelID string) string {
 }
 func (fakeConfig) SetPrefix(context.Context, string, string, string) error { return nil }
 
+// fakeIdentities gives user u1 platform user 11 and account 5; anyone else fails.
+type fakeIdentities struct{}
+
+func (fakeIdentities) Resolve(ctx context.Context, platform string, u core.User) (core.Identity, error) {
+	if u.ID == "u1" {
+		return core.Identity{PlatformUserID: 11, AccountID: 5}, nil
+	}
+	return core.Identity{}, errors.New("unknown user")
+}
+
 // cmd is a command built from a function.
 type cmd struct {
 	spec commands.Spec
@@ -86,7 +97,7 @@ func start(t *testing.T, cmds ...commands.Command) *fakeAdapter {
 			t.Fatal(err)
 		}
 	}
-	r := New(reg, fakeConfig{}, 4)
+	r := New(reg, fakeConfig{}, fakeIdentities{}, 4)
 	a := newFakeAdapter()
 	r.Add(a)
 
@@ -242,9 +253,34 @@ func TestSlowCommandDoesNotBlockOthers(t *testing.T) {
 	}
 }
 
+func TestIdentity(t *testing.T) {
+	who := cmd{
+		spec: commands.Spec{Name: "who"},
+		run: func(ctx context.Context, req commands.Request) (commands.Reply, error) {
+			return commands.Reply{Text: fmt.Sprintf("%d/%d", req.Identity.PlatformUserID, req.Identity.AccountID)}, nil
+		},
+	}
+	a := start(t, who)
+
+	if got := a.say(t, "1", "!who", wait); got != "11/5" {
+		t.Fatalf("identity: got %q", got)
+	}
+
+	// A failed lookup still runs the command, without an identity.
+	a.in <- core.Message{Platform: "fake", Channel: core.Channel{ID: "1"}, User: core.User{ID: "u2"}, Text: "!who"}
+	select {
+	case out := <-a.sent:
+		if out.Text != "0/0" {
+			t.Fatalf("failed lookup: got %q", out.Text)
+		}
+	case <-time.After(wait):
+		t.Fatal("a failed lookup stopped the command")
+	}
+}
+
 func TestPublish(t *testing.T) {
 	reg := commands.NewRegistry()
-	r := New(reg, fakeConfig{}, 1)
+	r := New(reg, fakeConfig{}, fakeIdentities{}, 1)
 	r.Add(newFakeAdapter())
 
 	if err := r.Publish(context.Background(), core.Outbound{Platform: "nope", Text: "x"}); err == nil {
@@ -259,7 +295,7 @@ func TestPublish(t *testing.T) {
 }
 
 func TestAdapterErrorStopsRun(t *testing.T) {
-	r := New(commands.NewRegistry(), fakeConfig{}, 1)
+	r := New(commands.NewRegistry(), fakeConfig{}, fakeIdentities{}, 1)
 	r.Add(failing{})
 	if err := r.Run(context.Background()); err == nil || !strings.Contains(err.Error(), "lost") {
 		t.Fatalf("Run: got %v, want the adapter's error", err)

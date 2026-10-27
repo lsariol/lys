@@ -44,7 +44,7 @@ func (s *Settings) Run(ctx context.Context, e commands.Request) (commands.Reply,
 			return commands.Reply{Text: fmt.Sprintf("Invalid usage of the '%ssettings prefix' command. Usage: '%ssettings prefix set <new_prefix>'.", e.Prefix, e.Prefix)}, nil
 		}
 
-		if !commands.HasPrivilege(e.User.ID, e.Channel.ID) {
+		if !commands.HasPrivilege(e) {
 			return commands.Reply{Text: "You do not have privileges to use this command."}, nil
 		}
 

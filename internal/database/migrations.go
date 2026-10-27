@@ -19,8 +19,12 @@ import (
 //go:embed migrations/*.sql
 var embeddedMigrations embed.FS
 
-// undefinedTable is Postgres's error code for a missing table
-const undefinedTable = "42P01"
+// Postgres error codes.
+const (
+	undefinedTable  = "42P01"
+	uniqueViolation = "23505"
+	duplicateSchema = "42P06"
+)
 
 // migrationsTable is where goose records applied migrations. It lives in the
 // lys schema so everything Lys owns stays in one place.
@@ -106,10 +110,14 @@ func newMigrationProvider(ctx context.Context, connString string) (*goose.Provid
 	}
 
 	// goose creates its version table before running any migration, so the
-	// schema that holds it has to exist first.
+	// schema that holds it has to exist first. Two instances starting at once
+	// can race here; losing that race means the schema exists, which is fine.
 	if _, err := db.ExecContext(ctx, "CREATE SCHEMA IF NOT EXISTS lys"); err != nil {
-		db.Close()
-		return nil, nil, fmt.Errorf("database: prepare migrations with LYS_DATABASE_MIGRATOR_URL: %w", err)
+		var pgErr *pgconn.PgError
+		if !errors.As(err, &pgErr) || (pgErr.Code != uniqueViolation && pgErr.Code != duplicateSchema) {
+			db.Close()
+			return nil, nil, fmt.Errorf("database: prepare migrations with LYS_DATABASE_MIGRATOR_URL: %w", err)
+		}
 	}
 
 	fsys, err := fs.Sub(embeddedMigrations, "migrations")
