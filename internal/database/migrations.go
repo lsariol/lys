@@ -11,17 +11,19 @@ import (
 	"log"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 	"github.com/pressly/goose/v3/lock"
 )
 
+//go:embed migrations/*.sql
 var embeddedMigrations embed.FS
 
-// undefined table is postgres's error code for a missing table
+// undefinedTable is Postgres's error code for a missing table
 const undefinedTable = "42P01"
 
 // migrationsTable is where goose records applied migrations. It lives in the
-// lys schema so everything Lys owns stays in once place
+// lys schema so everything Lys owns stays in one place.
 const migrationsTable = "lys.goose_db_version"
 
 // Migrate applies all pending migrations. connString must log in as the
@@ -79,20 +81,20 @@ func (d *Database) CheckSchemaVersion(ctx context.Context) error {
 		return err
 	}
 
-	const fix = "set LYS_MIGRATE_DATABASE_URL so Lys applies its migrations on startup, or run `lys migrate up`"
+	const fix = "store LYS_DATABASE_MIGRATOR_URL in Cove so Lys applies its migrations on startup, or run `lys migrate up`"
 
 	var have int64
-	const query = `SELECT COALESCE(MAX(version_id), 0) FROM Lys.goose_db_version WHERE is_applied`
+	const query = `SELECT COALESCE(MAX(version_id), 0) FROM lys.goose_db_version WHERE is_applied`
 	if err := d.Pool.QueryRow(ctx, query).Scan(&have); err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == undefinedTable {
-			return fmt.Errorf("the database hasn't been migrated yet: %s", fix)
+			return fmt.Errorf("database: no migrations have been applied yet: %s", fix)
 		}
-		return fmt.Errorf("can't read the database schema version: %w", err)
+		return fmt.Errorf("database: read the schema version: %w", err)
 	}
 
 	if have < want {
-		return fmt.Errorf("the database schema is at version %d, but this version of Lys needs %d: %s", have, want, fix)
+		return fmt.Errorf("database: the schema is at version %d, but this version of Lys needs %d: %s", have, want, fix)
 	}
 	return nil
 }
@@ -122,7 +124,7 @@ func newMigrationProvider(ctx context.Context, connString string) (*goose.Provid
 	// schema that holds it has to exist first.
 	if _, err := db.ExecContext(ctx, "CREATE SCHEMA IF NOT EXISTS lys"); err != nil {
 		db.Close()
-		return nil, nil, fmt.Errorf("prepare migrations with LYS_MIGRATE_DATABASE_URL: %w", err)
+		return nil, nil, fmt.Errorf("database: prepare migrations with LYS_DATABASE_MIGRATOR_URL: %w", err)
 	}
 
 	fsys, err := fs.Sub(embeddedMigrations, "migrations")
@@ -131,7 +133,7 @@ func newMigrationProvider(ctx context.Context, connString string) (*goose.Provid
 		return nil, nil, err
 	}
 
-	// Prevents two Cove instances from migrating at the same time.
+	// Prevents two Lys instances from migrating at the same time.
 	locker, err := lock.NewPostgresSessionLocker()
 	if err != nil {
 		db.Close()

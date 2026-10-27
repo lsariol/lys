@@ -15,15 +15,14 @@ import (
 )
 
 type Deps struct {
-	Config             *config.Config
-	Settings           *settings.Store
-	HTTP               *http.Client
-	Logger             string
-	Cove               *coveclient.Client
-	DB                 *database.Database
-	CTX                context.Context
-	BootTime           time.Time
-	MigrateDatabaseURL string
+	Config   *config.Config
+	Settings *settings.Store
+	HTTP     *http.Client
+	Logger   string
+	Cove     *coveclient.Client
+	DB       *database.Database
+	CTX      context.Context
+	BootTime time.Time
 }
 
 func New(ctx context.Context) *Deps {
@@ -37,8 +36,6 @@ func (d *Deps) Initilize() error {
 	cfg := config.New()
 
 	_ = godotenv.Load(".env")
-
-	d.MigrateDatabaseURL = os.Getenv("LYS_MIGRATE_DATABASE_URL")
 
 	cove := coveclient.New(os.Getenv("COVE_URL"), os.Getenv("COVE_TOKEN"))
 

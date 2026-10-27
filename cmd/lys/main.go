@@ -33,13 +33,31 @@ func main() {
 		log.Fatalf("Error loading deps: %v", err)
 	}
 
-	if len(args) > 1 {
-		runMigrate(*deps, args[1:])
+	migratorURL := deps.Config.Database.MigratorConnectionString
+
+	if len(args) > 0 {
+		if args[0] != "migrate" {
+			fmt.Fprintf(os.Stderr, "! Unknown command %q.\n%s\n", args[0], migrateUsage)
+			os.Exit(1)
+		}
+		os.Exit(runMigrate(ctx, migratorURL, args[1:]))
+	}
+
+	if migratorURL != "" {
+		if err := database.Migrate(ctx, migratorURL); err != nil {
+			log.Fatalf("✗ %v", err)
+		}
+	} else {
+		log.Println("! LYS_DATABASE_MIGRATOR_URL isn't in Cove: skipping migrations")
 	}
 
 	// Create Database Connection
 	if err := deps.DB.Connect(ctx); err != nil {
 		log.Fatal(err)
+	}
+
+	if err := deps.DB.CheckSchemaVersion(ctx); err != nil {
+		log.Fatalf("✗ %v", err)
 	}
 
 	// Create Registry
@@ -103,33 +121,38 @@ func main() {
 
 }
 
-// runMigrate handles `cove migrate [status|up]` using COVE_MIGRATE_DATABASE_URL.
-func runMigrate(deps dependencies.Deps, args []string) {
-	if deps.MigrateDatabaseURL == "" {
-		fmt.Fprintln(os.Stderr, "cove migrate: COVE_MIGRATE_DATABASE_URL is not set. Set it to the cove_migrator connection string.")
-		os.Exit(1)
+const migrateUsage = "Usage: lys migrate [status|up]"
+
+// runMigrate handles `lys migrate [status|up]` with the migrator role and returns the exit code.
+func runMigrate(ctx context.Context, migratorURL string, args []string) int {
+	if len(args) > 1 {
+		fmt.Fprintln(os.Stderr, "! "+migrateUsage)
+		return 1
+	}
+	if migratorURL == "" {
+		fmt.Fprintln(os.Stderr, "✗ lys migrate: LYS_DATABASE_MIGRATOR_URL isn't in Cove. Add the lys_migrator connection string there (cove shell: create LYS_DATABASE_MIGRATOR_URL).")
+		return 1
 	}
 
 	command := "status"
-	if len(args) > 0 {
+	if len(args) == 1 {
 		command = args[0]
 	}
 
-	ctx := context.Background()
 	var err error
-
 	switch command {
 	case "status":
-		err = database.PrintMigrationStatus(ctx, deps.MigrateDatabaseURL, os.Stdout)
+		err = database.PrintMigrationStatus(ctx, migratorURL, os.Stdout)
 	case "up":
-		err = database.Migrate(ctx, deps.MigrateDatabaseURL)
+		err = database.Migrate(ctx, migratorURL)
 	default:
-		fmt.Fprintf(os.Stderr, "cove migrate: unknown command %q. Use \"status\" or \"up\".\n", command)
-		os.Exit(2)
+		fmt.Fprintf(os.Stderr, "! lys migrate: unknown command %q.\n%s\n", command, migrateUsage)
+		return 1
 	}
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "cove migrate: %v\n", err)
-		os.Exit(1)
+		fmt.Fprintf(os.Stderr, "✗ lys migrate: %v\n", err)
+		return 1
 	}
+	return 0
 }
