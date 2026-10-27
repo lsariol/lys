@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/lsariol/lys/internal/connections"
+	"github.com/lsariol/lys/internal/core"
 )
 
 type stubStore struct {
@@ -36,6 +38,21 @@ func (s *stubStore) Disable(ctx context.Context, platform, id string) error {
 	return nil
 }
 
+// stubLookup knows channel 123; channel 500 fails as if the platform were down.
+type stubLookup struct{}
+
+func (stubLookup) Platform() string { return "twitch" }
+
+func (stubLookup) LookupChannel(ctx context.Context, id string) (core.ChannelInfo, error) {
+	switch id {
+	case "123":
+		return core.ChannelInfo{ID: "123", Name: "Streamer", Login: "streamer"}, nil
+	case "500":
+		return core.ChannelInfo{}, errors.New("Twitch: status 503")
+	}
+	return core.ChannelInfo{}, fmt.Errorf("%w: %s", core.ErrNoSuchChannel, id)
+}
+
 func serve(t *testing.T, a *API, method, path, auth, body string) (int, map[string]any) {
 	t.Helper()
 	mux := http.NewServeMux()
@@ -55,31 +72,37 @@ func serve(t *testing.T, a *API, method, path, auth, body string) (int, map[stri
 
 func TestEnroll(t *testing.T) {
 	store := &stubStore{}
-	a := New(store, "secret")
-	const body = `{"platform": "Twitch", "channel_id": "123", "name": "Streamer", "login": "streamer"}`
+	a := New(store, "secret", stubLookup{})
+	const body = `{"platform": "Twitch", "channel_id": "123", "name": "Ignored", "login": "ignored"}`
 
 	for name, tc := range map[string]struct {
 		auth, body string
 		want       int
 	}{
-		"no token":     {"", body, http.StatusUnauthorized},
-		"wrong token":  {"Bearer nope", body, http.StatusUnauthorized},
-		"bad json":     {"Bearer secret", "{", http.StatusBadRequest},
-		"bad platform": {"Bearer secret", `{"platform": "twitch.tv", "channel_id": "1", "name": "x"}`, http.StatusBadRequest},
-		"no channel":   {"Bearer secret", `{"platform": "twitch", "name": "x"}`, http.StatusBadRequest},
-		"no name":      {"Bearer secret", `{"platform": "twitch", "channel_id": "1"}`, http.StatusBadRequest},
+		"no token":       {"", body, http.StatusUnauthorized},
+		"wrong token":    {"Bearer nope", body, http.StatusUnauthorized},
+		"bad json":       {"Bearer secret", "{", http.StatusBadRequest},
+		"bad platform":   {"Bearer secret", `{"platform": "twitch.tv", "channel_id": "123"}`, http.StatusBadRequest},
+		"other platform": {"Bearer secret", `{"platform": "discord", "channel_id": "123"}`, http.StatusBadRequest},
+		"no channel":     {"Bearer secret", `{"platform": "twitch"}`, http.StatusBadRequest},
+		"unknown":        {"Bearer secret", `{"platform": "twitch", "channel_id": "<id>"}`, http.StatusBadRequest},
+		"platform down":  {"Bearer secret", `{"platform": "twitch", "channel_id": "500"}`, http.StatusBadGateway},
 	} {
 		if got, _ := serve(t, a, http.MethodPost, "/channels", tc.auth, tc.body); got != tc.want {
 			t.Errorf("%s: got %d, want %d", name, got, tc.want)
 		}
 	}
+	if len(store.enrolled) != 0 {
+		t.Fatalf("refused requests enrolled %v", store.enrolled)
+	}
 
 	code, out := serve(t, a, http.MethodPost, "/channels", "Bearer secret", body)
-	if code != http.StatusOK || out["created"] != true || out["active"] != true || out["blocked"] != false || out["connection_id"] != float64(5) {
+	if code != http.StatusOK || out["created"] != true || out["active"] != true || out["blocked"] != false ||
+		out["connection_id"] != float64(5) || out["name"] != "Streamer" {
 		t.Fatalf("enroll: %d %v", code, out)
 	}
 	if e := store.enrolled[0]; e.Platform != "twitch" || e.ExternalID != "123" || e.Name != "Streamer" || e.Login != "streamer" {
-		t.Fatalf("stored: %+v", e)
+		t.Fatalf("stored the caller's names, not the platform's: %+v", e)
 	}
 
 	store.blocked = true
@@ -95,7 +118,7 @@ func TestEnroll(t *testing.T) {
 
 func TestDisable(t *testing.T) {
 	store := &stubStore{}
-	a := New(store, "secret")
+	a := New(store, "secret", stubLookup{})
 
 	if code, _ := serve(t, a, http.MethodDelete, "/channels/twitch/123", "", ""); code != http.StatusUnauthorized {
 		t.Fatalf("no token: %d", code)
@@ -109,7 +132,7 @@ func TestDisable(t *testing.T) {
 }
 
 func TestNoToken(t *testing.T) {
-	if code, _ := serve(t, New(&stubStore{}, ""), http.MethodPost, "/channels", "Bearer ", `{}`); code != http.StatusUnauthorized {
+	if code, _ := serve(t, New(&stubStore{}, "", stubLookup{}), http.MethodPost, "/channels", "Bearer ", `{}`); code != http.StatusUnauthorized {
 		t.Fatalf("an API without a token accepted a request: %d", code)
 	}
 }

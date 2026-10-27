@@ -4,6 +4,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"time"
 )
 
@@ -85,6 +86,23 @@ type Directory interface {
 // of the Directory.
 type Revoker interface {
 	Revoke(ctx context.Context, platform, channelID, reason string) error
+}
+
+// ChannelInfo is what a platform says about one of its channels.
+type ChannelInfo struct {
+	ID    string
+	Name  string // display name
+	Login string // the handle, where the platform has one
+}
+
+// ErrNoSuchChannel means the platform has no channel with that ID.
+var ErrNoSuchChannel = errors.New("no such channel on the platform")
+
+// ChannelLookup is an adapter that can confirm a channel exists, by its ID.
+type ChannelLookup interface {
+	Platform() string
+	// LookupChannel returns an error wrapping ErrNoSuchChannel if there's none.
+	LookupChannel(ctx context.Context, id string) (ChannelInfo, error)
 }
 
 // DefaultPrefix is the command prefix for channels that haven't set one.

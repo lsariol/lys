@@ -148,7 +148,8 @@ func run(ctx context.Context, cfg *config.Config, cove *coveclient.Client, db *d
 	}
 
 	r := router.New(registry, channels, identity.New(db.Pool), workers)
-	r.Add(twitchbot.New(httpClient, cfg.Twitch, cove, conns, bots))
+	twitch := twitchbot.New(httpClient, cfg.Twitch, cove, conns, bots)
+	r.Add(twitch)
 
 	notifications := inlet.New(os.Getenv("SHARED_LYS_NOTIFICATION_TOKEN"))
 
@@ -157,7 +158,7 @@ func run(ctx context.Context, cfg *config.Config, cove *coveclient.Client, db *d
 		return errors.New("NOTIFICATION_PORT is not set: set it to the port the HTTP server listens on (2400 in the compose file)")
 	}
 	routes := map[string]http.Handler{"POST /notifications": notifications}
-	for pattern, h := range enroll.New(conns, os.Getenv("SHARED_LYS_ENROLLMENT_TOKEN")).Routes() {
+	for pattern, h := range enroll.New(conns, os.Getenv("SHARED_LYS_ENROLLMENT_TOKEN"), twitch).Routes() {
 		routes[pattern] = h
 	}
 	srv := server.New(":"+port, r.Health, routes)

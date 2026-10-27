@@ -4,9 +4,11 @@ package bot
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/lsariol/coveclient"
 	"github.com/lsariol/lys/internal/adapters/twitch/auth"
@@ -66,6 +68,23 @@ func (c *TwitchClient) Run(ctx context.Context, in chan<- core.Message) error {
 	}
 
 	return c.ingestLoop(ctx, c.EventSub.OutboundEvents(), in)
+}
+
+var _ core.ChannelLookup = (*TwitchClient)(nil)
+
+// LookupChannel confirms a Twitch channel exists, by its broadcaster ID.
+func (c *TwitchClient) LookupChannel(ctx context.Context, id string) (core.ChannelInfo, error) {
+	if id == "" || strings.Trim(id, "0123456789") != "" {
+		return core.ChannelInfo{}, fmt.Errorf("%w: Twitch IDs are numbers, not %q", core.ErrNoSuchChannel, id)
+	}
+	u, err := c.Auth.LookupUserByID(ctx, id)
+	if errors.Is(err, auth.ErrNoUser) {
+		return core.ChannelInfo{}, fmt.Errorf("%w: %w", core.ErrNoSuchChannel, err)
+	}
+	if err != nil {
+		return core.ChannelInfo{}, err
+	}
+	return core.ChannelInfo{ID: u.ID, Name: u.DisplayName, Login: u.Login}, nil
 }
 
 // SyncChannels joins and leaves channels to match the directory.

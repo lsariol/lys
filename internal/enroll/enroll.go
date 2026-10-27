@@ -1,6 +1,7 @@
 // Package enroll is the API the website calls when a channel owner connects
 // Lys or turns it off. The website verifies the owner (OAuth) first; Lys
-// trusts a caller that has the shared enrollment token.
+// trusts a caller that has the shared enrollment token, and takes the
+// channel's names from the platform, not from the caller.
 package enroll
 
 import (
@@ -8,12 +9,14 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"regexp"
 	"strings"
 
 	"github.com/lsariol/lys/internal/connections"
+	"github.com/lsariol/lys/internal/core"
 )
 
 // Store is the part of the connections store the API uses.
@@ -30,16 +33,22 @@ var platformName = regexp.MustCompile(`^[a-z]{2,20}$`)
 
 // API serves POST /channels and DELETE /channels/{platform}/{id}.
 type API struct {
-	store Store
-	token string
+	store   Store
+	token   string
+	lookups map[string]core.ChannelLookup // by platform
 }
 
-// New returns the API. With an empty token it refuses every request.
-func New(store Store, token string) *API {
+// New returns the API for the platforms of lookups. With an empty token it
+// refuses every request.
+func New(store Store, token string, lookups ...core.ChannelLookup) *API {
 	if token == "" {
 		log.Println("! [Enroll] SHARED_LYS_ENROLLMENT_TOKEN is empty: refusing every enrollment")
 	}
-	return &API{store: store, token: token}
+	a := &API{store: store, token: token, lookups: make(map[string]core.ChannelLookup)}
+	for _, l := range lookups {
+		a.lookups[l.Platform()] = l
+	}
+	return a
 }
 
 // Routes are the API's handlers, by pattern, for the HTTP server.
@@ -50,20 +59,19 @@ func (a *API) Routes() map[string]http.Handler {
 	}
 }
 
-// enrollRequest is the body of POST /channels.
+// enrollRequest is the body of POST /channels. The names come from the platform.
 type enrollRequest struct {
 	Platform  string `json:"platform"`
 	ChannelID string `json:"channel_id"`
-	Name      string `json:"name"`  // display name
-	Login     string `json:"login"` // Twitch login; optional
 }
 
 // enrollResponse says what happened, so the website can tell the owner.
 type enrollResponse struct {
-	ConnectionID int64 `json:"connection_id"`
-	Created      bool  `json:"created"` // false: it was known, and is on again
-	Active       bool  `json:"active"`  // Lys joins it within seconds
-	Blocked      bool  `json:"blocked"` // Lys refuses to join it, whatever the owner wants
+	ConnectionID int64  `json:"connection_id"`
+	Name         string `json:"name"`    // as the platform has it
+	Created      bool   `json:"created"` // false: it was known, and is on again
+	Active       bool   `json:"active"`  // Lys joins it within seconds
+	Blocked      bool   `json:"blocked"` // Lys refuses to join it, whatever the owner wants
 }
 
 func (a *API) enroll(w http.ResponseWriter, r *http.Request) {
@@ -74,21 +82,32 @@ func (a *API) enroll(w http.ResponseWriter, r *http.Request) {
 	}
 	req.Platform = strings.ToLower(strings.TrimSpace(req.Platform))
 	req.ChannelID = strings.TrimSpace(req.ChannelID)
-	req.Name = strings.TrimSpace(req.Name)
+	lookup, supported := a.lookups[req.Platform]
 	switch {
 	case !platformName.MatchString(req.Platform):
 		writeError(w, http.StatusBadRequest, "platform must be a name like \"twitch\"")
 		return
+	case !supported:
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("Lys doesn't support the platform %q", req.Platform))
+		return
 	case req.ChannelID == "":
 		writeError(w, http.StatusBadRequest, "channel_id is required")
 		return
-	case req.Name == "":
-		writeError(w, http.StatusBadRequest, "name is required")
+	}
+
+	info, err := lookup.LookupChannel(r.Context(), req.ChannelID)
+	if errors.Is(err, core.ErrNoSuchChannel) {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("%s has no channel with the ID %q", req.Platform, req.ChannelID))
+		return
+	}
+	if err != nil {
+		log.Printf("✗ [Enroll] check %s channel %s: %v", req.Platform, req.ChannelID, err)
+		writeError(w, http.StatusBadGateway, fmt.Sprintf("couldn't check the channel with %s; try again", req.Platform))
 		return
 	}
 
 	c, created, err := a.store.Enroll(r.Context(), connections.Enrollment{
-		Platform: req.Platform, ExternalID: req.ChannelID, Name: req.Name, Login: strings.TrimSpace(req.Login),
+		Platform: req.Platform, ExternalID: info.ID, Name: info.Name, Login: info.Login,
 	})
 	if err != nil {
 		log.Printf("✗ [Enroll] %v", err)
@@ -96,7 +115,7 @@ func (a *API) enroll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("[Enroll] %s channel %q (%s): created %v, blocked %v", c.Platform, c.Name, c.ExternalID, created, c.AdminBlocked)
-	writeJSON(w, http.StatusOK, enrollResponse{ConnectionID: c.ID, Created: created, Active: c.Active(), Blocked: c.AdminBlocked})
+	writeJSON(w, http.StatusOK, enrollResponse{ConnectionID: c.ID, Name: c.Name, Created: created, Active: c.Active(), Blocked: c.AdminBlocked})
 }
 
 func (a *API) disable(w http.ResponseWriter, r *http.Request) {
