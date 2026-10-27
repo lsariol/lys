@@ -83,6 +83,10 @@ func main() {
 		log.Fatalf("✗ %v", err)
 	}
 
+	if err := db.LinkLegacyRows(ctx); err != nil {
+		log.Fatalf("✗ %v", err)
+	}
+
 	if err := run(ctx, cfg, cove, db, started); err != nil {
 		log.Printf("✗ %v", err)
 		db.Close()

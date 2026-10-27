@@ -149,9 +149,32 @@ table feature_requests owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwd
   column platform text not null
   column body text not null
   column status lys.request_status not null default 'new'::lys.request_status
+  column connection_id bigint
+  column platform_user_id bigint
+  constraint feature_requests_connection_id_fkey FOREIGN KEY (connection_id) REFERENCES lys.platform_connections(id) ON DELETE SET NULL
   constraint feature_requests_pkey PRIMARY KEY (id)
+  constraint feature_requests_platform_user_id_fkey FOREIGN KEY (platform_user_id) REFERENCES lys.platform_users(id) ON DELETE SET NULL
   index CREATE INDEX feature_requests_occurred_at_desc_idx ON lys.feature_requests USING btree (occurred_at DESC)
   index CREATE UNIQUE INDEX feature_requests_pkey ON lys.feature_requests USING btree (id)
+table feed_subscriptions owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdDxt/lys_owner lys_reader=r/lys_owner
+  column id bigint not null
+  column kind text not null
+  column feed_url text not null
+  column feed_name text not null
+  column connection_id bigint not null
+  column platform_user_id bigint
+  column last_seen_guid text
+  column last_alerted_at timestamp with time zone
+  column created_at timestamp with time zone not null default now()
+  column updated_at timestamp with time zone not null default now()
+  constraint feed_subscriptions_connection_id_fkey FOREIGN KEY (connection_id) REFERENCES lys.platform_connections(id) ON DELETE CASCADE
+  constraint feed_subscriptions_kind_feed_connection_key UNIQUE (kind, feed_url, connection_id)
+  constraint feed_subscriptions_pkey PRIMARY KEY (id)
+  constraint feed_subscriptions_platform_user_id_fkey FOREIGN KEY (platform_user_id) REFERENCES lys.platform_users(id) ON DELETE SET NULL
+  index CREATE UNIQUE INDEX feed_subscriptions_kind_feed_connection_key ON lys.feed_subscriptions USING btree (kind, feed_url, connection_id)
+  index CREATE UNIQUE INDEX feed_subscriptions_pkey ON lys.feed_subscriptions USING btree (id)
+  index CREATE INDEX feed_subscriptions_user_idx ON lys.feed_subscriptions USING btree (platform_user_id, kind)
+  trigger CREATE TRIGGER feed_subscriptions_set_updated_at BEFORE UPDATE ON lys.feed_subscriptions FOR EACH ROW EXECUTE FUNCTION lys.set_updated_at()
 table game_events owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdDxt/lys_owner lys_reader=r/lys_owner
   column id bigint not null default nextval('lys.game_events_id_seq'::regclass)
   column occurred_at timestamp with time zone not null default now()
@@ -163,9 +186,15 @@ table game_events owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdDxt/l
   column raw_message text not null
   column details jsonb
   column is_flagged boolean not null default false
+  column connection_id bigint
+  column platform_user_id bigint
+  constraint game_events_connection_id_fkey FOREIGN KEY (connection_id) REFERENCES lys.platform_connections(id) ON DELETE SET NULL
   constraint game_events_pkey PRIMARY KEY (id)
+  constraint game_events_platform_user_id_fkey FOREIGN KEY (platform_user_id) REFERENCES lys.platform_users(id) ON DELETE SET NULL
   index CREATE INDEX game_events_oneuppuzzle_channel_time_idx ON lys.game_events USING btree (channel_id, (((details ->> 'time_seconds'::text))::integer)) WHERE ((game_code = 'oneuppuzzle'::text) AND (is_flagged = false))
+  index CREATE INDEX game_events_oneuppuzzle_connection_time_idx ON lys.game_events USING btree (connection_id, (((details ->> 'time_seconds'::text))::integer)) WHERE ((game_code = 'oneuppuzzle'::text) AND (is_flagged = false))
   index CREATE INDEX game_events_oneuppuzzle_user_puzzle_idx ON lys.game_events USING btree (user_id, (((details ->> 'puzzle_id'::text))::integer)) WHERE (game_code = 'oneuppuzzle'::text)
+  index CREATE INDEX game_events_oneuppuzzle_user_puzzle_v2_idx ON lys.game_events USING btree (platform_user_id, (((details ->> 'puzzle_id'::text))::integer)) WHERE (game_code = 'oneuppuzzle'::text)
   index CREATE INDEX game_events_oneuppuzzle_username_idx ON lys.game_events USING btree (username) WHERE ((game_code = 'oneuppuzzle'::text) AND (is_flagged = false))
   index CREATE UNIQUE INDEX game_events_pkey ON lys.game_events USING btree (id)
 table letterboxd_feed_subscriptions owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdDxt/lys_owner lys_reader=r/lys_owner
@@ -232,13 +261,16 @@ table sleeper_connections owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=a
   column created_at timestamp with time zone not null default now()
   column updated_at timestamp with time zone not null default now()
   column twitch_username text
+  column platform_user_id bigint
   constraint sleeper_connections_league_id_fkey FOREIGN KEY (league_id) REFERENCES lys.sleeper_leagues(id) ON DELETE CASCADE
   constraint sleeper_connections_league_id_sleeper_roster_id_key UNIQUE (league_id, sleeper_roster_id)
   constraint sleeper_connections_league_id_twitch_user_id_key UNIQUE (league_id, twitch_user_id)
   constraint sleeper_connections_pkey PRIMARY KEY (id)
+  constraint sleeper_connections_platform_user_id_fkey FOREIGN KEY (platform_user_id) REFERENCES lys.platform_users(id) ON DELETE CASCADE
   index CREATE UNIQUE INDEX sleeper_connections_league_id_sleeper_roster_id_key ON lys.sleeper_connections USING btree (league_id, sleeper_roster_id)
   index CREATE UNIQUE INDEX sleeper_connections_league_id_twitch_user_id_key ON lys.sleeper_connections USING btree (league_id, twitch_user_id)
   index CREATE INDEX sleeper_connections_league_twitch_username_idx ON lys.sleeper_connections USING btree (league_id, lower(twitch_username))
+  index CREATE INDEX sleeper_connections_league_user_idx ON lys.sleeper_connections USING btree (league_id, platform_user_id)
   index CREATE UNIQUE INDEX sleeper_connections_pkey ON lys.sleeper_connections USING btree (id)
 table sleeper_events owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdDxt/lys_owner lys_reader=r/lys_owner
   column id uuid not null default gen_random_uuid()
@@ -268,8 +300,11 @@ table sleeper_leagues owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdD
   column notifications jsonb not null default '{}'::jsonb
   column created_at timestamp with time zone not null default now()
   column updated_at timestamp with time zone not null default now()
+  column community_id bigint
+  constraint sleeper_leagues_community_id_fkey FOREIGN KEY (community_id) REFERENCES lys.communities(id) ON DELETE CASCADE
   constraint sleeper_leagues_pkey PRIMARY KEY (id)
   constraint sleeper_leagues_twitch_channel_id_sleeper_league_id_key UNIQUE (twitch_channel_id, sleeper_league_id)
+  index CREATE INDEX sleeper_leagues_community_idx ON lys.sleeper_leagues USING btree (community_id)
   index CREATE UNIQUE INDEX sleeper_leagues_pkey ON lys.sleeper_leagues USING btree (id)
   index CREATE UNIQUE INDEX sleeper_leagues_twitch_channel_id_sleeper_league_id_key ON lys.sleeper_leagues USING btree (twitch_channel_id, sleeper_league_id)
 table twitch_channel_events owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdDxt/lys_owner lys_reader=r/lys_owner
@@ -325,6 +360,7 @@ sequence bot_accounts_id_seq owner=lys_owner acl=lys_app=rU/lys_owner lys_owner=
 sequence communities_id_seq owner=lys_owner acl=lys_app=rU/lys_owner lys_owner=rwU/lys_owner type=bigint start=1 increment=1 min=1 max=9223372036854775807 cache=1 cycle=f owned_by=communities.id
 sequence connection_events_id_seq owner=lys_owner acl=lys_app=rU/lys_owner lys_owner=rwU/lys_owner type=bigint start=1 increment=1 min=1 max=9223372036854775807 cache=1 cycle=f owned_by=connection_events.id
 sequence feature_requests_id_seq owner=lys_owner acl=lys_app=rU/lys_owner lys_owner=rwU/lys_owner type=bigint start=1 increment=1 min=1 max=9223372036854775807 cache=1 cycle=f owned_by=feature_requests.id
+sequence feed_subscriptions_id_seq owner=lys_owner acl=lys_app=rU/lys_owner lys_owner=rwU/lys_owner type=bigint start=1 increment=1 min=1 max=9223372036854775807 cache=1 cycle=f owned_by=feed_subscriptions.id
 sequence feeds_id_seq owner=lys_owner acl=lys_app=rU/lys_owner lys_owner=rwU/lys_owner type=bigint start=1 increment=1 min=1 max=9223372036854775807 cache=1 cycle=f owned_by=letterboxd_feed_subscriptions.id
 sequence game_events_id_seq owner=lys_owner acl=lys_app=rU/lys_owner lys_owner=rwU/lys_owner type=bigint start=1 increment=1 min=1 max=9223372036854775807 cache=1 cycle=f owned_by=game_events.id
 sequence platform_connections_id_seq owner=lys_owner acl=lys_app=rU/lys_owner lys_owner=rwU/lys_owner type=bigint start=1 increment=1 min=1 max=9223372036854775807 cache=1 cycle=f owned_by=platform_connections.id
