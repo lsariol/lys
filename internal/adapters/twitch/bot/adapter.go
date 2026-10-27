@@ -97,8 +97,6 @@ func (c *TwitchClient) Shutdown(ctx context.Context) {
 		log.Println("Error in Auth shutdown: %w", err)
 	}
 
-	close(c.systemEvents)
-
 }
 
 func (c *TwitchClient) Health(ctx context.Context) adapter.HealthStatus {

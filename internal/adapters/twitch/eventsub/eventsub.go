@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -37,6 +38,8 @@ type EventSubClient struct {
 	Channels    map[string]twitchdb.TwitchChannel
 	SessionData SessionData
 	out         chan EventSubMessage
+
+	shutdownOnce sync.Once
 }
 
 func New(http *http.Client, cfg *config.TwitchConfig, auth *auth.AuthClient, db *twitchdb.Store) *EventSubClient {
@@ -83,16 +86,22 @@ func (c *EventSubClient) Run(ctx context.Context) error {
 	return e
 }
 
+// Shutdown closes the websocket; it's safe to call more than once. The out
+// channel stays open, since the read loop may still be sending on it;
+// readers stop on the context instead.
 func (c *EventSubClient) Shutdown(ctx context.Context) error {
 
-	_ = c.WS.WriteControl(
-		websocket.CloseMessage,
-		websocket.FormatCloseMessage(websocket.CloseNormalClosure, "shutdown"),
-		time.Now().Add(1*time.Second),
-	)
-	_ = c.WS.Close()
-
-	close(c.out)
+	c.shutdownOnce.Do(func() {
+		if c.WS == nil {
+			return
+		}
+		_ = c.WS.WriteControl(
+			websocket.CloseMessage,
+			websocket.FormatCloseMessage(websocket.CloseNormalClosure, "shutdown"),
+			time.Now().Add(1*time.Second),
+		)
+		_ = c.WS.Close()
+	})
 
 	return nil
 }
@@ -114,6 +123,10 @@ func (c *EventSubClient) readLoop(ctx context.Context) error {
 		default:
 			messageType, data, err := c.WS.ReadMessage()
 			if err != nil {
+				// Shutdown closed the socket: stop instead of reconnecting.
+				if ctx.Err() != nil {
+					return nil
+				}
 				if c.resetWebSocket(ctx, EventSubWSURL) {
 					continue
 				}
