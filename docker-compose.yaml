@@ -19,8 +19,6 @@ services:
       timeout: 5s
       start_period: 10s
       retries: 3
-    stdin_open: true
-    tty: true
     restart: unless-stopped
     networks:
       - spark
