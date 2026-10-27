@@ -160,6 +160,19 @@ func run(ctx context.Context, cfg *config.Config, cove *coveclient.Client, db *d
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	// Channel changes (from the CLI too) reach the settings cache and the adapters within seconds.
+	go func() {
+		err := conns.Watch(ctx, 5*time.Minute, func(platform string) {
+			if err := channels.Load(ctx); err != nil {
+				log.Printf("✗ reload channel settings: %v", err)
+			}
+			r.SyncChannels(ctx, platform)
+		})
+		if err != nil && !errors.Is(err, context.Canceled) {
+			log.Printf("✗ watch channel changes: %v", err)
+		}
+	}()
+
 	go func() {
 		if err := srv.Run(ctx); err != nil {
 			log.Printf("✗ server: %v", err)

@@ -28,6 +28,12 @@ type Adapter interface {
 	Healthy() bool
 }
 
+// Syncer is an adapter that can join and leave channels while it runs. An
+// adapter without it picks up channel changes when it next starts.
+type Syncer interface {
+	SyncChannels(ctx context.Context) error
+}
+
 // Queue sizes: past these, new messages are dropped (and logged) rather than
 // blocking the platform or the commands.
 const (
@@ -124,6 +130,21 @@ func (r *Router) Publish(ctx context.Context, out core.Outbound) error {
 		return nil
 	default:
 		return fmt.Errorf("router: the %s outbox is full; dropped a message for %q", out.Platform, out.Channel.Name)
+	}
+}
+
+// SyncChannels tells the platform's adapter (every adapter, for "") that its
+// channel list changed.
+func (r *Router) SyncChannels(ctx context.Context, platform string) {
+	for p, a := range r.adapters {
+		if platform != "" && platform != p {
+			continue
+		}
+		if s, ok := a.(Syncer); ok {
+			if err := s.SyncChannels(ctx); err != nil {
+				log.Printf("[Router] sync %s channels: %v", p, err)
+			}
+		}
 	}
 }
 

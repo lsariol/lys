@@ -166,6 +166,9 @@ func (s *Store) Enroll(ctx context.Context, e Enrollment) (c Connection, created
 				return err
 			}
 		}
+		if err := notify(ctx, tx, e.Platform); err != nil {
+			return err
+		}
 
 		c, err = scan(tx.QueryRow(ctx, selectConnection+` WHERE pc.id = $1`, id))
 		return err
@@ -220,9 +223,11 @@ func (s *Store) SetBlocked(ctx context.Context, id int64, blocked bool, reason s
 
 		if platform == "twitch" {
 			// Rollback copy; its trigger logs the ban or unban.
-			_, err = tx.Exec(ctx, `UPDATE lys.twitch_channels SET banned = $2 WHERE user_id = $1`, externalID, blocked)
+			if _, err := tx.Exec(ctx, `UPDATE lys.twitch_channels SET banned = $2 WHERE user_id = $1`, externalID, blocked); err != nil {
+				return err
+			}
 		}
-		return err
+		return notify(ctx, tx, platform)
 	})
 	if err != nil {
 		return fmt.Errorf("database: block channel %d: %w", id, err)
@@ -244,9 +249,11 @@ func (s *Store) SetPrefix(ctx context.Context, platform, externalID, prefix stri
 		}
 		if platform == "twitch" {
 			// Rollback copy.
-			_, err = tx.Exec(ctx, `UPDATE lys.twitch_settings SET command_prefix = $2 WHERE user_id = $1`, externalID, prefix)
+			if _, err := tx.Exec(ctx, `UPDATE lys.twitch_settings SET command_prefix = $2 WHERE user_id = $1`, externalID, prefix); err != nil {
+				return err
+			}
 		}
-		return err
+		return notify(ctx, tx, platform)
 	})
 	if err != nil {
 		return fmt.Errorf("database: set the prefix of %s channel %q: %w", platform, externalID, err)

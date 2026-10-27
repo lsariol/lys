@@ -36,10 +36,11 @@ type EventSubClient struct {
 	Directory   core.Directory
 	Config      *config.TwitchConfig
 	Auth        *auth.AuthClient
-	Channels    map[string]Channel // by broadcaster ID
+	Channels    map[string]Channel // by broadcaster ID; guarded by mu once running
 	SessionData SessionData
 	out         chan EventSubMessage
 
+	mu           sync.Mutex // guards Channels between the read loop's reconnects and Sync
 	shutdownOnce sync.Once
 	connected    atomic.Bool // joined and reading; false while reconnecting
 }
@@ -241,10 +242,13 @@ func (c *EventSubClient) loadChannels(ctx context.Context) error {
 		return fmt.Errorf("list channels: %w", err)
 	}
 
-	c.Channels = make(map[string]Channel, len(channels))
+	loaded := make(map[string]Channel, len(channels))
 	for _, ch := range channels {
-		c.Channels[ch.ID] = Channel{UserID: ch.ID, Username: ch.Name}
+		loaded[ch.ID] = Channel{UserID: ch.ID, Username: ch.Name}
 	}
+	c.mu.Lock()
+	c.Channels = loaded
+	c.mu.Unlock()
 
 	return nil
 }

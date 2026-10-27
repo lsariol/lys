@@ -50,7 +50,7 @@ func init() {
 			Summary: "Add a Twitch channel by its login, or turn a removed one back on",
 			Usage:   []string{"channel add <login>"},
 			Examples: []Example{
-				{"channel add shylaughhaha", "Add the channel; Lys joins it after a restart."},
+				{"channel add shylaughhaha", "Add the channel; a running Lys joins it within seconds."},
 			},
 			Run: runChannelAdd,
 		},
@@ -198,7 +198,7 @@ func runChannelAdd(ctx context.Context, env *Env, in Input) error {
 		env.Warn("%q is blocked, so Lys won't join it: lys channel unblock %s.", c.Name, c.ExternalID)
 		return nil
 	}
-	env.Warn("Lys joins it after a restart (docker restart lys), and can reply once the broadcaster mods the bot or grants channel:bot. See lys help new-channel.")
+	env.Warn("A running Lys joins it within seconds. It can reply once the broadcaster mods the bot or grants channel:bot; see lys help new-channel.")
 	return nil
 }
 
@@ -224,7 +224,7 @@ func runChannelBlock(ctx context.Context, env *Env, in Input) error {
 	if err := conns.SetBlocked(ctx, c.ID, true, in.Flags["reason"]); err != nil {
 		return err
 	}
-	env.Success("Blocked %q. A running Lys leaves it at its next restart (docker restart lys).", c.Name)
+	env.Success("Blocked %q. A running Lys leaves it within seconds.", c.Name)
 	return nil
 }
 
@@ -247,7 +247,7 @@ func runChannelUnblock(ctx context.Context, env *Env, in Input) error {
 	if err := conns.SetBlocked(ctx, c.ID, false, ""); err != nil {
 		return err
 	}
-	env.Success("Unblocked %q. Lys joins it at its next restart (docker restart lys).", c.Name)
+	env.Success("Unblocked %q. A running Lys joins it within seconds.", c.Name)
 	return nil
 }
 

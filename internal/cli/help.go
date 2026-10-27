@@ -24,8 +24,7 @@ var guides = []guide{
 		Steps: []string{
 			`Add the channel: lys channel add <login>.`,
 			`The broadcaster lets the bot speak: either they make the bot a moderator (/mod <bot>), or they authorize Lys's Twitch app with the channel:bot scope. Without one of these, Twitch refuses the bot's replies.`,
-			`Restart Lys so it joins the channel: docker restart lys.`,
-			`Check: lys channel list shows it as active, and !ping in the channel gets an answer.`,
+			`Check: lys channel list shows it as active, docker logs lys says "joined", and !ping in the channel gets an answer.`,
 		},
 	},
 }

@@ -67,6 +67,11 @@ func (c *TwitchClient) Run(ctx context.Context, in chan<- core.Message) error {
 	return c.ingestLoop(ctx, c.EventSub.OutboundEvents(), in)
 }
 
+// SyncChannels joins and leaves channels to match the directory.
+func (c *TwitchClient) SyncChannels(ctx context.Context) error {
+	return c.EventSub.Sync(ctx)
+}
+
 // Send queues a message for its channel.
 func (c *TwitchClient) Send(ctx context.Context, out core.Outbound) error {
 	return c.Chat.Send(ctx, out)
