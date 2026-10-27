@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 
@@ -130,7 +131,7 @@ func (c *EventSubClient) subscribe(ctx context.Context, broadcasterID string) (s
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusAccepted {
-		return "", fmt.Errorf("Twitch: subscribe: status %s (the bot needs user:read:chat, and the channel must allow it)", resp.Status)
+		return "", subscribeError(resp)
 	}
 	var data EventSubJoinResponse
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
@@ -160,4 +161,28 @@ func (c *EventSubClient) unsubscribe(ctx context.Context, subscriptionID string)
 		return fmt.Errorf("Twitch: unsubscribe: status %s", resp.Status)
 	}
 	return nil
+}
+
+// subscribeError turns a refused subscription into an error with Twitch's
+// reason and, where it's clear, how to fix it.
+func subscribeError(resp *http.Response) error {
+	var body struct {
+		Message string `json:"message"`
+	}
+	reason := "Twitch gave no reason"
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 4<<10)).Decode(&body); err != nil {
+		reason = "unreadable answer: " + err.Error()
+	} else if body.Message != "" {
+		reason = body.Message
+	}
+	hint := ""
+	switch resp.StatusCode {
+	case http.StatusBadRequest:
+		hint = " (check the channel's Twitch ID: lys channel list)"
+	case http.StatusUnauthorized:
+		hint = " (the bot's token isn't valid: run lys bot authorize)"
+	case http.StatusForbidden:
+		hint = " (the bot needs user:read:chat, and the channel must allow it)"
+	}
+	return fmt.Errorf("Twitch: subscribe: status %d: %s%s", resp.StatusCode, reason, hint)
 }
