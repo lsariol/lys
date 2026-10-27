@@ -3,3 +3,6 @@
 *.go  text eol=lf
 *.sql text eol=lf
 *.sh  text eol=lf
+
+# Golden files compare byte for byte.
+internal/database/testdata/*.txt text eol=lf

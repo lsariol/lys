@@ -1,7 +1,7 @@
 #!/bin/sh
 # A throwaway Postgres for the database integration tests, set up with the
-# same scripts/db/setup.sql as sparkdb, so the roles and grants match prod. It keeps no files: removing
-# the container removes its data.
+# same scripts/db/setup.sql as sparkdb, so the roles and grants match prod.
+# It keeps no files: removing the container removes its data.
 #
 #   scripts/test-db.sh up     start it (container lys-testdb, 127.0.0.1:55433)
 #   scripts/test-db.sh down   remove it, with all its data
