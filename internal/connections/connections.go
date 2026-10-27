@@ -21,19 +21,25 @@ import (
 // ErrNotFound means no connection matches.
 var ErrNotFound = errors.New("no such channel")
 
+// ErrAmbiguous means a name matches more than one connection.
+var ErrAmbiguous = errors.New("ambiguous channel name")
+
 // Connection is one community's presence on one platform.
 type Connection struct {
-	ID           int64
-	CommunityID  int64
-	Platform     string
-	ExternalID   string // the platform's ID for the channel
-	Name         string
-	Authorized   bool // the platform still honours the channel's grant
-	Enabled      bool // the owner wants Lys there
-	AdminBlocked bool // Lys refuses to be there
-	BlockReason  string
-	Prefix       string
-	ConnectedAt  time.Time
+	ID          int64
+	CommunityID int64
+	Platform    string
+	ExternalID  string // the platform's ID for the channel
+	Name        string
+	Authorized  bool // the platform still honours the channel's grant
+	// WasAuthorized: it has been authorized at some point; false for channels
+	// only seen in feature data and never added.
+	WasAuthorized bool
+	Enabled       bool // the owner wants Lys there
+	AdminBlocked  bool // Lys refuses to be there
+	BlockReason   string
+	Prefix        string
+	ConnectedAt   time.Time
 }
 
 // Active reports whether Lys should be in the channel.
@@ -57,14 +63,17 @@ func New(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
 const selectConnection = `
 	SELECT pc.id, pc.community_id, pc.platform, pc.external_id, pc.name, pc.authorized, pc.enabled,
-	       pc.admin_blocked, COALESCE(pc.admin_block_reason, ''), COALESCE(cs.command_prefix, '!'), pc.connected_at
+	       pc.admin_blocked, COALESCE(pc.admin_block_reason, ''), COALESCE(cs.command_prefix, '!'), pc.connected_at,
+	       pc.authorized OR EXISTS (SELECT 1 FROM lys.connection_events e WHERE e.connection_id = pc.id
+	           AND (e.event_type IN ('reauthorized', 'authorization_revoked')
+	                OR (e.event_type = 'enrolled' AND COALESCE(e.metadata->>'authorized', 'true') <> 'false')))
 	FROM lys.platform_connections pc
 	LEFT JOIN lys.connection_settings cs ON cs.connection_id = pc.id`
 
 func scan(row pgx.Row) (Connection, error) {
 	var c Connection
 	err := row.Scan(&c.ID, &c.CommunityID, &c.Platform, &c.ExternalID, &c.Name, &c.Authorized, &c.Enabled,
-		&c.AdminBlocked, &c.BlockReason, &c.Prefix, &c.ConnectedAt)
+		&c.AdminBlocked, &c.BlockReason, &c.Prefix, &c.ConnectedAt, &c.WasAuthorized)
 	return c, err
 }
 
@@ -102,19 +111,36 @@ func (s *Store) Channels(ctx context.Context, platform string) ([]core.Channel, 
 	return out, nil
 }
 
-// Find looks a connection up by its platform ID or its name, in any case.
+// Find looks a connection up by its platform ID or, failing that, its name in
+// any case. A name that several connections share is refused: use the ID.
 func (s *Store) Find(ctx context.Context, platform, idOrName string) (Connection, error) {
-	c, err := scan(s.pool.QueryRow(ctx, selectConnection+`
+	rows, err := s.pool.Query(ctx, selectConnection+`
 		WHERE pc.platform = $1 AND (pc.external_id = $2 OR lower(pc.name) = lower($2))
-		ORDER BY pc.external_id = $2 DESC
-		LIMIT 1`, platform, idOrName))
-	if errors.Is(err, pgx.ErrNoRows) {
-		return Connection{}, fmt.Errorf("%w: %s %q", ErrNotFound, platform, idOrName)
-	}
+		ORDER BY pc.external_id = $2 DESC, pc.id`, platform, idOrName)
 	if err != nil {
 		return Connection{}, fmt.Errorf("database: find channel %q: %w", idOrName, err)
 	}
-	return c, nil
+	defer rows.Close()
+	var found []Connection
+	for rows.Next() {
+		c, err := scan(rows)
+		if err != nil {
+			return Connection{}, fmt.Errorf("database: find channel %q: %w", idOrName, err)
+		}
+		found = append(found, c)
+	}
+	if err := rows.Err(); err != nil {
+		return Connection{}, fmt.Errorf("database: find channel %q: %w", idOrName, err)
+	}
+
+	switch {
+	case len(found) == 0:
+		return Connection{}, fmt.Errorf("%w: %s %q", ErrNotFound, platform, idOrName)
+	case found[0].ExternalID == idOrName || len(found) == 1:
+		return found[0], nil
+	default:
+		return Connection{}, fmt.Errorf("%w: %d %s channels are named %q; use the ID from lys channel list", ErrAmbiguous, len(found), platform, idOrName)
+	}
 }
 
 // Enroll adds a channel, or turns an existing one back on. created reports
@@ -193,6 +219,12 @@ func enrollTwitch(ctx context.Context, tx pgx.Tx, id int64, e Enrollment) error 
 		ON CONFLICT (connection_id) DO UPDATE
 			SET broadcaster_login = EXCLUDED.broadcaster_login,
 			    times_joined = lys.twitch_connection_details.times_joined + 1`, id, login); err != nil {
+		return err
+	}
+	// Twitch names are unique at any one time, so another ID holding this name
+	// in the rollback copy is stale (a renamed channel): free the name for this one.
+	if _, err := tx.Exec(ctx, `UPDATE lys.twitch_channels SET username = username || '~' || user_id
+		WHERE username = $2 AND user_id <> $1`, e.ExternalID, e.Name); err != nil {
 		return err
 	}
 	// Rollback copy. Its triggers create the twitch_settings row and log the grant.
