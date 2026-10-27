@@ -27,6 +27,10 @@ The first release under the Lys name: a rework of BotSuite.
 - The bot ignores its own chat messages.
 - Owner-only commands also accept the channel's broadcaster role, not only a matching Twitch ID.
 - `LYS_TWITCH_BOT_ID` is only needed until Lys has recorded its bot account.
+- Games, feature requests, Sleeper leagues and Letterboxd subscriptions are linked to channels and people by Lys's own IDs instead of Twitch IDs and names; existing rows are linked automatically at startup.
+- `!oneup stats <name>` finds people by their current name, and their stats follow them through a rename; fastest and slowest show current names.
+- `!request get` and `!request set` are limited to the bot's owner by Twitch ID instead of by display name.
+- A Sleeper member who changes their Twitch name keeps their link, and is found by their new name.
 
 ### Fixed
 - A command that crashes now replies with an error instead of taking the bot down.
