@@ -2,6 +2,7 @@ schema lys owner=lys_owner acl=lys_app=U/lys_owner lys_owner=UC/lys_owner lys_re
 default privileges for=lys_owner on=S acl=lys_app=rU/lys_owner
 default privileges for=lys_owner on=r acl=lys_app=arwd/lys_owner lys_reader=r/lys_owner
 type channel_action owner=lys_owner enum=grant,revoke,ban,unban
+type connection_event_type owner=lys_owner enum=enrolled,reauthorized,authorization_revoked,enabled,disabled,admin_blocked,admin_unblocked
 type request_status owner=lys_owner enum=new,in_progress,completed,rejected
 function lys.create_twitch_settings_entry() owner=lys_owner
 CREATE OR REPLACE FUNCTION lys.create_twitch_settings_entry()
@@ -60,6 +61,84 @@ BEGIN
 END;
 $function$
 
+function lys.set_updated_at() owner=lys_owner
+CREATE OR REPLACE FUNCTION lys.set_updated_at()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+    NEW.updated_at := now();
+    RETURN NEW;
+END;
+$function$
+
+table account_link_events owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdDxt/lys_owner lys_reader=r/lys_owner
+  column id bigint not null
+  column account_id bigint
+  column platform_user_id bigint
+  column event text not null
+  column occurred_at timestamp with time zone not null default now()
+  constraint account_link_events_account_id_fkey FOREIGN KEY (account_id) REFERENCES lys.accounts(id) ON DELETE SET NULL
+  constraint account_link_events_event_check CHECK ((event = ANY (ARRAY['linked'::text, 'unlinked'::text])))
+  constraint account_link_events_pkey PRIMARY KEY (id)
+  constraint account_link_events_platform_user_id_fkey FOREIGN KEY (platform_user_id) REFERENCES lys.platform_users(id) ON DELETE SET NULL
+  index CREATE UNIQUE INDEX account_link_events_pkey ON lys.account_link_events USING btree (id)
+table accounts owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdDxt/lys_owner lys_reader=r/lys_owner
+  column id bigint not null
+  column display_name text
+  column created_at timestamp with time zone not null default now()
+  column updated_at timestamp with time zone not null default now()
+  constraint accounts_pkey PRIMARY KEY (id)
+  index CREATE UNIQUE INDEX accounts_pkey ON lys.accounts USING btree (id)
+  trigger CREATE TRIGGER accounts_set_updated_at BEFORE UPDATE ON lys.accounts FOR EACH ROW EXECUTE FUNCTION lys.set_updated_at()
+table bot_accounts owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdDxt/lys_owner lys_reader=r/lys_owner
+  column id bigint not null
+  column platform text not null
+  column external_id text not null
+  column login citext not null
+  column access_token_key text not null
+  column refresh_token_key text
+  column scopes text[] not null default '{}'::text[]
+  column is_default boolean not null default false
+  column last_authorized_at timestamp with time zone
+  column created_at timestamp with time zone not null default now()
+  column updated_at timestamp with time zone not null default now()
+  constraint bot_accounts_pkey PRIMARY KEY (id)
+  constraint bot_accounts_platform_external_id_key UNIQUE (platform, external_id)
+  index CREATE UNIQUE INDEX bot_accounts_one_default_idx ON lys.bot_accounts USING btree (platform) WHERE is_default
+  index CREATE UNIQUE INDEX bot_accounts_pkey ON lys.bot_accounts USING btree (id)
+  index CREATE UNIQUE INDEX bot_accounts_platform_external_id_key ON lys.bot_accounts USING btree (platform, external_id)
+  trigger CREATE TRIGGER bot_accounts_set_updated_at BEFORE UPDATE ON lys.bot_accounts FOR EACH ROW EXECUTE FUNCTION lys.set_updated_at()
+table communities owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdDxt/lys_owner lys_reader=r/lys_owner
+  column id bigint not null
+  column name text not null
+  column owner_account_id bigint
+  column created_at timestamp with time zone not null default now()
+  column updated_at timestamp with time zone not null default now()
+  constraint communities_owner_account_id_fkey FOREIGN KEY (owner_account_id) REFERENCES lys.accounts(id) ON DELETE SET NULL
+  constraint communities_pkey PRIMARY KEY (id)
+  index CREATE UNIQUE INDEX communities_pkey ON lys.communities USING btree (id)
+  trigger CREATE TRIGGER communities_set_updated_at BEFORE UPDATE ON lys.communities FOR EACH ROW EXECUTE FUNCTION lys.set_updated_at()
+table connection_events owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdDxt/lys_owner lys_reader=r/lys_owner
+  column id bigint not null
+  column connection_id bigint
+  column event_type lys.connection_event_type not null
+  column metadata jsonb not null default '{}'::jsonb
+  column occurred_at timestamp with time zone not null default now()
+  constraint connection_events_connection_id_fkey FOREIGN KEY (connection_id) REFERENCES lys.platform_connections(id) ON DELETE SET NULL
+  constraint connection_events_pkey PRIMARY KEY (id)
+  index CREATE INDEX connection_events_connection_idx ON lys.connection_events USING btree (connection_id, occurred_at DESC)
+  index CREATE UNIQUE INDEX connection_events_pkey ON lys.connection_events USING btree (id)
+table connection_settings owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdDxt/lys_owner lys_reader=r/lys_owner
+  column connection_id bigint not null
+  column command_prefix text not null default '!'::text
+  column created_at timestamp with time zone not null default now()
+  column updated_at timestamp with time zone not null default now()
+  constraint connection_settings_command_prefix_check CHECK (((char_length(command_prefix) >= 1) AND (char_length(command_prefix) <= 10)))
+  constraint connection_settings_connection_id_fkey FOREIGN KEY (connection_id) REFERENCES lys.platform_connections(id) ON DELETE CASCADE
+  constraint connection_settings_pkey PRIMARY KEY (connection_id)
+  index CREATE UNIQUE INDEX connection_settings_pkey ON lys.connection_settings USING btree (connection_id)
+  trigger CREATE TRIGGER connection_settings_set_updated_at BEFORE UPDATE ON lys.connection_settings FOR EACH ROW EXECUTE FUNCTION lys.set_updated_at()
 table feature_requests owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdDxt/lys_owner lys_reader=r/lys_owner
   column id bigint not null default nextval('lys.feature_requests_id_seq'::regclass)
   column occurred_at timestamp with time zone not null default now()
@@ -105,6 +184,44 @@ table letterboxd_feed_subscriptions owner=lys_owner acl=lys_app=arwd/lys_owner l
   index CREATE UNIQUE INDEX feeds_feed_url_key ON lys.letterboxd_feed_subscriptions USING btree (feed_url)
   index CREATE UNIQUE INDEX feeds_pkey ON lys.letterboxd_feed_subscriptions USING btree (id)
   index CREATE UNIQUE INDEX feeds_user_id_letterboxd_username_key ON lys.letterboxd_feed_subscriptions USING btree (user_id, letterboxd_username)
+table platform_connections owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdDxt/lys_owner lys_reader=r/lys_owner
+  column id bigint not null
+  column community_id bigint not null
+  column platform text not null
+  column external_id text not null
+  column name text not null
+  column authorized boolean not null default true
+  column enabled boolean not null default true
+  column admin_blocked boolean not null default false
+  column admin_block_reason text
+  column connected_at timestamp with time zone not null default now()
+  column created_at timestamp with time zone not null default now()
+  column updated_at timestamp with time zone not null default now()
+  constraint platform_connections_block_reason_chk CHECK ((admin_blocked OR (admin_block_reason IS NULL)))
+  constraint platform_connections_community_id_fkey FOREIGN KEY (community_id) REFERENCES lys.communities(id) ON DELETE CASCADE
+  constraint platform_connections_pkey PRIMARY KEY (id)
+  constraint platform_connections_platform_external_id_key UNIQUE (platform, external_id)
+  index CREATE INDEX platform_connections_active_idx ON lys.platform_connections USING btree (platform) WHERE (authorized AND enabled AND (NOT admin_blocked))
+  index CREATE UNIQUE INDEX platform_connections_pkey ON lys.platform_connections USING btree (id)
+  index CREATE UNIQUE INDEX platform_connections_platform_external_id_key ON lys.platform_connections USING btree (platform, external_id)
+  trigger CREATE TRIGGER platform_connections_set_updated_at BEFORE UPDATE ON lys.platform_connections FOR EACH ROW EXECUTE FUNCTION lys.set_updated_at()
+table platform_users owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdDxt/lys_owner lys_reader=r/lys_owner
+  column id bigint not null
+  column platform text not null
+  column external_id text not null
+  column display_name text
+  column account_id bigint
+  column first_seen_at timestamp with time zone not null default now()
+  column last_seen_at timestamp with time zone not null default now()
+  column created_at timestamp with time zone not null default now()
+  column updated_at timestamp with time zone not null default now()
+  constraint platform_users_account_id_fkey FOREIGN KEY (account_id) REFERENCES lys.accounts(id) ON DELETE SET NULL
+  constraint platform_users_pkey PRIMARY KEY (id)
+  constraint platform_users_platform_external_id_key UNIQUE (platform, external_id)
+  index CREATE INDEX platform_users_account_id_idx ON lys.platform_users USING btree (account_id) WHERE (account_id IS NOT NULL)
+  index CREATE UNIQUE INDEX platform_users_pkey ON lys.platform_users USING btree (id)
+  index CREATE UNIQUE INDEX platform_users_platform_external_id_key ON lys.platform_users USING btree (platform, external_id)
+  trigger CREATE TRIGGER platform_users_set_updated_at BEFORE UPDATE ON lys.platform_users FOR EACH ROW EXECUTE FUNCTION lys.set_updated_at()
 table sleeper_connections owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdDxt/lys_owner lys_reader=r/lys_owner
   column id uuid not null default gen_random_uuid()
   column league_id uuid not null
@@ -183,6 +300,17 @@ table twitch_channels owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdD
   trigger CREATE TRIGGER twitch_channels_after_insert AFTER INSERT ON lys.twitch_channels FOR EACH ROW EXECUTE FUNCTION lys.create_twitch_settings_entry()
   trigger CREATE TRIGGER twitch_channels_after_insert_log AFTER INSERT ON lys.twitch_channels FOR EACH ROW EXECUTE FUNCTION lys.log_twitch_channel_changes()
   trigger CREATE TRIGGER twitch_channels_after_update_log AFTER UPDATE OF active, banned ON lys.twitch_channels FOR EACH ROW WHEN (((old.active IS DISTINCT FROM new.active) OR (old.banned IS DISTINCT FROM new.banned))) EXECUTE FUNCTION lys.log_twitch_channel_changes()
+table twitch_connection_details owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdDxt/lys_owner lys_reader=r/lys_owner
+  column connection_id bigint not null
+  column broadcaster_login citext not null
+  column bot_is_moderator boolean not null default false
+  column times_joined integer not null default 1
+  column created_at timestamp with time zone not null default now()
+  column updated_at timestamp with time zone not null default now()
+  constraint twitch_connection_details_connection_id_fkey FOREIGN KEY (connection_id) REFERENCES lys.platform_connections(id) ON DELETE CASCADE
+  constraint twitch_connection_details_pkey PRIMARY KEY (connection_id)
+  index CREATE UNIQUE INDEX twitch_connection_details_pkey ON lys.twitch_connection_details USING btree (connection_id)
+  trigger CREATE TRIGGER twitch_connection_details_set_updated_at BEFORE UPDATE ON lys.twitch_connection_details FOR EACH ROW EXECUTE FUNCTION lys.set_updated_at()
 table twitch_settings owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdDxt/lys_owner lys_reader=r/lys_owner
   column user_id text not null
   column command_prefix text not null default '!'::text
@@ -191,6 +319,13 @@ table twitch_settings owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdD
   constraint twitch_settings_pkey PRIMARY KEY (user_id)
   constraint twitch_settings_user_id_fkey FOREIGN KEY (user_id) REFERENCES lys.twitch_channels(user_id) ON DELETE CASCADE
   index CREATE UNIQUE INDEX twitch_settings_pkey ON lys.twitch_settings USING btree (user_id)
+sequence account_link_events_id_seq owner=lys_owner acl=lys_app=rU/lys_owner lys_owner=rwU/lys_owner type=bigint start=1 increment=1 min=1 max=9223372036854775807 cache=1 cycle=f owned_by=account_link_events.id
+sequence accounts_id_seq owner=lys_owner acl=lys_app=rU/lys_owner lys_owner=rwU/lys_owner type=bigint start=1 increment=1 min=1 max=9223372036854775807 cache=1 cycle=f owned_by=accounts.id
+sequence bot_accounts_id_seq owner=lys_owner acl=lys_app=rU/lys_owner lys_owner=rwU/lys_owner type=bigint start=1 increment=1 min=1 max=9223372036854775807 cache=1 cycle=f owned_by=bot_accounts.id
+sequence communities_id_seq owner=lys_owner acl=lys_app=rU/lys_owner lys_owner=rwU/lys_owner type=bigint start=1 increment=1 min=1 max=9223372036854775807 cache=1 cycle=f owned_by=communities.id
+sequence connection_events_id_seq owner=lys_owner acl=lys_app=rU/lys_owner lys_owner=rwU/lys_owner type=bigint start=1 increment=1 min=1 max=9223372036854775807 cache=1 cycle=f owned_by=connection_events.id
 sequence feature_requests_id_seq owner=lys_owner acl=lys_app=rU/lys_owner lys_owner=rwU/lys_owner type=bigint start=1 increment=1 min=1 max=9223372036854775807 cache=1 cycle=f owned_by=feature_requests.id
 sequence feeds_id_seq owner=lys_owner acl=lys_app=rU/lys_owner lys_owner=rwU/lys_owner type=bigint start=1 increment=1 min=1 max=9223372036854775807 cache=1 cycle=f owned_by=letterboxd_feed_subscriptions.id
 sequence game_events_id_seq owner=lys_owner acl=lys_app=rU/lys_owner lys_owner=rwU/lys_owner type=bigint start=1 increment=1 min=1 max=9223372036854775807 cache=1 cycle=f owned_by=game_events.id
+sequence platform_connections_id_seq owner=lys_owner acl=lys_app=rU/lys_owner lys_owner=rwU/lys_owner type=bigint start=1 increment=1 min=1 max=9223372036854775807 cache=1 cycle=f owned_by=platform_connections.id
+sequence platform_users_id_seq owner=lys_owner acl=lys_app=rU/lys_owner lys_owner=rwU/lys_owner type=bigint start=1 increment=1 min=1 max=9223372036854775807 cache=1 cycle=f owned_by=platform_users.id
