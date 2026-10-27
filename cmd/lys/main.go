@@ -56,7 +56,10 @@ func main() {
 		os.Exit(cli.Run(ctx, cli.NewEnv(cliServices()), args))
 	}
 
-	cove := coveclient.New(os.Getenv("COVE_URL"), os.Getenv("COVE_TOKEN"))
+	cove, err := newCove()
+	if err != nil {
+		log.Fatalf("✗ %v", err)
+	}
 	cfg := config.New()
 	if err := cfg.Initilize(cove); err != nil {
 		log.Fatalf("✗ initilize config: %v", err)
@@ -179,6 +182,15 @@ func useBotAccount(ctx context.Context, bots *botaccounts.Store, cfg *config.Twi
 	return nil
 }
 
+// newCove connects to Cove with COVE_URL and COVE_TOKEN.
+func newCove() (*coveclient.Client, error) {
+	url, token := os.Getenv("COVE_URL"), os.Getenv("COVE_TOKEN")
+	if url == "" || token == "" {
+		return nil, errors.New("Cove: COVE_URL and COVE_TOKEN must be set (the compose file sets them; for a local run, put them in .env)")
+	}
+	return coveclient.New(url, token), nil
+}
+
 // cliServices loads Cove, the config and the database for CLI commands, once
 // and only when a command first needs them.
 func cliServices() func(ctx context.Context) (*cli.Services, error) {
@@ -189,7 +201,10 @@ func cliServices() func(ctx context.Context) (*cli.Services, error) {
 	)
 	return func(ctx context.Context) (*cli.Services, error) {
 		once.Do(func() {
-			cove := coveclient.New(os.Getenv("COVE_URL"), os.Getenv("COVE_TOKEN"))
+			var cove *coveclient.Client
+			if cove, err = newCove(); err != nil {
+				return
+			}
 			cfg := config.New()
 			if err = cfg.Initilize(cove); err != nil {
 				err = fmt.Errorf("initilize config: %w", err)
