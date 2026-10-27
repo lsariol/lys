@@ -41,6 +41,7 @@ import (
 	"github.com/lsariol/lys/internal/server"
 	"github.com/lsariol/lys/internal/sources"
 	"github.com/lsariol/lys/internal/sources/inlet"
+	letterboxdfeeds "github.com/lsariol/lys/internal/sources/letterboxd"
 )
 
 // workers is how many commands may run at once.
@@ -171,7 +172,7 @@ func run(ctx context.Context, cfg *config.Config, cove *coveclient.Client, db *d
 		timer.Kind:  scheduler.SendMessage,
 	})
 
-	for _, s := range []sources.Source{notifications, schedule} {
+	for _, s := range []sources.Source{notifications, schedule, letterboxdfeeds.New(db.Pool, httpClient)} {
 		go func() {
 			if err := s.Run(ctx, r); err != nil && !errors.Is(err, context.Canceled) {
 				log.Printf("✗ source %q: %v", s.Name(), err)
