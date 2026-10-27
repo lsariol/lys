@@ -26,15 +26,18 @@ import (
 	"github.com/lsariol/lys/internal/commands/cmds/oneuppuzzle"
 	"github.com/lsariol/lys/internal/commands/cmds/ping"
 	"github.com/lsariol/lys/internal/commands/cmds/randomdog"
+	"github.com/lsariol/lys/internal/commands/cmds/remind"
 	"github.com/lsariol/lys/internal/commands/cmds/request"
 	"github.com/lsariol/lys/internal/commands/cmds/settings"
 	"github.com/lsariol/lys/internal/commands/cmds/sleeper"
+	"github.com/lsariol/lys/internal/commands/cmds/timer"
 	"github.com/lsariol/lys/internal/commands/cmds/uptime"
 	"github.com/lsariol/lys/internal/config"
 	"github.com/lsariol/lys/internal/connections"
 	"github.com/lsariol/lys/internal/database"
 	"github.com/lsariol/lys/internal/identity"
 	"github.com/lsariol/lys/internal/router"
+	"github.com/lsariol/lys/internal/scheduler"
 	"github.com/lsariol/lys/internal/server"
 	"github.com/lsariol/lys/internal/sources"
 	"github.com/lsariol/lys/internal/sources/inlet"
@@ -119,6 +122,8 @@ func run(ctx context.Context, cfg *config.Config, cove *coveclient.Client, db *d
 		return err
 	}
 
+	jobs := scheduler.NewStore(db.Pool)
+
 	registry := commands.NewRegistry()
 	for _, c := range []commands.Command{
 		catfacts.New(httpClient),
@@ -128,9 +133,11 @@ func run(ctx context.Context, cfg *config.Config, cove *coveclient.Client, db *d
 		oneuppuzzle.New(db.Pool),
 		ping.New(httpClient),
 		randomdog.New(httpClient),
+		remind.New(jobs),
 		request.New(request.NewStore(db.Pool)),
 		settings.New(channels),
 		sleeper.New(httpClient, db.Pool),
+		timer.New(jobs),
 		uptime.New(started),
 	} {
 		if err := registry.Register(c); err != nil {
@@ -159,7 +166,12 @@ func run(ctx context.Context, cfg *config.Config, cove *coveclient.Client, db *d
 		}
 	}()
 
-	for _, s := range []sources.Source{notifications} {
+	schedule := scheduler.New(jobs, map[string]scheduler.Handler{
+		remind.Kind: scheduler.SendMessage,
+		timer.Kind:  scheduler.SendMessage,
+	})
+
+	for _, s := range []sources.Source{notifications, schedule} {
 		go func() {
 			if err := s.Run(ctx, r); err != nil && !errors.Is(err, context.Canceled) {
 				log.Printf("✗ source %q: %v", s.Name(), err)
