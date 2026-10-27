@@ -70,6 +70,8 @@ func (sl *Sleeper) Run(ctx context.Context, e commands.Request) (commands.Reply,
 		return trades(e.Args), nil
 	case "whohas":
 		return whohas(ctx, e, sl)
+	case "alerts":
+		return alerts(ctx, e, sl)
 	case "playoffs":
 		return playoffs(ctx, e, sl)
 
