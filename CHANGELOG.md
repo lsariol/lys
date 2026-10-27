@@ -10,6 +10,10 @@ The first release under the Lys name: a rework of BotSuite.
 - `lys migrate status` lists the migrations and when each was applied; `lys migrate up` applies any that are pending.
 - `!help` lists the commands, and `!help <command>` describes one.
 - `/health` reports whether Twitch is connected, and answers 503 while it isn't, so Docker shows Lys as unhealthy.
+- Channels, the people who use commands, and the bot account are stored platform-neutrally (communities, connections, platform users, bot accounts), ready for more platforms and for linking accounts on the website. Existing channels, prefixes and users are copied in; the old tables are kept and still written.
+- `lys channel list`, `lys channel add`, `lys channel block` and `lys channel unblock` manage channels from the command line.
+- `lys bot authorize` signs Lys in as its Twitch bot account and stores the tokens in Cove, replacing the manual token exchange.
+- `lys help` lists every command and guide; `lys help <command>` shows its usage, flags and examples.
 
 ### Changed
 - Renamed from BotSuite to Lys: the database, schema, roles, Cove keys and container are all `lys` now.
@@ -21,6 +25,8 @@ The first release under the Lys name: a rework of BotSuite.
 - Replies are paced per channel, one every 1.5 seconds, instead of one per second across every channel.
 - The notification inlet only accepts requests with the shared token (`SHARED_LYS_NOTIFICATION_TOKEN`), and its port is no longer published on the server: only services on the `spark` network reach it.
 - The bot ignores its own chat messages.
+- Owner-only commands also accept the channel's broadcaster role, not only a matching Twitch ID.
+- `LYS_TWITCH_BOT_ID` is only needed until Lys has recorded its bot account.
 
 ### Fixed
 - A command that crashes now replies with an error instead of taking the bot down.
@@ -35,3 +41,4 @@ The first release under the Lys name: a rework of BotSuite.
 - When Twitch asks the bot to move to a new connection and that fails, the bot opens a fresh connection instead of crashing.
 - A failed connection to Twitch at startup reports the error instead of crashing.
 - A channel without a settings row no longer stops the bot from starting; it uses the `!` prefix.
+- Two Lys instances starting at once no longer fail while preparing migrations.
