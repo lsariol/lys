@@ -311,3 +311,38 @@ func (failing) Platform() string                               { return "failing
 func (failing) Healthy() bool                                  { return false }
 func (failing) Run(context.Context, chan<- core.Message) error { return errors.New("connection lost") }
 func (failing) Send(context.Context, core.Outbound) error      { return nil }
+
+type seen struct{ texts chan string }
+
+func (s seen) Observe(m core.Message) { s.texts <- m.Text }
+
+func TestObserverSeesEveryMessage(t *testing.T) {
+	reg := commands.NewRegistry()
+	if err := reg.Register(echo()); err != nil {
+		t.Fatal(err)
+	}
+	r := New(reg, fakeConfig{}, fakeIdentities{}, 2)
+	a := newFakeAdapter()
+	r.Add(a)
+	obs := seen{texts: make(chan string, 4)}
+	r.Observe(obs)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() { _ = r.Run(ctx) }()
+
+	a.say(t, "1", "just chatting", 50*time.Millisecond)
+	if got := a.say(t, "1", "!echo hi", wait); got != "echo:hi:!" {
+		t.Fatalf("command: %q", got)
+	}
+	for _, want := range []string{"just chatting", "!echo hi"} {
+		select {
+		case got := <-obs.texts:
+			if got != want {
+				t.Errorf("observed %q, want %q", got, want)
+			}
+		case <-time.After(wait):
+			t.Fatalf("didn't observe %q", want)
+		}
+	}
+}

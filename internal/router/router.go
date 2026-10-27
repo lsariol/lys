@@ -34,6 +34,12 @@ type Syncer interface {
 	SyncChannels(ctx context.Context) error
 }
 
+// Observer sees every incoming message, command or not, before it's handled.
+// It runs on the router's workers, so it must be quick and safe for concurrent use.
+type Observer interface {
+	Observe(m core.Message)
+}
+
 // Queue sizes: past these, new messages are dropped (and logged) rather than
 // blocking the platform or the commands.
 const (
@@ -51,9 +57,10 @@ type Router struct {
 	identities core.Identities
 	workers    int
 
-	in       chan core.Message
-	adapters map[string]Adapter
-	outboxes map[string]chan core.Outbound
+	in        chan core.Message
+	adapters  map[string]Adapter
+	outboxes  map[string]chan core.Outbound
+	observers []Observer
 }
 
 // New returns a router that runs up to workers commands at once.
@@ -73,6 +80,11 @@ func New(registry *commands.Registry, config core.ChannelConfig, identities core
 func (r *Router) Add(a Adapter) {
 	r.adapters[a.Platform()] = a
 	r.outboxes[a.Platform()] = make(chan core.Outbound, outboxSize)
+}
+
+// Observe adds an observer of every incoming message; call it before Run.
+func (r *Router) Observe(o Observer) {
+	r.observers = append(r.observers, o)
 }
 
 // Run starts the adapters, the workers and the outboxes, and blocks until ctx
@@ -183,6 +195,9 @@ func (r *Router) deliver(ctx context.Context, a Adapter, box <-chan core.Outboun
 
 // handle runs the command a message calls, if any, and queues its reply.
 func (r *Router) handle(ctx context.Context, m core.Message) {
+	for _, o := range r.observers {
+		o.Observe(m)
+	}
 	cmd, req, ok := r.match(m)
 	if !ok {
 		return

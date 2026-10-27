@@ -14,6 +14,7 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/lsariol/coveclient"
+	"github.com/lsariol/lys/internal/activity"
 	twitchbot "github.com/lsariol/lys/internal/adapters/twitch/bot"
 	"github.com/lsariol/lys/internal/botaccounts"
 	"github.com/lsariol/lys/internal/channelconfig"
@@ -148,6 +149,8 @@ func run(ctx context.Context, cfg *config.Config, cove *coveclient.Client, db *d
 	}
 
 	r := router.New(registry, channels, identity.New(db.Pool), workers)
+	chat := activity.New(timer.MinMessages)
+	r.Observe(chat)
 	twitch := twitchbot.New(httpClient, cfg.Twitch, cove, conns, bots)
 	r.Add(twitch)
 
@@ -188,7 +191,7 @@ func run(ctx context.Context, cfg *config.Config, cove *coveclient.Client, db *d
 
 	schedule := scheduler.New(jobs, map[string]scheduler.Handler{
 		remind.Kind: scheduler.SendMessage,
-		timer.Kind:  scheduler.SendMessage,
+		timer.Kind:  timer.Post(chat),
 	})
 
 	for _, s := range []sources.Source{notifications, schedule, letterboxdfeeds.New(db.Pool, httpClient), sleeper.NewPoller(httpClient, db.Pool)} {
