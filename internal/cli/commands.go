@@ -153,18 +153,26 @@ func runChannelList(ctx context.Context, env *Env, in Input) error {
 }
 
 func state(c connections.Connection) string {
+	var parts []string
 	switch {
 	case c.AdminBlocked && c.BlockReason != "":
-		return "blocked (" + c.BlockReason + ")"
+		parts = append(parts, "blocked ("+c.BlockReason+")")
 	case c.AdminBlocked:
-		return "blocked"
+		parts = append(parts, "blocked")
+	}
+	switch {
+	case !c.Authorized && c.WasAuthorized:
+		parts = append(parts, "revoked")
 	case !c.Authorized:
-		return "revoked"
-	case !c.Enabled:
-		return "disabled"
-	default:
+		parts = append(parts, "not authorized")
+	}
+	if !c.Enabled {
+		parts = append(parts, "disabled")
+	}
+	if len(parts) == 0 {
 		return "active"
 	}
+	return strings.Join(parts, ", ")
 }
 
 func runChannelAdd(ctx context.Context, env *Env, in Input) error {
