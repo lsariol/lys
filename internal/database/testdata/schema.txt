@@ -251,6 +251,29 @@ table platform_users owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdDx
   index CREATE UNIQUE INDEX platform_users_pkey ON lys.platform_users USING btree (id)
   index CREATE UNIQUE INDEX platform_users_platform_external_id_key ON lys.platform_users USING btree (platform, external_id)
   trigger CREATE TRIGGER platform_users_set_updated_at BEFORE UPDATE ON lys.platform_users FOR EACH ROW EXECUTE FUNCTION lys.set_updated_at()
+table scheduled_jobs owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdDxt/lys_owner lys_reader=r/lys_owner
+  column id bigint not null
+  column kind text not null
+  column connection_id bigint not null
+  column created_by bigint
+  column payload jsonb not null default '{}'::jsonb
+  column run_at timestamp with time zone not null
+  column repeat_every interval
+  column attempts integer not null default 0
+  column last_error text
+  column claimed_until timestamp with time zone
+  column done_at timestamp with time zone
+  column created_at timestamp with time zone not null default now()
+  column updated_at timestamp with time zone not null default now()
+  constraint scheduled_jobs_connection_id_fkey FOREIGN KEY (connection_id) REFERENCES lys.platform_connections(id) ON DELETE CASCADE
+  constraint scheduled_jobs_created_by_fkey FOREIGN KEY (created_by) REFERENCES lys.platform_users(id) ON DELETE SET NULL
+  constraint scheduled_jobs_pkey PRIMARY KEY (id)
+  constraint scheduled_jobs_repeat_every_check CHECK (((repeat_every IS NULL) OR (repeat_every >= '00:01:00'::interval)))
+  index CREATE INDEX scheduled_jobs_connection_idx ON lys.scheduled_jobs USING btree (connection_id, kind) WHERE (done_at IS NULL)
+  index CREATE INDEX scheduled_jobs_creator_idx ON lys.scheduled_jobs USING btree (created_by, kind) WHERE (done_at IS NULL)
+  index CREATE INDEX scheduled_jobs_due_idx ON lys.scheduled_jobs USING btree (run_at) WHERE (done_at IS NULL)
+  index CREATE UNIQUE INDEX scheduled_jobs_pkey ON lys.scheduled_jobs USING btree (id)
+  trigger CREATE TRIGGER scheduled_jobs_set_updated_at BEFORE UPDATE ON lys.scheduled_jobs FOR EACH ROW EXECUTE FUNCTION lys.set_updated_at()
 table sleeper_connections owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdDxt/lys_owner lys_reader=r/lys_owner
   column id uuid not null default gen_random_uuid()
   column league_id uuid not null
@@ -365,3 +388,4 @@ sequence feeds_id_seq owner=lys_owner acl=lys_app=rU/lys_owner lys_owner=rwU/lys
 sequence game_events_id_seq owner=lys_owner acl=lys_app=rU/lys_owner lys_owner=rwU/lys_owner type=bigint start=1 increment=1 min=1 max=9223372036854775807 cache=1 cycle=f owned_by=game_events.id
 sequence platform_connections_id_seq owner=lys_owner acl=lys_app=rU/lys_owner lys_owner=rwU/lys_owner type=bigint start=1 increment=1 min=1 max=9223372036854775807 cache=1 cycle=f owned_by=platform_connections.id
 sequence platform_users_id_seq owner=lys_owner acl=lys_app=rU/lys_owner lys_owner=rwU/lys_owner type=bigint start=1 increment=1 min=1 max=9223372036854775807 cache=1 cycle=f owned_by=platform_users.id
+sequence scheduled_jobs_id_seq owner=lys_owner acl=lys_app=rU/lys_owner lys_owner=rwU/lys_owner type=bigint start=1 increment=1 min=1 max=9223372036854775807 cache=1 cycle=f owned_by=scheduled_jobs.id
