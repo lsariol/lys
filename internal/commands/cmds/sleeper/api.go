@@ -5,11 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-
-	"github.com/lsariol/lys/internal/app/dependencies"
 )
 
-func getPlayoffBracket(sleeperLeagueID string, ctx context.Context, deps *dependencies.Deps) (*[]SleeperPlayoffMatchup, error) {
+func getPlayoffBracket(sleeperLeagueID string, ctx context.Context, sl *Sleeper) (*[]SleeperPlayoffMatchup, error) {
 
 	url := fmt.Sprintf("https://api.sleeper.app/v1/league/%s/winners_bracket", sleeperLeagueID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -17,7 +15,7 @@ func getPlayoffBracket(sleeperLeagueID string, ctx context.Context, deps *depend
 		return nil, err
 	}
 
-	resp, err := deps.HTTP.Do(req)
+	resp, err := sl.http.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -33,7 +31,7 @@ func getPlayoffBracket(sleeperLeagueID string, ctx context.Context, deps *depend
 	return &bracket, nil
 }
 
-func getPlayers(ctx context.Context, deps *dependencies.Deps) (map[string]SleeperPlayer, error) {
+func getPlayers(ctx context.Context, sl *Sleeper) (map[string]SleeperPlayer, error) {
 
 	url := "https://api.sleeper.app/v1/players/nfl"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -41,7 +39,7 @@ func getPlayers(ctx context.Context, deps *dependencies.Deps) (map[string]Sleepe
 		return nil, err
 	}
 
-	resp, err := deps.HTTP.Do(req)
+	resp, err := sl.http.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +59,7 @@ func getPlayers(ctx context.Context, deps *dependencies.Deps) (map[string]Sleepe
 	return players, nil
 }
 
-func getNFLState(ctx context.Context, deps *dependencies.Deps) (*SleeperNFLState, error) {
+func getNFLState(ctx context.Context, sl *Sleeper) (*SleeperNFLState, error) {
 
 	url := "https://api.sleeper.app/v1/state/nfl"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -69,7 +67,7 @@ func getNFLState(ctx context.Context, deps *dependencies.Deps) (*SleeperNFLState
 		return nil, err
 	}
 
-	resp, err := deps.HTTP.Do(req)
+	resp, err := sl.http.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +88,7 @@ func getNFLState(ctx context.Context, deps *dependencies.Deps) (*SleeperNFLState
 	return &state, nil
 }
 
-func getMatchups(sleeperLeagueID string, week int, ctx context.Context, deps *dependencies.Deps) (*[]SleeperMatchup, error) {
+func getMatchups(sleeperLeagueID string, week int, ctx context.Context, sl *Sleeper) (*[]SleeperMatchup, error) {
 
 	if week < 1 {
 		return nil, fmt.Errorf("invalid matchup week %d", week)
@@ -102,7 +100,7 @@ func getMatchups(sleeperLeagueID string, week int, ctx context.Context, deps *de
 		return nil, err
 	}
 
-	resp, err := deps.HTTP.Do(req)
+	resp, err := sl.http.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +150,7 @@ func GetLeague(ctx context.Context, leagueID string, httpClient *http.Client) (*
 
 }
 
-func getPlayersInLeague(sleeperLeagueID string, ctx context.Context, deps *dependencies.Deps) (*[]SleeperLeagueUser, error) {
+func getPlayersInLeague(sleeperLeagueID string, ctx context.Context, sl *Sleeper) (*[]SleeperLeagueUser, error) {
 
 	var users []SleeperLeagueUser
 	url := fmt.Sprintf("https://api.sleeper.app/v1/league/%s/users", sleeperLeagueID)
@@ -162,7 +160,7 @@ func getPlayersInLeague(sleeperLeagueID string, ctx context.Context, deps *depen
 		return nil, err
 	}
 
-	resp, err := deps.HTTP.Do(req)
+	resp, err := sl.http.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +177,7 @@ func getPlayersInLeague(sleeperLeagueID string, ctx context.Context, deps *depen
 	return &users, nil
 }
 
-func getRosters(sleeperLeagueID string, ctx context.Context, deps *dependencies.Deps) (*[]SleeperRoster, error) {
+func getRosters(sleeperLeagueID string, ctx context.Context, sl *Sleeper) (*[]SleeperRoster, error) {
 
 	var rosters []SleeperRoster
 
@@ -190,7 +188,7 @@ func getRosters(sleeperLeagueID string, ctx context.Context, deps *dependencies.
 		return nil, err
 	}
 
-	resp, err := deps.HTTP.Do(req)
+	resp, err := sl.http.Do(req)
 	if err != nil {
 		return nil, err
 	}

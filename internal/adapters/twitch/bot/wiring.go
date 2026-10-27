@@ -5,18 +5,11 @@ import (
 	"fmt"
 )
 
+// Initilize gets the bot's tokens and connects to EventSub.
 func (c *TwitchClient) Initilize(ctx context.Context) error {
-
-	if err := c.Settings.LoadAllTwitchChannelSettings(ctx); err != nil {
-		return fmt.Errorf("load channels: %w", err)
-	}
 
 	if err := c.Auth.Initilize(ctx); err != nil {
 		return fmt.Errorf("initilize auth: %w", err)
-	}
-
-	if err := c.Chat.Initilize(); err != nil {
-		return fmt.Errorf("initilize chat: %w", err)
 	}
 
 	if err := c.EventSub.Initilize(ctx); err != nil {

@@ -7,8 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lsariol/lys/internal/adapters/adapter"
-	"github.com/lsariol/lys/internal/app/dependencies"
+	"github.com/lsariol/lys/internal/commands"
 )
 
 func TestCurrentWeek(t *testing.T) {
@@ -67,7 +66,7 @@ func TestMatchupAPI(t *testing.T) {
 		{`invalid`, 200, true},
 		{`{}`, 503, true},
 	} {
-		deps := &dependencies.Deps{HTTP: &http.Client{Transport: scoresTransport(func(req *http.Request) (*http.Response, error) {
+		deps := &Sleeper{http: &http.Client{Transport: scoresTransport(func(req *http.Request) (*http.Response, error) {
 			if req.URL.Path != "/v1/league/test/matchups/2" {
 				t.Errorf("unexpected path %s", req.URL.Path)
 			}
@@ -87,7 +86,7 @@ func TestMatchupAPI(t *testing.T) {
 
 func TestScoresInvalidArguments(t *testing.T) {
 	for _, args := range [][]string{nil, {"scores", "0"}, {"scores", "-1"}, {"scores", "abc"}, {"scores", "99999999999999999999999999"}, {"scores", "1", "extra"}} {
-		response, err := scores(context.Background(), adapter.Envelope{Args: args}, nil)
+		response, err := scores(context.Background(), commands.Request{Args: args}, nil)
 		if err != nil || !strings.HasPrefix(response.Text, "Usage:") {
 			t.Errorf("args %v: response %q, error %v", args, response.Text, err)
 		}

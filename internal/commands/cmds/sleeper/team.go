@@ -6,60 +6,59 @@ import (
 	"log"
 	"strings"
 
-	"github.com/lsariol/lys/internal/adapters/adapter"
-	"github.com/lsariol/lys/internal/app/dependencies"
+	"github.com/lsariol/lys/internal/commands"
 )
 
-func team(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps) (adapter.Response, error) {
+func team(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply, error) {
 
 	if len(e.Args) < 1 || len(e.Args) > 2 {
-		return adapter.Response{Text: "Usage: !sleeper team [@user]"}, nil
+		return commands.Reply{Text: "Usage: !sleeper team [@user]"}, nil
 	}
 
-	username := e.Username
+	username := e.User.Name
 	if len(e.Args) == 2 {
 		username = strings.TrimPrefix(strings.TrimSpace(e.Args[1]), "@")
 		if username == "" {
-			return adapter.Response{Text: "Usage: !sleeper team [@user]"}, nil
+			return commands.Reply{Text: "Usage: !sleeper team [@user]"}, nil
 		}
 	}
 
-	league, err := getLeagueByChannel(ctx, e.ChannelID, deps)
+	league, err := getLeagueByChannel(ctx, e.Channel.ID, sl)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "Internal error getting league information."}, err
+		return commands.Reply{Text: "Internal error getting league information."}, err
 	}
 
 	if league == nil {
-		return adapter.Response{Text: "This channel is not associated with any league."}, nil
+		return commands.Reply{Text: "This channel is not associated with any league."}, nil
 	}
 
 	var connection *SleeperConnection
 
-	if len(e.Args) == 1 || strings.EqualFold(username, e.Username) {
-		connection, err = getConnectionByUserID(ctx, league.ID, e.UserID, deps)
+	if len(e.Args) == 1 || strings.EqualFold(username, e.User.Name) {
+		connection, err = getConnectionByUserID(ctx, league.ID, e.User.ID, sl)
 	} else {
-		connection, err = getConnectionByUsername(ctx, league.ID, username, deps)
+		connection, err = getConnectionByUsername(ctx, league.ID, username, sl)
 	}
 
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "Internal error finding the linked account."}, err
+		return commands.Reply{Text: "Internal error finding the linked account."}, err
 	}
 
 	if connection == nil {
-		return adapter.Response{Text: fmt.Sprintf("@%s is not linked to a Sleeper account in this league.",
+		return commands.Reply{Text: fmt.Sprintf("@%s is not linked to a Sleeper account in this league.",
 			username)}, nil
 	}
 
-	sleeperRosters, err := getRosters(league.SleeperLeagueID, ctx, deps)
+	sleeperRosters, err := getRosters(league.SleeperLeagueID, ctx, sl)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "Unable to get league rosters from Sleeper."}, err
+		return commands.Reply{Text: "Unable to get league rosters from Sleeper."}, err
 	}
 
 	if sleeperRosters == nil || len(*sleeperRosters) == 0 {
-		return adapter.Response{Text: "No rosters are available for this league yet."}, nil
+		return commands.Reply{Text: "No rosters are available for this league yet."}, nil
 	}
 
 	rosters := sortStandings(*sleeperRosters)
@@ -76,19 +75,19 @@ func team(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps) (ada
 	}
 
 	if roster == nil {
-		return adapter.Response{Text: fmt.Sprintf("@%s's linked roster could not be found in this league.",
+		return commands.Reply{Text: fmt.Sprintf("@%s's linked roster could not be found in this league.",
 			username)}, nil
 	}
 
 	if roster.OwnerID == "" || roster.OwnerID != connection.SleeperUserID {
-		return adapter.Response{Text: fmt.Sprintf("@%s's saved link no longer matches the roster owner. Please unlink and link the account again.",
+		return commands.Reply{Text: fmt.Sprintf("@%s's saved link no longer matches the roster owner. Please unlink and link the account again.",
 			username)}, nil
 	}
 
-	sleeperUsers, err := getPlayersInLeague(league.SleeperLeagueID, ctx, deps)
+	sleeperUsers, err := getPlayersInLeague(league.SleeperLeagueID, ctx, sl)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "Unable to get league members from Sleeper."}, err
+		return commands.Reply{Text: "Unable to get league members from Sleeper."}, err
 	}
 
 	var users []SleeperLeagueUser
@@ -112,25 +111,25 @@ func team(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps) (ada
 	text := fmt.Sprintf("@%s - %s | #%d by record/PF | %s | %.2f PF | %.2f PA",
 		username, name, position, record, pointsFor, pointsAgainst)
 
-	state, err := getNFLState(ctx, deps)
+	state, err := getNFLState(ctx, sl)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: text + " | Current matchup unavailable."}, nil
+		return commands.Reply{Text: text + " | Current matchup unavailable."}, nil
 	}
 
 	week, message := getCurrentWeek(*league, *state)
 	if message != "" {
-		return adapter.Response{Text: text + " | " + message}, nil
+		return commands.Reply{Text: text + " | " + message}, nil
 	}
 
-	sleeperMatchups, err := getMatchups(league.SleeperLeagueID, week, ctx, deps)
+	sleeperMatchups, err := getMatchups(league.SleeperLeagueID, week, ctx, sl)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: text + " | Current matchup unavailable."}, nil
+		return commands.Reply{Text: text + " | Current matchup unavailable."}, nil
 	}
 
 	if sleeperMatchups == nil || len(*sleeperMatchups) == 0 {
-		return adapter.Response{Text: fmt.Sprintf("%s | Week %d: matchup not available yet.",
+		return commands.Reply{Text: fmt.Sprintf("%s | Week %d: matchup not available yet.",
 			text, week)}, nil
 	}
 
@@ -152,7 +151,7 @@ func team(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps) (ada
 
 		switch len(group) {
 		case 1:
-			return adapter.Response{Text: fmt.Sprintf("%s | Week %d: no opponent listed.",
+			return commands.Reply{Text: fmt.Sprintf("%s | Week %d: no opponent listed.",
 				text, week)}, nil
 
 		case 2:
@@ -160,16 +159,16 @@ func team(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps) (ada
 				if matchup.RosterID != roster.RosterID {
 					opponent := getMatchupTeamName(matchup.RosterID, rosters, users)
 
-					return adapter.Response{Text: fmt.Sprintf("%s | Week %d: vs %s",
+					return commands.Reply{Text: fmt.Sprintf("%s | Week %d: vs %s",
 						text, week, opponent)}, nil
 				}
 			}
 		}
 
-		return adapter.Response{Text: fmt.Sprintf("%s | Week %d: matchup data is unexpected.",
+		return commands.Reply{Text: fmt.Sprintf("%s | Week %d: matchup data is unexpected.",
 			text, week)}, nil
 	}
 
-	return adapter.Response{Text: fmt.Sprintf("%s | Week %d: matchup not available yet.",
+	return commands.Reply{Text: fmt.Sprintf("%s | Week %d: matchup not available yet.",
 		text, week)}, nil
 }

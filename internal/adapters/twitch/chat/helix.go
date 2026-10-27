@@ -7,23 +7,24 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-
-	"github.com/lsariol/lys/internal/adapters/adapter"
 )
 
-func (c *ChatClient) SendChat(ctx context.Context, r adapter.Response) (*SendChatMessageResponse, *HelixError, error) {
+const sendChatURL = "https://api.twitch.tv/helix/chat/messages"
 
-	const url = "https://api.twitch.tv/helix/chat/messages"
+// SendChat posts one message as the bot, with the app token. A non-200 answer
+// comes back as a HelixError.
+func (c *ChatClient) SendChat(ctx context.Context, broadcasterID, text string) (*SendChatMessageResponse, *HelixError, error) {
 
-	body := SendChatBody{
-		BroadcasterID: r.ChannelID,
+	payload, err := json.Marshal(SendChatBody{
+		BroadcasterID: broadcasterID,
 		SenderID:      c.Config.BotAccountID,
-		Message:       r.Text,
+		Message:       text,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("encode body: %w", err)
 	}
 
-	payload, _ := json.Marshal(body)
-
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, sendChatURL, bytes.NewReader(payload))
 	if err != nil {
 		return nil, nil, fmt.Errorf("create request: %w", err)
 	}
@@ -38,18 +39,19 @@ func (c *ChatClient) SendChat(ctx context.Context, r adapter.Response) (*SendCha
 	}
 	defer resp.Body.Close()
 
-	respBody, _ := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, nil, fmt.Errorf("read response: %w", err)
+	}
 
 	if resp.StatusCode != http.StatusOK {
-		var helixErr HelixError
+		helixErr := HelixError{Status: resp.StatusCode}
 		if err := json.Unmarshal(respBody, &helixErr); err != nil {
-			return nil, nil, fmt.Errorf("unmarshal helix error: %w", err)
+			return nil, nil, fmt.Errorf("status %d: unmarshal helix error: %w", resp.StatusCode, err)
 		}
-
 		return nil, &helixErr, nil
-
 	}
-	// Handle successful 200 response
+
 	var data SendChatMessageResponse
 	if err := json.Unmarshal(respBody, &data); err != nil {
 		return nil, nil, fmt.Errorf("unmarshal successful response: %w", err)

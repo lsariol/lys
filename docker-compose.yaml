@@ -10,9 +10,11 @@ services:
       COVE_URL: http://cove:2100
       COVE_TOKEN: ${LYS_COVE_TOKEN}
       NOTIFICATION_PORT: 2400
+      SHARED_LYS_NOTIFICATION_TOKEN: ${SHARED_LYS_NOTIFICATION_TOKEN}
     container_name: lys
-    ports:
-      - "2400:2400"
+    # Only the spark network reaches the inlet (LetterboxdWatcher posts to http://lys:2400).
+    expose:
+      - "2400"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:2400/health"]
       interval: 30s

@@ -8,66 +8,65 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/lsariol/lys/internal/adapters/adapter"
-	"github.com/lsariol/lys/internal/app/dependencies"
+	"github.com/lsariol/lys/internal/commands"
 )
 
-func highscore(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps) (adapter.Response, error) {
+func highscore(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply, error) {
 
 	if len(e.Args) < 1 || len(e.Args) > 2 {
-		return adapter.Response{Text: "Usage: !sleeper highscore [week]"}, nil
+		return commands.Reply{Text: "Usage: !sleeper highscore [week]"}, nil
 	}
 
 	week := 0
 	if len(e.Args) == 2 {
 		requestedWeek, err := strconv.Atoi(e.Args[1])
 		if err != nil || requestedWeek < 1 || requestedWeek > 18 {
-			return adapter.Response{Text: "Week must be a number from 1 to 18."}, nil
+			return commands.Reply{Text: "Week must be a number from 1 to 18."}, nil
 		}
 		week = requestedWeek
 	}
 
-	league, err := getLeagueByChannel(ctx, e.ChannelID, deps)
+	league, err := getLeagueByChannel(ctx, e.Channel.ID, sl)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "Internal error getting league information."}, err
+		return commands.Reply{Text: "Internal error getting league information."}, err
 	}
 
 	if league == nil {
-		return adapter.Response{Text: "This channel is not associated with any league."}, nil
+		return commands.Reply{Text: "This channel is not associated with any league."}, nil
 	}
 
-	state, err := getNFLState(ctx, deps)
+	state, err := getNFLState(ctx, sl)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "Unable to get the current season from Sleeper."}, err
+		return commands.Reply{Text: "Unable to get the current season from Sleeper."}, err
 	}
 
 	leagueSeason, err := strconv.Atoi(league.Season)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "This league has an invalid saved season."}, err
+		return commands.Reply{Text: "This league has an invalid saved season."}, err
 	}
 
 	currentSeason, err := strconv.Atoi(state.Season)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "Sleeper returned an invalid NFL season."}, err
+		return commands.Reply{Text: "Sleeper returned an invalid NFL season."}, err
 	}
 
 	if leagueSeason > currentSeason {
-		return adapter.Response{Text: "Scores are not available for this league's season yet."}, nil
+		return commands.Reply{Text: "Scores are not available for this league's season yet."}, nil
 	}
 
 	currentWeek, message := getCurrentWeek(*league, *state)
 
 	if week == 0 {
 		if message != "" {
-			return adapter.Response{Text: "Please specify a week: !sleeper highscore <week>."}, nil
+			return commands.Reply{Text: "Please specify a week: !sleeper highscore <week>."}, nil
 		}
 
 		if currentWeek <= 1 {
-			return adapter.Response{Text: "No completed week is available yet."}, nil
+			return commands.Reply{Text: "No completed week is available yet."}, nil
 		}
 
 		week = currentWeek - 1
@@ -77,32 +76,32 @@ func highscore(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps)
 
 	if leagueSeason == currentSeason {
 		if state.SeasonType == "pre" {
-			return adapter.Response{Text: "Regular-season scores are not available yet."}, nil
+			return commands.Reply{Text: "Regular-season scores are not available yet."}, nil
 		}
 
 		if state.SeasonType == "regular" {
 			if currentWeek < 1 {
-				return adapter.Response{Text: "The current NFL week is not available yet."}, nil
+				return commands.Reply{Text: "The current NFL week is not available yet."}, nil
 			}
 
 			if week > currentWeek {
-				return adapter.Response{Text: "That week has not started yet."}, nil
+				return commands.Reply{Text: "That week has not started yet."}, nil
 			}
 
 			soFar = week == currentWeek
 		} else if state.SeasonType != "post" {
-			return adapter.Response{Text: "Unable to determine which weeks are available for this season."}, nil
+			return commands.Reply{Text: "Unable to determine which weeks are available for this season."}, nil
 		}
 	}
 
-	sleeperMatchups, err := getMatchups(league.SleeperLeagueID, week, ctx, deps)
+	sleeperMatchups, err := getMatchups(league.SleeperLeagueID, week, ctx, sl)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "Unable to get matchup scores from Sleeper."}, err
+		return commands.Reply{Text: "Unable to get matchup scores from Sleeper."}, err
 	}
 
 	if sleeperMatchups == nil || len(*sleeperMatchups) == 0 {
-		return adapter.Response{Text: fmt.Sprintf("No scores are available for Week %d.",
+		return commands.Reply{Text: fmt.Sprintf("No scores are available for Week %d.",
 			week)}, nil
 	}
 
@@ -127,16 +126,16 @@ func highscore(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps)
 		}
 	}
 
-	sleeperRosters, err := getRosters(league.SleeperLeagueID, ctx, deps)
+	sleeperRosters, err := getRosters(league.SleeperLeagueID, ctx, sl)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "Unable to get league rosters from Sleeper."}, err
+		return commands.Reply{Text: "Unable to get league rosters from Sleeper."}, err
 	}
 
-	sleeperUsers, err := getPlayersInLeague(league.SleeperLeagueID, ctx, deps)
+	sleeperUsers, err := getPlayersInLeague(league.SleeperLeagueID, ctx, sl)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "Unable to get league members from Sleeper."}, err
+		return commands.Reply{Text: "Unable to get league members from Sleeper."}, err
 	}
 
 	var rosters []SleeperRoster
@@ -160,6 +159,6 @@ func highscore(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps)
 		label = "High Score so far"
 	}
 
-	return adapter.Response{Text: fmt.Sprintf("Week %d %s: %s - %.2f points.",
+	return commands.Reply{Text: fmt.Sprintf("Week %d %s: %s - %.2f points.",
 		week, label, strings.Join(names, ", "), float64(highestPoints)/100)}, nil
 }

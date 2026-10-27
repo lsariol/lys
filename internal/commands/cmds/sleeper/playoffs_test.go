@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lsariol/lys/internal/adapters/adapter"
+	"github.com/lsariol/lys/internal/commands"
 )
 
 func TestPlayoffRound(t *testing.T) {
@@ -59,7 +59,7 @@ func TestPlayoffParticipantsAndScores(t *testing.T) {
 
 func TestPlayoffsInvalidArguments(t *testing.T) {
 	for _, args := range [][]string{nil, {"playoffs", "0"}, {"playoffs", "-1"}, {"playoffs", "abc"}, {"playoffs", "1", "extra"}} {
-		response, err := playoffs(context.Background(), adapter.Envelope{Args: args}, nil)
+		response, err := playoffs(context.Background(), commands.Request{Args: args}, nil)
 		if err != nil || !strings.HasPrefix(response.Text, "Usage:") {
 			t.Errorf("args %v: %q, %v", args, response.Text, err)
 		}

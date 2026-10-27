@@ -8,25 +8,31 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lsariol/lys/internal/adapters/adapter"
-	"github.com/lsariol/lys/internal/app/dependencies"
+	"github.com/lsariol/lys/internal/commands"
 )
 
-type Request struct{}
+// Request lets viewers suggest features, and the bot's owner review them.
+type Request struct {
+	store Store
+}
 
-func (Request) Name() string           { return "request" }
-func (Request) Aliases() []string      { return nil }
-func (Request) Regexes() []string      { return nil }
-func (Request) Description() string    { return "Logs a request for things to be added to the bot." }
-func (Request) Usage() string          { return "!request <feature or idea you want added>" }
-func (Request) Timeout() time.Duration { return 3 * time.Second }
+func New(store Store) *Request { return &Request{store: store} }
 
-// Users can request things added to the bot. Will log it into the database.
-func (Request) Execute(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps) (adapter.Response, error) {
+func (*Request) Spec() commands.Spec {
+	return commands.Spec{
+		Name:        "request",
+		Description: "Logs a request for things to be added to the bot.",
+		Usage:       "!request <feature or idea you want added>",
+		Timeout:     3 * time.Second,
+	}
+}
+
+// Run saves a request, or lists and updates them for the bot's owner.
+func (r *Request) Run(ctx context.Context, e commands.Request) (commands.Reply, error) {
 
 	// We dont care if there is no arguments / body is empty
 	if len(e.Args) == 0 {
-		return adapter.Response{Text: "Usage: !request <feature or idea>"}, fmt.Errorf("incorrect command usage")
+		return commands.Reply{Text: "Usage: !request <feature or idea>"}, fmt.Errorf("incorrect command usage")
 	}
 
 	full := strings.Join(e.Args, " ")
@@ -42,15 +48,15 @@ func (Request) Execute(ctx context.Context, e adapter.Envelope, deps *dependenci
 		if limitStr != "" {
 			n, err := strconv.Atoi(limitStr)
 			if err != nil || n <= 0 {
-				return adapter.Response{Text: "Usage !request get <new/recent> < # to return (optional)>"}, err
+				return commands.Reply{Text: "Usage !request get <new/recent> < # to return (optional)>"}, err
 			}
 			//Until more is figurred out, we need to limit to 1 - CHANGE TO N WHEN READY
 			limit = n
 		}
-		if strings.ToLower(e.Username) != "mobasity" {
-			return adapter.Response{SuppressReply: true, Error: true}, fmt.Errorf("insufficient permissions")
+		if strings.ToLower(e.User.Name) != "mobasity" {
+			return commands.Reply{}, fmt.Errorf("insufficient permissions")
 		}
-		return getHandler(ctx, mode, limit, deps)
+		return r.getHandler(ctx, mode, limit)
 	}
 
 	if m := reSet.FindStringSubmatch(full); m != nil {
@@ -59,16 +65,16 @@ func (Request) Execute(ctx context.Context, e adapter.Envelope, deps *dependenci
 
 		id, err := strconv.ParseInt(idStr, 10, 64)
 		if err != nil {
-			return adapter.Response{Text: "Invalid request ID."}, err
+			return commands.Reply{Text: "Invalid request ID."}, err
 		}
-		if strings.ToLower(e.Username) != "mobasity" {
-			return adapter.Response{SuppressReply: true, Error: true}, fmt.Errorf("insufficient permissions")
+		if strings.ToLower(e.User.Name) != "mobasity" {
+			return commands.Reply{}, fmt.Errorf("insufficient permissions")
 		}
-		return setHandler(ctx, id, status, deps)
+		return r.setHandler(ctx, id, status)
 
 	}
 
-	return createHandler(ctx, e, deps)
+	return r.createHandler(ctx, e)
 }
 
 var (
@@ -77,17 +83,17 @@ var (
 	reSet  = regexp.MustCompile(`(?i)^set\s+(\d+)\s+(new|in_progress|completed|rejected)$`)
 )
 
-func helpHandler() (adapter.Response, error) {
-	return adapter.Response{Text: "help"}, nil
+func helpHandler() (commands.Reply, error) {
+	return commands.Reply{Text: "help"}, nil
 }
 
-func getHandler(ctx context.Context, mode string, limit int, deps *dependencies.Deps) (adapter.Response, error) {
+func (r *Request) getHandler(ctx context.Context, mode string, limit int) (commands.Reply, error) {
 
 	switch mode {
 	case "new":
-		reqs, err := getNewRequests(ctx, limit, deps)
+		reqs, err := r.store.NewRequests(ctx, limit)
 		if err != nil {
-			return adapter.Response{Text: "Error getting new requests. Its possible there are none.", Error: true}, err
+			return commands.Reply{Text: "Error getting new requests. Its possible there are none."}, err
 		}
 
 		var requests string
@@ -99,12 +105,12 @@ func getHandler(ctx context.Context, mode string, limit int, deps *dependencies.
 			requests = "There are no pending requests to review."
 		}
 
-		return adapter.Response{Text: requests}, nil
+		return commands.Reply{Text: requests}, nil
 
 	case "recent":
-		reqs, err := getRecentRequests(ctx, limit, deps)
+		reqs, err := r.store.RecentRequests(ctx, limit)
 		if err != nil {
-			return adapter.Response{Text: "Error getting recent requests. Its possible there are none.", Error: true}, err
+			return commands.Reply{Text: "Error getting recent requests. Its possible there are none."}, err
 		}
 
 		var requests string
@@ -116,40 +122,40 @@ func getHandler(ctx context.Context, mode string, limit int, deps *dependencies.
 			requests = "There are no pending requests to review."
 		}
 
-		return adapter.Response{Text: requests}, nil
+		return commands.Reply{Text: requests}, nil
 	}
 
-	return adapter.Response{Text: "get"}, nil
+	return commands.Reply{Text: "get"}, nil
 }
 
-func setHandler(ctx context.Context, id int64, status string, deps *dependencies.Deps) (adapter.Response, error) {
+func (r *Request) setHandler(ctx context.Context, id int64, status string) (commands.Reply, error) {
 
-	if err := updateStatus(ctx, status, id, deps); err != nil {
-		return adapter.Response{Text: "Error updating", Error: true}, err
+	if err := r.store.UpdateStatus(ctx, status, id); err != nil {
+		return commands.Reply{Text: "Error updating"}, err
 	}
 
-	return adapter.Response{Text: fmt.Sprintf("Status has been updated for [%d]", id)}, nil
+	return commands.Reply{Text: fmt.Sprintf("Status has been updated for [%d]", id)}, nil
 }
 
-func createHandler(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps) (adapter.Response, error) {
+func (r *Request) createHandler(ctx context.Context, e commands.Request) (commands.Reply, error) {
 	featureRequest := newFeatureRequest(e)
-	id, err := storeRequest(ctx, featureRequest, deps)
+	id, err := r.store.StoreRequest(ctx, featureRequest)
 	if err != nil {
-		return adapter.Response{Text: "An error occured while storing your request. Please try again."}, err
+		return commands.Reply{Text: "An error occured while storing your request. Please try again."}, err
 	}
 
-	return adapter.Response{Text: fmt.Sprintf("Your request has been saved (ID %d)", id)}, nil
+	return commands.Reply{Text: fmt.Sprintf("Your request has been saved (ID %d)", id)}, nil
 }
 
-func newFeatureRequest(e adapter.Envelope) FeatureRequest {
+func newFeatureRequest(e commands.Request) FeatureRequest {
 
 	b := strings.Join(e.Args, " ")
 
 	fR := FeatureRequest{
-		UserID:      e.UserID,
-		Username:    e.Username,
-		ChannelID:   e.ChannelID,
-		ChannelName: e.ChannelName,
+		UserID:      e.User.ID,
+		Username:    e.User.Name,
+		ChannelID:   e.Channel.ID,
+		ChannelName: e.Channel.Name,
 		Platform:    e.Platform,
 		Body:        b,
 	}

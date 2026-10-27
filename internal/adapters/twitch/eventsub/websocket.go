@@ -13,10 +13,9 @@ import (
 func (c *EventSubClient) NewWebSocketConn(ctx context.Context, URL string) (*websocket.Conn, SessionData, error) {
 
 	var sd SessionData
-	newConn, _, err := websocket.DefaultDialer.Dial(URL, nil)
+	newConn, _, err := websocket.DefaultDialer.DialContext(ctx, URL, nil)
 	if err != nil {
-		newConn.Close()
-		return nil, sd, fmt.Errorf("newwebsocketconn dial error: %w", err)
+		return nil, sd, fmt.Errorf("Twitch: dial EventSub: %w", err)
 	}
 
 	var event EventSubMessage
@@ -133,15 +132,5 @@ func (c *EventSubClient) resetWebSocket(ctx context.Context, url string) bool {
 	}
 
 	return false
-
-}
-
-func (c *EventSubClient) storeWebSocket(ws *websocket.Conn, sd SessionData) {
-
-	_ = c.WS.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, "reconnecting"), time.Now().Add(time.Second))
-	_ = c.WS.Close()
-
-	c.WS = ws
-	c.SessionData = sd
 
 }

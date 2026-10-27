@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -40,6 +41,7 @@ type EventSubClient struct {
 	out         chan EventSubMessage
 
 	shutdownOnce sync.Once
+	connected    atomic.Bool // joined and reading; false while reconnecting
 }
 
 func New(http *http.Client, cfg *config.TwitchConfig, auth *auth.AuthClient, db *twitchdb.Store) *EventSubClient {
@@ -55,6 +57,9 @@ func New(http *http.Client, cfg *config.TwitchConfig, auth *auth.AuthClient, db 
 }
 
 func (c *EventSubClient) OutboundEvents() <-chan EventSubMessage { return c.out }
+
+// Connected reports whether the websocket is up and the channels are joined.
+func (c *EventSubClient) Connected() bool { return c.connected.Load() }
 
 func (c *EventSubClient) Initilize(ctx context.Context) error {
 
@@ -78,12 +83,11 @@ func (c *EventSubClient) Run(ctx context.Context) error {
 	if err := c.JoinAllChannels(ctx); err != nil {
 		return fmt.Errorf("join error: %w", err)
 	}
-
-	var e error
+	c.connected.Store(true)
 
 	go c.readLoop(ctx)
 
-	return e
+	return nil
 }
 
 // Shutdown closes the websocket; it's safe to call more than once. The out
@@ -106,10 +110,6 @@ func (c *EventSubClient) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-func (c *EventSubClient) hardReset() {
-
-}
-
 func (c *EventSubClient) readLoop(ctx context.Context) error {
 
 	fmt.Println("[Chat] Running")
@@ -127,13 +127,13 @@ func (c *EventSubClient) readLoop(ctx context.Context) error {
 				if ctx.Err() != nil {
 					return nil
 				}
+				c.connected.Store(false)
 				if c.resetWebSocket(ctx, EventSubWSURL) {
+					c.connected.Store(ctx.Err() == nil)
 					continue
 				}
 
-				log.Printf("max attempts (8) reached, performing hard reset")
-				//c.hardReset()
-
+				log.Printf("[EventSub] reconnecting failed 8 times; trying again")
 			}
 
 			switch {
@@ -177,11 +177,10 @@ func (c *EventSubClient) ConsumeEvent(ctx context.Context, event EventSubMessage
 	case "session_reconnect":
 
 		log.Println("Twitch has asked to reconnect.")
-		err := c.reconnectWebSocket(ctx, event)
-
-		if err != nil {
-			fmt.Println("error in handleEvent session_reconnect %w", err)
-			panic(err)
+		if err := c.reconnectWebSocket(ctx, event); err != nil {
+			log.Printf("[EventSub] reconnect to Twitch's new address: %v; starting a fresh connection", err)
+			c.connected.Store(false)
+			c.connected.Store(c.resetWebSocket(ctx, EventSubWSURL) && ctx.Err() == nil)
 		}
 		return
 

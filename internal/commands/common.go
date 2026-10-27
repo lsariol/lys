@@ -1,16 +1,10 @@
 package commands
 
-import "github.com/lsariol/lys/internal/adapters/adapter"
+// botOwnerID is the Twitch ID of the bot's owner, who may run any channel's
+// owner-only commands.
+const botOwnerID = "42217464"
 
-func SuppressedReply() (adapter.Response, error) {
-	return adapter.Response{SuppressReply: true, Error: true}, nil
-}
-
+// HasPrivilege reports whether the user owns the channel or the bot.
 func HasPrivilege(userID string, channelID string) bool {
-
-	if userID == channelID || userID == "42217464" {
-		return true
-	}
-
-	return false
+	return userID == channelID || userID == botOwnerID
 }

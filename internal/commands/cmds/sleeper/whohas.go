@@ -7,39 +7,38 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/lsariol/lys/internal/adapters/adapter"
-	"github.com/lsariol/lys/internal/app/dependencies"
+	"github.com/lsariol/lys/internal/commands"
 )
 
-func whohas(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps) (adapter.Response, error) {
+func whohas(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply, error) {
 
 	if len(e.Args) < 2 {
-		return adapter.Response{Text: "Usage: !sleeper whohas <player name or ID>"}, nil
+		return commands.Reply{Text: "Usage: !sleeper whohas <player name or ID>"}, nil
 	}
 
 	search := strings.Join(strings.Fields(strings.Join(e.Args[1:], " ")), " ")
 	if search == "" {
-		return adapter.Response{Text: "Usage: !sleeper whohas <player name or ID>"}, nil
+		return commands.Reply{Text: "Usage: !sleeper whohas <player name or ID>"}, nil
 	}
 
-	league, err := getLeagueByChannel(ctx, e.ChannelID, deps)
+	league, err := getLeagueByChannel(ctx, e.Channel.ID, sl)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "Internal error getting league information."}, err
+		return commands.Reply{Text: "Internal error getting league information."}, err
 	}
 	if league == nil {
-		return adapter.Response{Text: "This channel is not associated with any league."}, nil
+		return commands.Reply{Text: "This channel is not associated with any league."}, nil
 	}
 
-	players, err := getPlayerCatalog(ctx, deps)
+	players, err := getPlayerCatalog(ctx, sl)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "Player names are loading or temporarily unavailable. Please try again shortly."}, nil
+		return commands.Reply{Text: "Player names are loading or temporarily unavailable. Please try again shortly."}, nil
 	}
 
 	matches := findPlayers(search, players)
 	if len(matches) == 0 {
-		return adapter.Response{Text: "No player matched that name or ID."}, nil
+		return commands.Reply{Text: "No player matched that name or ID."}, nil
 	}
 
 	if len(matches) > 1 {
@@ -57,19 +56,19 @@ func whohas(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps) (a
 		if len(matches) > limit {
 			text += fmt.Sprintf(" | +%d more", len(matches)-limit)
 		}
-		return adapter.Response{Text: text + ". Use a full name or player ID."}, nil
+		return commands.Reply{Text: text + ". Use a full name or player ID."}, nil
 	}
 
 	playerID := matches[0]
 	name := formatRosterEntry("", getPlayerName(playerID, players))
 
-	sleeperRosters, err := getRosters(league.SleeperLeagueID, ctx, deps)
+	sleeperRosters, err := getRosters(league.SleeperLeagueID, ctx, sl)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "Unable to get league rosters from Sleeper."}, err
+		return commands.Reply{Text: "Unable to get league rosters from Sleeper."}, err
 	}
 	if sleeperRosters == nil || len(*sleeperRosters) == 0 {
-		return adapter.Response{Text: "No rosters are available for this league yet."}, nil
+		return commands.Reply{Text: "No rosters are available for this league yet."}, nil
 	}
 
 	var owners []SleeperRoster
@@ -79,16 +78,16 @@ func whohas(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps) (a
 		}
 	}
 	if len(owners) == 0 {
-		return adapter.Response{Text: fmt.Sprintf("%s is currently unrostered.", name)}, nil
+		return commands.Reply{Text: fmt.Sprintf("%s is currently unrostered.", name)}, nil
 	}
 	if len(owners) > 1 {
-		return adapter.Response{Text: fmt.Sprintf("Sleeper lists %s on multiple rosters, so ownership is unclear.", name)}, nil
+		return commands.Reply{Text: fmt.Sprintf("Sleeper lists %s on multiple rosters, so ownership is unclear.", name)}, nil
 	}
 
-	sleeperUsers, err := getPlayersInLeague(league.SleeperLeagueID, ctx, deps)
+	sleeperUsers, err := getPlayersInLeague(league.SleeperLeagueID, ctx, sl)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "Unable to get league members from Sleeper."}, err
+		return commands.Reply{Text: "Unable to get league members from Sleeper."}, err
 	}
 	var users []SleeperLeagueUser
 	if sleeperUsers != nil {
@@ -101,12 +100,12 @@ func whohas(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps) (a
 		if owner.OwnerID != "" && user.UserID == owner.OwnerID {
 			displayName := formatRosterEntry("", user.DisplayName)
 			if displayName != "" && !strings.EqualFold(displayName, teamName) {
-				return adapter.Response{Text: fmt.Sprintf("%s belongs to %s / %s.", name, displayName, teamName)}, nil
+				return commands.Reply{Text: fmt.Sprintf("%s belongs to %s / %s.", name, displayName, teamName)}, nil
 			}
 			break
 		}
 	}
-	return adapter.Response{Text: fmt.Sprintf("%s is rostered on %s.", name, teamName)}, nil
+	return commands.Reply{Text: fmt.Sprintf("%s is rostered on %s.", name, teamName)}, nil
 }
 
 func findPlayers(search string, players map[string]SleeperPlayer) []string {

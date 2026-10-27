@@ -5,28 +5,28 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/lsariol/lys/internal/adapters/adapter"
-	"github.com/lsariol/lys/internal/app/dependencies"
+	"github.com/lsariol/lys/internal/commands"
 )
 
-type UpTime struct{}
+// UpTime reports how long Lys has been running.
+type UpTime struct {
+	started time.Time
+}
 
-func (UpTime) Name() string           { return "uptime" }
-func (UpTime) Aliases() []string      { return nil }
-func (UpTime) Regexes() []string      { return nil }
-func (UpTime) Description() string    { return "Latency check." }
-func (UpTime) Usage() string          { return "!ping" }
-func (UpTime) Timeout() time.Duration { return 3 * time.Second }
+func New(started time.Time) *UpTime { return &UpTime{started: started} }
 
-func (UpTime) Execute(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps) (adapter.Response, error) {
+func (*UpTime) Spec() commands.Spec {
+	return commands.Spec{Name: "uptime", Description: "How long the bot has been running.", Usage: "!uptime", Timeout: 3 * time.Second}
+}
 
-	uptime := time.Since(deps.BootTime)
+func (u *UpTime) Run(ctx context.Context, e commands.Request) (commands.Reply, error) {
+	return commands.Reply{Text: format(time.Since(u.started))}, nil
+}
+
+func format(uptime time.Duration) string {
 	days := int(uptime.Hours()) / 24
 	hours := int(uptime.Hours()) % 24
 	minutes := int(uptime.Minutes()) % 60
 	seconds := int(uptime.Seconds()) % 60
-
-	formatted := fmt.Sprintf("%dd %02dh %02dm %02ds", days, hours, minutes, seconds)
-	return adapter.Response{Text: formatted}, nil
-
+	return fmt.Sprintf("%dd %02dh %02dm %02ds", days, hours, minutes, seconds)
 }

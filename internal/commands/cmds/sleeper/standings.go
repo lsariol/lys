@@ -7,56 +7,55 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/lsariol/lys/internal/adapters/adapter"
-	"github.com/lsariol/lys/internal/app/dependencies"
+	"github.com/lsariol/lys/internal/commands"
 )
 
-func standings(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps) (adapter.Response, error) {
+func standings(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply, error) {
 
 	if len(e.Args) < 1 || len(e.Args) > 2 {
-		return adapter.Response{Text: "Usage: !sleeper standings [page]"}, nil
+		return commands.Reply{Text: "Usage: !sleeper standings [page]"}, nil
 	}
 
 	page := 1
 	if len(e.Args) == 2 {
 		requestedPage, err := strconv.Atoi(e.Args[1])
 		if err != nil || requestedPage < 1 {
-			return adapter.Response{Text: "Usage: !sleeper standings [page]. Page must be a positive number."}, nil
+			return commands.Reply{Text: "Usage: !sleeper standings [page]. Page must be a positive number."}, nil
 		}
 		page = requestedPage
 	}
 
-	league, err := getLeagueByChannel(ctx, e.ChannelID, deps)
+	league, err := getLeagueByChannel(ctx, e.Channel.ID, sl)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "Internal error getting league standings."}, err
+		return commands.Reply{Text: "Internal error getting league standings."}, err
 	}
 
 	if league == nil {
-		return adapter.Response{Text: "This channel is not associated with any league."}, nil
+		return commands.Reply{Text: "This channel is not associated with any league."}, nil
 	}
 
-	sleeperRosters, err := getRosters(league.SleeperLeagueID, ctx, deps)
+	sleeperRosters, err := getRosters(league.SleeperLeagueID, ctx, sl)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "Unable to get standings from Sleeper."}, err
+		return commands.Reply{Text: "Unable to get standings from Sleeper."}, err
 	}
 
 	if sleeperRosters == nil || len(*sleeperRosters) == 0 {
-		return adapter.Response{Text: "No rosters are available for this league yet."}, nil
+		return commands.Reply{Text: "No rosters are available for this league yet."}, nil
 	}
 
 	const pageSize = 4
 	totalPages := (len(*sleeperRosters) + pageSize - 1) / pageSize
 
 	if page > totalPages {
-		return adapter.Response{Text: fmt.Sprintf("Standings has %d page(s).", totalPages)}, nil
+		return commands.Reply{Text: fmt.Sprintf("Standings has %d page(s).", totalPages)}, nil
 	}
 
-	sleeperUsers, err := getPlayersInLeague(league.SleeperLeagueID, ctx, deps)
+	sleeperUsers, err := getPlayersInLeague(league.SleeperLeagueID, ctx, sl)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "Unable to get league members from Sleeper."}, err
+		return commands.Reply{Text: "Unable to get league members from Sleeper."}, err
 	}
 
 	var users []SleeperLeagueUser
@@ -96,6 +95,6 @@ func standings(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps)
 			i+1, name, record, points))
 	}
 
-	return adapter.Response{Text: fmt.Sprintf("Standings by record/PF (%d/%d): %s",
+	return commands.Reply{Text: fmt.Sprintf("Standings by record/PF (%d/%d): %s",
 		page, totalPages, strings.Join(entries, " | "))}, nil
 }

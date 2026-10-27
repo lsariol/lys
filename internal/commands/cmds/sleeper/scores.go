@@ -7,71 +7,70 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/lsariol/lys/internal/adapters/adapter"
-	"github.com/lsariol/lys/internal/app/dependencies"
+	"github.com/lsariol/lys/internal/commands"
 )
 
-func scores(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps) (adapter.Response, error) {
+func scores(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply, error) {
 
 	if len(e.Args) < 1 || len(e.Args) > 2 {
-		return adapter.Response{Text: "Usage: !sleeper scores [page]"}, nil
+		return commands.Reply{Text: "Usage: !sleeper scores [page]"}, nil
 	}
 
 	page := 1
 	if len(e.Args) == 2 {
 		requestedPage, err := strconv.Atoi(e.Args[1])
 		if err != nil || requestedPage < 1 {
-			return adapter.Response{Text: "Usage: !sleeper scores [page]. Page must be a positive number."}, nil
+			return commands.Reply{Text: "Usage: !sleeper scores [page]. Page must be a positive number."}, nil
 		}
 		page = requestedPage
 	}
 
-	league, err := getLeagueByChannel(ctx, e.ChannelID, deps)
+	league, err := getLeagueByChannel(ctx, e.Channel.ID, sl)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "Internal error getting league scores."}, err
+		return commands.Reply{Text: "Internal error getting league scores."}, err
 	}
 	if league == nil {
-		return adapter.Response{Text: "This channel is not associated with any league."}, nil
+		return commands.Reply{Text: "This channel is not associated with any league."}, nil
 	}
 
-	state, err := getNFLState(ctx, deps)
+	state, err := getNFLState(ctx, sl)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "Unable to get the current week from Sleeper."}, err
+		return commands.Reply{Text: "Unable to get the current week from Sleeper."}, err
 	}
 
 	week, message := getCurrentWeek(*league, *state)
 	if message != "" {
-		return adapter.Response{Text: message}, nil
+		return commands.Reply{Text: message}, nil
 	}
 
-	sleeperMatchups, err := getMatchups(league.SleeperLeagueID, week, ctx, deps)
+	sleeperMatchups, err := getMatchups(league.SleeperLeagueID, week, ctx, sl)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "Unable to get matchup scores from Sleeper."}, err
+		return commands.Reply{Text: "Unable to get matchup scores from Sleeper."}, err
 	}
 	if sleeperMatchups == nil || len(*sleeperMatchups) == 0 {
-		return adapter.Response{Text: fmt.Sprintf("No matchup scores are available for Week %d yet.", week)}, nil
+		return commands.Reply{Text: fmt.Sprintf("No matchup scores are available for Week %d yet.", week)}, nil
 	}
 
 	groups := groupMatchups(*sleeperMatchups)
 	const pageSize = 3
 	totalPages := (len(groups) + pageSize - 1) / pageSize
 	if page > totalPages {
-		return adapter.Response{Text: fmt.Sprintf("Scores has %d page(s).", totalPages)}, nil
+		return commands.Reply{Text: fmt.Sprintf("Scores has %d page(s).", totalPages)}, nil
 	}
 
-	sleeperRosters, err := getRosters(league.SleeperLeagueID, ctx, deps)
+	sleeperRosters, err := getRosters(league.SleeperLeagueID, ctx, sl)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "Unable to get league rosters from Sleeper."}, err
+		return commands.Reply{Text: "Unable to get league rosters from Sleeper."}, err
 	}
 
-	sleeperUsers, err := getPlayersInLeague(league.SleeperLeagueID, ctx, deps)
+	sleeperUsers, err := getPlayersInLeague(league.SleeperLeagueID, ctx, sl)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "Unable to get league members from Sleeper."}, err
+		return commands.Reply{Text: "Unable to get league members from Sleeper."}, err
 	}
 
 	var rosters []SleeperRoster
@@ -104,10 +103,10 @@ func scores(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps) (a
 			entries = append(entries, fmt.Sprintf("%s %.2f vs %s %.2f",
 				firstName, getMatchupPoints(first), secondName, getMatchupPoints(second)))
 		default:
-			return adapter.Response{Text: "Sleeper returned an unsupported matchup with more than two teams."}, nil
+			return commands.Reply{Text: "Sleeper returned an unsupported matchup with more than two teams."}, nil
 		}
 	}
 
-	return adapter.Response{Text: fmt.Sprintf("Week %d scores (%d/%d): %s",
+	return commands.Reply{Text: fmt.Sprintf("Week %d scores (%d/%d): %s",
 		week, page, totalPages, strings.Join(entries, " | "))}, nil
 }

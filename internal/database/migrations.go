@@ -99,21 +99,6 @@ func (d *Database) CheckSchemaVersion(ctx context.Context) error {
 	return nil
 }
 
-// SchemaVersion returns the database's current migration version, and the
-// version this build needs.
-func (d *Database) SchemaVersion(ctx context.Context) (have int64, want int64, err error) {
-	want, err = latestMigrationVersion()
-	if err != nil {
-		return 0, 0, err
-	}
-
-	const query = `SELECT COALESCE(MAX(version_id), 0) FROM lys.goose_db_version WHERE is_applied`
-	if err := d.Pool.QueryRow(ctx, query).Scan(&have); err != nil {
-		return 0, want, fmt.Errorf("read schema version: %w", err)
-	}
-	return have, want, nil
-}
-
 func newMigrationProvider(ctx context.Context, connString string) (*goose.Provider, *sql.DB, error) {
 	db, err := sql.Open("pgx", connString)
 	if err != nil {

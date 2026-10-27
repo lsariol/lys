@@ -1,3 +1,5 @@
+// Package bot is the Twitch adapter: it forwards chat messages to the router
+// and sends what the router gives it.
 package bot
 
 import (
@@ -7,108 +9,66 @@ import (
 	"net/http"
 
 	"github.com/lsariol/coveclient"
-	"github.com/lsariol/lys/internal/adapters/adapter"
 	"github.com/lsariol/lys/internal/adapters/twitch/auth"
 	"github.com/lsariol/lys/internal/adapters/twitch/chat"
 	twitchdb "github.com/lsariol/lys/internal/adapters/twitch/database"
 	"github.com/lsariol/lys/internal/adapters/twitch/eventsub"
-	"github.com/lsariol/lys/internal/app/registry"
 	"github.com/lsariol/lys/internal/config"
-	"github.com/lsariol/lys/internal/runtime/settings"
+	"github.com/lsariol/lys/internal/core"
 )
 
-var _ adapter.Adapter = (*TwitchClient)(nil)
+// Platform is the name Twitch messages carry.
+const Platform = "twitch"
 
 type TwitchClient struct {
-	Chat            *chat.ChatClient
-	EventSub        *eventsub.EventSubClient
-	Auth            *auth.AuthClient
-	Config          *config.TwitchConfig
-	Settings        *settings.Store
-	DB              *twitchdb.Store
-	HTTP            *http.Client
-	CommandRegistry *registry.ReadRegister
-
-	// systemEvents is owned by BotClient.
-	// Subcomponents receive only write access to this channel to report internal changes
-	// (e.g., when a user updates a setting or a component’s state changes).
-	// BotClient listens on this channel to apply those updates—persisting them if needed—and
-	// synchronizes the in-memory settings across all dependent subcomponents.
-	systemEvents chan adapter.SystemEvent
-	inEvents     <-chan eventsub.EventSubMessage
-	outEnvelopes chan<- adapter.Envelope
-	inEnvelopes  chan<- adapter.Response
+	Chat     *chat.ChatClient
+	EventSub *eventsub.EventSubClient
+	Auth     *auth.AuthClient
+	Config   *config.TwitchConfig
+	DB       *twitchdb.Store
 }
 
-func New(http *http.Client, cfg *config.TwitchConfig, cove *coveclient.Client, settingsStore *settings.Store, dbStore *twitchdb.Store, routerSink chan<- adapter.Envelope, rReg *registry.ReadRegister) *TwitchClient {
+func New(http *http.Client, cfg *config.TwitchConfig, cove *coveclient.Client, dbStore *twitchdb.Store) *TwitchClient {
 
 	auth := auth.New(cove, cfg, http)
-	es := eventsub.New(http, cfg, auth, dbStore)
-	c := chat.New(http, cfg, auth, dbStore)
 
 	return &TwitchClient{
-		Chat:            c,             //Chat Client
-		EventSub:        es,            //EventSub Client
-		Auth:            auth,          //Auth Client
-		Config:          cfg,           //Config - Values that never change
-		Settings:        settingsStore, //SettingsStore - Values that are tied to the database, which need occasional updating
-		DB:              dbStore,       //Connection to twitch Database
-		HTTP:            http,          //HTTP Client
-		CommandRegistry: rReg,          //Read Register for commands
-		inEvents:        es.OutboundEvents(),
-		inEnvelopes:     c.InboundResponses(),
-		outEnvelopes:    routerSink,
+		Chat:     chat.New(http, cfg, auth),
+		EventSub: eventsub.New(http, cfg, auth, dbStore),
+		Auth:     auth,
+		Config:   cfg,
+		DB:       dbStore,
 	}
 }
 
-func (c *TwitchClient) InboundEvents() <-chan eventsub.EventSubMessage { return c.inEvents }
+func (c *TwitchClient) Platform() string { return Platform }
 
-func (c *TwitchClient) Run(ctx context.Context) error {
+// Healthy reports whether the EventSub connection is up.
+func (c *TwitchClient) Healthy() bool { return c.EventSub.Connected() }
+
+// Run connects to Twitch and forwards chat messages into in until ctx is cancelled.
+func (c *TwitchClient) Run(ctx context.Context, in chan<- core.Message) error {
 
 	if err := c.Initilize(ctx); err != nil {
 		return fmt.Errorf("initilization error: %w", err)
 	}
+	defer c.Shutdown(ctx)
 
-	// Add in supervising eventually
-	//go c.supervise(ctx, "chat", c.Chat.Run)
+	if err := c.EventSub.Run(ctx); err != nil {
+		return fmt.Errorf("eventsub: %w", err)
+	}
 
-	go c.Chat.Run(ctx)
-
-	go c.EventSub.Run(ctx)
-
-	go c.ingestLoop(ctx, c.InboundEvents())
-
-	<-ctx.Done()
-	c.Shutdown(ctx)
-	return ctx.Err()
-
+	return c.ingestLoop(ctx, c.EventSub.OutboundEvents(), in)
 }
 
-// Stores any persistant data living in memory, and closes all connections
+// Send queues a message for its channel.
+func (c *TwitchClient) Send(ctx context.Context, out core.Outbound) error {
+	return c.Chat.Send(ctx, out)
+}
+
+// Shutdown closes the EventSub connection.
 func (c *TwitchClient) Shutdown(ctx context.Context) {
-
-	if err := c.Chat.Shutdown(); err != nil {
-		log.Println("Error in Chat shutdown: %w", err)
-	}
 	if err := c.EventSub.Shutdown(ctx); err != nil {
-		log.Println("Error in EventSub shutdown: %w", err)
+		log.Printf("[Twitch] EventSub shutdown: %v", err)
 	}
-	if err := c.DB.Shutdown(); err != nil {
-		log.Println("Error in Auth shutdown: %w", err)
-	}
-
-}
-
-func (c *TwitchClient) Health(ctx context.Context) adapter.HealthStatus {
-	status := adapter.HealthStatus{}
-
-	return status
-}
-
-func (c *TwitchClient) Name() string {
-	return "twitch"
-}
-
-func (c *TwitchClient) DeliverResponse(r adapter.Response) {
-	c.Chat.InboundResponses() <- r
 }

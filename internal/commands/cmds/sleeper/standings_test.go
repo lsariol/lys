@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lsariol/lys/internal/adapters/adapter"
+	"github.com/lsariol/lys/internal/commands"
 )
 
 func TestStandingsInvalidArguments(t *testing.T) {
@@ -17,7 +17,7 @@ func TestStandingsInvalidArguments(t *testing.T) {
 		{"standings", "999999999999999999999999999999"},
 		{"standings", "1", "extra"},
 	} {
-		response, err := standings(context.Background(), adapter.Envelope{Args: args}, nil)
+		response, err := standings(context.Background(), commands.Request{Args: args}, nil)
 		if err != nil || !strings.HasPrefix(response.Text, "Usage:") {
 			t.Errorf("args %v: got response %q, error %v", args, response.Text, err)
 		}

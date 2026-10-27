@@ -2,26 +2,33 @@ package oneuppuzzle
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
 	"strconv"
 
-	"github.com/lsariol/lys/internal/adapters/adapter"
+	"github.com/lsariol/lys/internal/commands"
 )
 
-func packageGame(e adapter.Envelope) (OneUpGame, error) {
+// rawMessage is how a game's message is stored in game_events.raw_message:
+// "channel:chatter-text", as the bot has always written it.
+func rawMessage(e commands.Request) string {
+	return fmt.Sprintf("%s:%s-%s", e.Channel.Name, e.User.Name, e.Text)
+}
+
+func packageGame(e commands.Request) (OneUpGame, error) {
 	var game OneUpGame
 
-	gameDetails, err := parseGameString(e.RawMessage)
+	gameDetails, err := parseGameString(rawMessage(e))
 	if err != nil {
 		return game, err
 	}
 
-	game.UserID = e.UserID
-	game.Username = e.Username
-	game.ChannelID = e.ChannelID
-	game.ChannelName = e.ChannelName
+	game.UserID = e.User.ID
+	game.Username = e.User.Name
+	game.ChannelID = e.Channel.ID
+	game.ChannelName = e.Channel.Name
 	game.GameCode = "oneuppuzzle"
-	game.RawMessage = e.RawMessage
+	game.RawMessage = rawMessage(e)
 	game.Details = gameDetails
 
 	return game, nil

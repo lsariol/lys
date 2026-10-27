@@ -7,74 +7,73 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/lsariol/lys/internal/adapters/adapter"
-	"github.com/lsariol/lys/internal/app/dependencies"
+	"github.com/lsariol/lys/internal/commands"
 )
 
-func roster(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps) (adapter.Response, error) {
+func roster(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply, error) {
 
 	const usage = "Usage: !sleeper roster [@user] [page]"
 	if len(e.Args) < 1 || len(e.Args) > 3 {
-		return adapter.Response{Text: usage}, nil
+		return commands.Reply{Text: usage}, nil
 	}
 
-	username := e.Username
+	username := e.User.Name
 	page := 1
 	pageArgument := ""
 	if len(e.Args) >= 2 {
 		if strings.HasPrefix(e.Args[1], "@") {
 			username = strings.TrimPrefix(e.Args[1], "@")
 			if username == "" {
-				return adapter.Response{Text: usage}, nil
+				return commands.Reply{Text: usage}, nil
 			}
 			if len(e.Args) == 3 {
 				pageArgument = e.Args[2]
 			}
 		} else {
 			if len(e.Args) == 3 {
-				return adapter.Response{Text: usage}, nil
+				return commands.Reply{Text: usage}, nil
 			}
 			pageArgument = e.Args[1]
 		}
 		if pageArgument != "" {
 			requestedPage, err := strconv.Atoi(pageArgument)
 			if err != nil || requestedPage < 1 {
-				return adapter.Response{Text: usage + ". Page must be a positive number."}, nil
+				return commands.Reply{Text: usage + ". Page must be a positive number."}, nil
 			}
 			page = requestedPage
 		}
 	}
 
-	league, err := getLeagueByChannel(ctx, e.ChannelID, deps)
+	league, err := getLeagueByChannel(ctx, e.Channel.ID, sl)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "Internal error getting league information."}, err
+		return commands.Reply{Text: "Internal error getting league information."}, err
 	}
 	if league == nil {
-		return adapter.Response{Text: "This channel is not associated with any league."}, nil
+		return commands.Reply{Text: "This channel is not associated with any league."}, nil
 	}
 
 	var connection *SleeperConnection
-	if strings.EqualFold(username, e.Username) {
-		connection, err = getConnectionByUserID(ctx, league.ID, e.UserID, deps)
+	if strings.EqualFold(username, e.User.Name) {
+		connection, err = getConnectionByUserID(ctx, league.ID, e.User.ID, sl)
 	} else {
-		connection, err = getConnectionByUsername(ctx, league.ID, username, deps)
+		connection, err = getConnectionByUsername(ctx, league.ID, username, sl)
 	}
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "Internal error finding the linked account."}, err
+		return commands.Reply{Text: "Internal error finding the linked account."}, err
 	}
 	if connection == nil {
-		return adapter.Response{Text: fmt.Sprintf("@%s is not linked to a Sleeper account in this league.", username)}, nil
+		return commands.Reply{Text: fmt.Sprintf("@%s is not linked to a Sleeper account in this league.", username)}, nil
 	}
 
-	sleeperRosters, err := getRosters(league.SleeperLeagueID, ctx, deps)
+	sleeperRosters, err := getRosters(league.SleeperLeagueID, ctx, sl)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "Unable to get league rosters from Sleeper."}, err
+		return commands.Reply{Text: "Unable to get league rosters from Sleeper."}, err
 	}
 	if sleeperRosters == nil || len(*sleeperRosters) == 0 {
-		return adapter.Response{Text: "No rosters are available for this league yet."}, nil
+		return commands.Reply{Text: "No rosters are available for this league yet."}, nil
 	}
 
 	var selectedRoster *SleeperRoster
@@ -85,37 +84,37 @@ func roster(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps) (a
 		}
 	}
 	if selectedRoster == nil {
-		return adapter.Response{Text: fmt.Sprintf("@%s's linked roster could not be found in this league.", username)}, nil
+		return commands.Reply{Text: fmt.Sprintf("@%s's linked roster could not be found in this league.", username)}, nil
 	}
 	if selectedRoster.OwnerID == "" || selectedRoster.OwnerID != connection.SleeperUserID {
-		return adapter.Response{Text: fmt.Sprintf("@%s's saved link no longer matches the roster owner. Please unlink and link the account again.", username)}, nil
+		return commands.Reply{Text: fmt.Sprintf("@%s's saved link no longer matches the roster owner. Please unlink and link the account again.", username)}, nil
 	}
 
-	sleeperLeague, err := GetLeague(ctx, league.SleeperLeagueID, deps.HTTP)
+	sleeperLeague, err := GetLeague(ctx, league.SleeperLeagueID, sl.http)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "Unable to get league settings from Sleeper."}, err
+		return commands.Reply{Text: "Unable to get league settings from Sleeper."}, err
 	}
 	if sleeperLeague == nil || sleeperLeague.LeagueID == "" {
-		return adapter.Response{Text: "Sleeper did not return valid league settings."}, nil
+		return commands.Reply{Text: "Sleeper did not return valid league settings."}, nil
 	}
 
-	players, err := getPlayerCatalog(ctx, deps)
+	players, err := getPlayerCatalog(ctx, sl)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "Player names are loading or temporarily unavailable. Please try again shortly."}, nil
+		return commands.Reply{Text: "Player names are loading or temporarily unavailable. Please try again shortly."}, nil
 	}
 
 	entries := getRosterEntries(*selectedRoster, sleeperLeague.RosterPositions, players)
 	if len(entries) == 0 {
-		return adapter.Response{Text: fmt.Sprintf("@%s's roster is empty.", username)}, nil
+		return commands.Reply{Text: fmt.Sprintf("@%s's roster is empty.", username)}, nil
 	}
 
 	// Four bounded entries keep the response compact.
 	const pageSize = 4
 	totalPages := (len(entries) + pageSize - 1) / pageSize
 	if page > totalPages {
-		return adapter.Response{Text: fmt.Sprintf("Roster has %d page(s).", totalPages)}, nil
+		return commands.Reply{Text: fmt.Sprintf("Roster has %d page(s).", totalPages)}, nil
 	}
 	start := (page - 1) * pageSize
 	end := start + pageSize
@@ -123,7 +122,7 @@ func roster(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps) (a
 		end = len(entries)
 	}
 
-	return adapter.Response{Text: fmt.Sprintf("@%s roster (%d/%d): %s",
+	return commands.Reply{Text: fmt.Sprintf("@%s roster (%d/%d): %s",
 		username, page, totalPages, strings.Join(entries[start:end], " | "))}, nil
 }
 

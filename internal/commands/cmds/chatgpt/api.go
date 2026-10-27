@@ -9,8 +9,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/lsariol/lys/internal/adapters/adapter"
-	"github.com/lsariol/lys/internal/app/dependencies"
+	"github.com/lsariol/lys/internal/commands"
 )
 
 // responsesURL is OpenAI's Responses endpoint; tests point it at a local server.
@@ -24,7 +23,7 @@ type ChatRequest struct {
 	Tools        []map[string]string `json:"tools"`
 }
 
-func dialGPT(ctx context.Context, username string, prompt string, deps *dependencies.Deps) (GPTResponse, error) {
+func dialGPT(ctx context.Context, username string, prompt string, apiKey string) (GPTResponse, error) {
 
 	const developerPrompt = `You are a compact, no-nonsense assistant used by a Twitch bot.
 
@@ -56,7 +55,7 @@ Rules:
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+deps.Config.Commands.ChatGPTKey)
+	req.Header.Set("Authorization", "Bearer "+apiKey)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -84,10 +83,10 @@ Rules:
 	return gptResponse, nil
 }
 
-func callChatGPT(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps) (string, error) {
+func callChatGPT(ctx context.Context, e commands.Request, apiKey string) (string, error) {
 	content := strings.Join(e.Args, " ")
 
-	gptResponse, err := dialGPT(ctx, e.Username, content, deps)
+	gptResponse, err := dialGPT(ctx, e.User.Name, content, apiKey)
 	if err != nil {
 		return "", err
 	}

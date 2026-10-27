@@ -5,10 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/lsariol/lys/internal/app/dependencies"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func storeGame(game OneUpGame, deps *dependencies.Deps) error {
+// store holds OneUpPuzzle games in lys.game_events.
+type store struct {
+	pool *pgxpool.Pool
+}
+
+func (s *store) storeGame(ctx context.Context, game OneUpGame) error {
 
 	query := `
 	INSERT INTO lys.game_events (user_id, username, channel_id, channel_name, game_code, raw_message, details)
@@ -17,7 +22,7 @@ func storeGame(game OneUpGame, deps *dependencies.Deps) error {
 
 	b, _ := json.Marshal(game.Details)
 
-	_, err := deps.DB.Pool.Exec(deps.CTX, query, game.UserID, game.Username, game.ChannelID, game.ChannelName, game.GameCode, game.RawMessage, b)
+	_, err := s.pool.Exec(ctx, query, game.UserID, game.Username, game.ChannelID, game.ChannelName, game.GameCode, game.RawMessage, b)
 	if err != nil {
 		return fmt.Errorf("exec query: %w", err)
 	}
@@ -25,7 +30,7 @@ func storeGame(game OneUpGame, deps *dependencies.Deps) error {
 	return nil
 }
 
-func storeFlaggedGame(game OneUpGame, deps *dependencies.Deps) error {
+func (s *store) storeFlaggedGame(ctx context.Context, game OneUpGame) error {
 
 	query := `
 	INSERT INTO lys.game_events (user_id, username, channel_id, channel_name, game_code, raw_message, details, is_flagged)
@@ -34,7 +39,7 @@ func storeFlaggedGame(game OneUpGame, deps *dependencies.Deps) error {
 
 	b, _ := json.Marshal(game.Details)
 
-	_, err := deps.DB.Pool.Exec(deps.CTX, query, game.UserID, game.Username, game.ChannelID, game.ChannelName, game.GameCode, game.RawMessage, b, true)
+	_, err := s.pool.Exec(ctx, query, game.UserID, game.Username, game.ChannelID, game.ChannelName, game.GameCode, game.RawMessage, b, true)
 	if err != nil {
 		return fmt.Errorf("exec query: %w", err)
 	}
@@ -42,7 +47,7 @@ func storeFlaggedGame(game OneUpGame, deps *dependencies.Deps) error {
 	return nil
 }
 
-func puzzleStatsByChannel(ctx context.Context, channelID string, deps *dependencies.Deps) (ChannelProfile, bool, error) {
+func (s *store) puzzleStatsByChannel(ctx context.Context, channelID string) (ChannelProfile, bool, error) {
 	var channelProfile ChannelProfile
 
 	query := `
@@ -80,7 +85,7 @@ func puzzleStatsByChannel(ctx context.Context, channelID string, deps *dependenc
 	AND game_code  = 'oneuppuzzle'
 	AND is_flagged = FALSE;
 	`
-	err := deps.DB.Pool.QueryRow(ctx, query, channelID).Scan(
+	err := s.pool.QueryRow(ctx, query, channelID).Scan(
 		&channelProfile.GamesCompleted,
 		&channelProfile.Completions.FastestTime,
 		&channelProfile.Completions.SlowestTime,
@@ -100,7 +105,7 @@ func puzzleStatsByChannel(ctx context.Context, channelID string, deps *dependenc
 	return channelProfile, true, nil
 }
 
-func puzzleStatsByUser(ctx context.Context, username string, deps *dependencies.Deps) (UserProfile, bool, error) {
+func (s *store) puzzleStatsByUser(ctx context.Context, username string) (UserProfile, bool, error) {
 	var userProfile UserProfile
 
 	query := `
@@ -115,7 +120,7 @@ func puzzleStatsByUser(ctx context.Context, username string, deps *dependencies.
 	AND is_flagged = FALSE;
 	`
 
-	err := deps.DB.Pool.QueryRow(ctx, query, username).Scan(
+	err := s.pool.QueryRow(ctx, query, username).Scan(
 		&userProfile.GamesCompleted,
 		&userProfile.Completions.FastestTime,
 		&userProfile.Completions.SlowestTime,
@@ -136,7 +141,7 @@ func puzzleStatsByUser(ctx context.Context, username string, deps *dependencies.
 
 }
 
-func puzzleStatsByPuzzleID(ctx context.Context, gameID int, deps *dependencies.Deps) (GameProfile, bool, error) {
+func (s *store) puzzleStatsByPuzzleID(ctx context.Context, gameID int) (GameProfile, bool, error) {
 	var gameProfile GameProfile
 
 	query := `
@@ -175,7 +180,7 @@ func puzzleStatsByPuzzleID(ctx context.Context, gameID int, deps *dependencies.D
 	AND is_flagged = FALSE;
 	`
 
-	err := deps.DB.Pool.QueryRow(ctx, query, gameID).Scan(
+	err := s.pool.QueryRow(ctx, query, gameID).Scan(
 		&gameProfile.GamesCompleted,
 		&gameProfile.Completions.FastestTime,
 		&gameProfile.Completions.SlowestTime,
@@ -198,76 +203,7 @@ func puzzleStatsByPuzzleID(ctx context.Context, gameID int, deps *dependencies.D
 
 }
 
-func puzzleStatsByChannelAndPuzzleID(ctx context.Context, channelID string, gameID int, deps *dependencies.Deps) (GameProfile, bool, error) {
-	var gameProfile GameProfile
-
-	query := `
-	SELECT
-		-- stats
-		COUNT(*)                                 			AS total_games,
-		MIN((details->>'time_seconds')::int)     			AS fastest_time,
-		MAX((details->>'time_seconds')::int)     			AS slowest_time,
-		CAST(AVG((details->>'time_seconds')::int) AS int)	AS avg_time,
-
-		-- fastest username
-		(
-			SELECT username
-			FROM lys.game_events
-			WHERE (details->'puzzle_id')::INT = $2
-			AND channel_id = $1
-			AND game_code  = 'oneuppuzzle'
-			AND is_flagged = FALSE
-			ORDER BY (details->>'time_seconds')::int ASC
-			LIMIT 1
-		) AS fastest_user,
-
-		-- slowest username
-		(
-			SELECT username
-			FROM lys.game_events
-			WHERE (details->'puzzle_id')::INT = $2
-			AND channel_id = $1
-			AND game_code  = 'oneuppuzzle'
-			AND is_flagged = FALSE
-			ORDER BY (details->>'time_seconds')::int DESC
-			LIMIT 1
-		) AS slowest_user
-
-	FROM lys.game_events
-	WHERE (details->'puzzle_id')::INT = $2
-	AND channel_id = $1
-	AND game_code  = 'oneuppuzzle'
-	AND is_flagged = FALSE;
-	`
-
-	err := deps.DB.Pool.QueryRow(ctx, query, channelID, gameID).Scan(
-		&gameProfile.GamesCompleted,
-		&gameProfile.Completions.FastestTime,
-		&gameProfile.Completions.SlowestTime,
-		&gameProfile.Completions.AverageTime,
-		&gameProfile.FastestUser,
-		&gameProfile.SlowestUser,
-	)
-
-	gameProfile.ChannelID = channelID
-
-	if err != nil {
-		return gameProfile, false, fmt.Errorf("query row: %w", err)
-	}
-
-	if gameProfile.Completions.FastestTime == nil {
-		return gameProfile, false, nil
-	}
-
-	return gameProfile, true, nil
-
-}
-
-func getLeaders(channelID string) error {
-	return nil
-}
-
-func isPuzzleRecorded(ctx context.Context, userID string, gameID int, deps *dependencies.Deps) (bool, error) {
+func (s *store) isPuzzleRecorded(ctx context.Context, userID string, gameID int) (bool, error) {
 	var recorded bool = false
 
 	query := `
@@ -281,7 +217,7 @@ func isPuzzleRecorded(ctx context.Context, userID string, gameID int, deps *depe
 		);
 	`
 
-	err := deps.DB.Pool.QueryRow(ctx, query, userID, gameID).Scan(&recorded)
+	err := s.pool.QueryRow(ctx, query, userID, gameID).Scan(&recorded)
 	if err != nil {
 		return false, fmt.Errorf("query row: %w", err)
 	}

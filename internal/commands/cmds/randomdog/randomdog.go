@@ -8,45 +8,51 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/lsariol/lys/internal/adapters/adapter"
-	"github.com/lsariol/lys/internal/app/dependencies"
+	"github.com/lsariol/lys/internal/commands"
 )
 
-type RandomDog struct{}
-
-func (RandomDog) Name() string      { return "randomdog" }
-func (RandomDog) Aliases() []string { return nil }
-func (RandomDog) Regexes() []string { return nil }
-func (RandomDog) Description() string {
-	return "Gives you a random dog picture,gif or video from random.dog/woof.json"
+// RandomDog links a random dog picture, gif or video from random.dog.
+type RandomDog struct {
+	http *http.Client
 }
-func (RandomDog) Usage() string          { return "!randomdog" }
-func (RandomDog) Timeout() time.Duration { return 20 * time.Second }
 
-// Returns a message with a link to a picture, gif or video of a random dog from random.dog
-func (RandomDog) Execute(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps) (adapter.Response, error) {
+func New(http *http.Client) *RandomDog { return &RandomDog{http: http} }
+
+func (*RandomDog) Spec() commands.Spec {
+	return commands.Spec{
+		Name:        "randomdog",
+		Description: "Gives you a random dog picture,gif or video from random.dog/woof.json",
+		Usage:       "!randomdog",
+		Timeout:     20 * time.Second,
+	}
+}
+
+func (d *RandomDog) Run(ctx context.Context, e commands.Request) (commands.Reply, error) {
 
 	type randomDog struct {
 		FileSize int    `json:"fileSizeBytes"`
 		URL      string `json:"url"`
 	}
 
-	resp, err := deps.HTTP.Get("https://random.dog/woof.json")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://random.dog/woof.json", nil)
 	if err != nil {
-		return adapter.Response{Error: true}, nil
+		return commands.Reply{}, err
+	}
+	resp, err := d.http.Do(req)
+	if err != nil {
+		return commands.Reply{}, fmt.Errorf("random.dog: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return adapter.Response{Error: true}, fmt.Errorf("bad status: %s, body: %s", resp.Status, string(bodyBytes))
+		return commands.Reply{}, fmt.Errorf("random.dog: bad status: %s, body: %s", resp.Status, string(bodyBytes))
 	}
 
 	var rd randomDog
 	if err := json.NewDecoder(resp.Body).Decode(&rd); err != nil {
-		return adapter.Response{Error: true}, err
+		return commands.Reply{}, fmt.Errorf("random.dog: %w", err)
 	}
 
-	return adapter.Response{Text: fmt.Sprintf("Heres a random dog. %s", rd.URL)}, nil
-
+	return commands.Reply{Text: fmt.Sprintf("Heres a random dog. %s", rd.URL)}, nil
 }

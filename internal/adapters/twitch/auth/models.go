@@ -25,10 +25,3 @@ type VerificationSuccess struct {
 	UserId    string   `json:"user_id"`
 	ExpiresIn int      `json:"expires_in"`
 }
-
-type UserData struct {
-	UserAccessToken  string `json:"user_access_token"`
-	UserRefreshToken string `json:"user_refresh_token"`
-	UserID           string `json:"user_id"`
-	Username         string `json:"username"`
-}

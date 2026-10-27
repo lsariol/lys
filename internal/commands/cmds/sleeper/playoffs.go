@@ -8,53 +8,52 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/lsariol/lys/internal/adapters/adapter"
-	"github.com/lsariol/lys/internal/app/dependencies"
+	"github.com/lsariol/lys/internal/commands"
 )
 
-func playoffs(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps) (adapter.Response, error) {
+func playoffs(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply, error) {
 
 	if len(e.Args) < 1 || len(e.Args) > 2 {
-		return adapter.Response{Text: "Usage: !sleeper playoffs [page]"}, nil
+		return commands.Reply{Text: "Usage: !sleeper playoffs [page]"}, nil
 	}
 	page := 1
 	if len(e.Args) == 2 {
 		requestedPage, err := strconv.Atoi(e.Args[1])
 		if err != nil || requestedPage < 1 {
-			return adapter.Response{Text: "Usage: !sleeper playoffs [page]. Page must be a positive number."}, nil
+			return commands.Reply{Text: "Usage: !sleeper playoffs [page]. Page must be a positive number."}, nil
 		}
 		page = requestedPage
 	}
 
-	league, err := getLeagueByChannel(ctx, e.ChannelID, deps)
+	league, err := getLeagueByChannel(ctx, e.Channel.ID, sl)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "Internal error getting league information."}, err
+		return commands.Reply{Text: "Internal error getting league information."}, err
 	}
 	if league == nil {
-		return adapter.Response{Text: "This channel is not associated with any league."}, nil
+		return commands.Reply{Text: "This channel is not associated with any league."}, nil
 	}
 
-	sleeperLeague, err := GetLeague(ctx, league.SleeperLeagueID, deps.HTTP)
+	sleeperLeague, err := GetLeague(ctx, league.SleeperLeagueID, sl.http)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "Unable to get playoff settings from Sleeper."}, err
+		return commands.Reply{Text: "Unable to get playoff settings from Sleeper."}, err
 	}
 	if sleeperLeague == nil || sleeperLeague.LeagueID == "" || sleeperLeague.Season == "" {
-		return adapter.Response{Text: "Sleeper did not return valid league settings."}, nil
+		return commands.Reply{Text: "Sleeper did not return valid league settings."}, nil
 	}
 	settings := sleeperLeague.Settings
 	if settings.PlayoffWeekStart < 1 || settings.PlayoffTeams < 2 {
-		return adapter.Response{Text: "Playoffs are not configured for this league."}, nil
+		return commands.Reply{Text: "Playoffs are not configured for this league."}, nil
 	}
 	if settings.PlayoffRoundType == nil || *settings.PlayoffRoundType != 0 {
-		return adapter.Response{Text: "This playoff round format is not supported yet. Automatic timing currently supports standard one-week rounds."}, nil
+		return commands.Reply{Text: "This playoff round format is not supported yet. Automatic timing currently supports standard one-week rounds."}, nil
 	}
 
-	sleeperBracket, err := getPlayoffBracket(league.SleeperLeagueID, ctx, deps)
+	sleeperBracket, err := getPlayoffBracket(league.SleeperLeagueID, ctx, sl)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "Unable to get the playoff bracket from Sleeper."}, err
+		return commands.Reply{Text: "Unable to get the playoff bracket from Sleeper."}, err
 	}
 	var bracket []SleeperPlayoffMatchup
 	if sleeperBracket != nil {
@@ -64,17 +63,17 @@ func playoffs(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps) 
 
 	var state SleeperNFLState
 	if championship == nil || championship.Winner == nil || *championship.Winner <= 0 {
-		nflState, err := getNFLState(ctx, deps)
+		nflState, err := getNFLState(ctx, sl)
 		if err != nil {
 			log.Print(err)
-			return adapter.Response{Text: "Unable to get the current week from Sleeper."}, err
+			return commands.Reply{Text: "Unable to get the current week from Sleeper."}, err
 		}
 		state = *nflState
 	}
 
 	round, week, message := getPlayoffRound(*sleeperLeague, state, bracket)
 	if message != "" {
-		return adapter.Response{Text: message}, nil
+		return commands.Reply{Text: message}, nil
 	}
 	var games []SleeperPlayoffMatchup
 	for _, game := range bracket {
@@ -84,23 +83,23 @@ func playoffs(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps) 
 	}
 	sort.Slice(games, func(i, j int) bool { return games[i].MatchID < games[j].MatchID })
 	if len(games) == 0 {
-		return adapter.Response{Text: "The current playoff round is not available yet."}, nil
+		return commands.Reply{Text: "The current playoff round is not available yet."}, nil
 	}
 	const pageSize = 3
 	totalPages := (len(games) + pageSize - 1) / pageSize
 	if page > totalPages {
-		return adapter.Response{Text: fmt.Sprintf("Playoffs has %d page(s).", totalPages)}, nil
+		return commands.Reply{Text: fmt.Sprintf("Playoffs has %d page(s).", totalPages)}, nil
 	}
 
-	sleeperRosters, err := getRosters(league.SleeperLeagueID, ctx, deps)
+	sleeperRosters, err := getRosters(league.SleeperLeagueID, ctx, sl)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "Unable to get league rosters from Sleeper."}, err
+		return commands.Reply{Text: "Unable to get league rosters from Sleeper."}, err
 	}
-	sleeperUsers, err := getPlayersInLeague(league.SleeperLeagueID, ctx, deps)
+	sleeperUsers, err := getPlayersInLeague(league.SleeperLeagueID, ctx, sl)
 	if err != nil {
 		log.Print(err)
-		return adapter.Response{Text: "Unable to get league members from Sleeper."}, err
+		return commands.Reply{Text: "Unable to get league members from Sleeper."}, err
 	}
 	var rosters []SleeperRoster
 	if sleeperRosters != nil {
@@ -112,7 +111,7 @@ func playoffs(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps) 
 	}
 
 	var matchups []SleeperMatchup
-	sleeperMatchups, err := getMatchups(league.SleeperLeagueID, week, ctx, deps)
+	sleeperMatchups, err := getMatchups(league.SleeperLeagueID, week, ctx, sl)
 	if err != nil {
 		log.Print(err)
 	} else if sleeperMatchups != nil {
@@ -147,7 +146,7 @@ func playoffs(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps) 
 		heading = fmt.Sprintf("Champion: %s | Week %d (%d/%d)",
 			getMatchupTeamName(*championship.Winner, rosters, users), week, page, totalPages)
 	}
-	return adapter.Response{Text: heading + ": " + strings.Join(entries, " | ")}, nil
+	return commands.Reply{Text: heading + ": " + strings.Join(entries, " | ")}, nil
 }
 
 func getChampionship(bracket []SleeperPlayoffMatchup) *SleeperPlayoffMatchup {

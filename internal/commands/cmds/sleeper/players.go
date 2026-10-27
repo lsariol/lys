@@ -7,8 +7,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/lsariol/lys/internal/app/dependencies"
 )
 
 var playerCatalog struct {
@@ -19,7 +17,7 @@ var playerCatalog struct {
 	loading   bool
 }
 
-func getPlayerCatalog(ctx context.Context, deps *dependencies.Deps) (map[string]SleeperPlayer, error) {
+func getPlayerCatalog(ctx context.Context, sl *Sleeper) (map[string]SleeperPlayer, error) {
 
 	playerCatalog.Lock()
 	if len(playerCatalog.players) > 0 && time.Since(playerCatalog.updatedAt) < 24*time.Hour {
@@ -40,7 +38,7 @@ func getPlayerCatalog(ctx context.Context, deps *dependencies.Deps) (map[string]
 	playerCatalog.loading = true
 	playerCatalog.Unlock()
 
-	players, err := getPlayers(ctx, deps)
+	players, err := getPlayers(ctx, sl)
 
 	playerCatalog.Lock()
 	defer playerCatalog.Unlock()

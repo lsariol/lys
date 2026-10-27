@@ -9,8 +9,6 @@ import (
 	"testing"
 	"time"
 	"unicode/utf8"
-
-	"github.com/lsariol/lys/internal/app/dependencies"
 )
 
 func TestRosterEntries(t *testing.T) {
@@ -44,7 +42,7 @@ func TestPlayerCatalogLoadingAndRefreshFailure(t *testing.T) {
 	started := make(chan struct{})
 	release := make(chan struct{})
 	done := make(chan error, 1)
-	deps := &dependencies.Deps{HTTP: &http.Client{Transport: scoresTransport(func(req *http.Request) (*http.Response, error) {
+	deps := &Sleeper{http: &http.Client{Transport: scoresTransport(func(req *http.Request) (*http.Response, error) {
 		close(started)
 		<-release
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"1":{"full_name":"Player One"}}`)), Header: make(http.Header)}, nil
@@ -70,7 +68,7 @@ func TestPlayerCatalogLoadingAndRefreshFailure(t *testing.T) {
 	playerCatalog.updatedAt = time.Now().Add(-25 * time.Hour)
 	playerCatalog.Unlock()
 	calls := 0
-	deps.HTTP = &http.Client{Transport: scoresTransport(func(req *http.Request) (*http.Response, error) {
+	deps.http = &http.Client{Transport: scoresTransport(func(req *http.Request) (*http.Response, error) {
 		calls++
 		return &http.Response{StatusCode: 503, Body: io.NopCloser(strings.NewReader("unavailable")), Header: make(http.Header)}, nil
 	})}

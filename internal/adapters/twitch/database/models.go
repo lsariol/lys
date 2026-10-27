@@ -1,12 +1,5 @@
 package twitchdb
 
-type AddChannelParams struct {
-	UserID       string
-	Username     string
-	AccessToken  string
-	RefreshToken string
-}
-
 type TwitchChannel struct {
 	UserID         string
 	Username       string

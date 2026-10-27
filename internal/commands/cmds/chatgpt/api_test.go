@@ -6,14 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/lsariol/lys/internal/adapters/adapter"
-	"github.com/lsariol/lys/internal/app/dependencies"
-	"github.com/lsariol/lys/internal/config"
+	"github.com/lsariol/lys/internal/commands"
+	"github.com/lsariol/lys/internal/core"
 )
-
-func testDeps() *dependencies.Deps {
-	return &dependencies.Deps{Config: &config.Config{Commands: &config.CommandsConfig{ChatGPTKey: "test"}}}
-}
 
 func serve(t *testing.T, status int, body string) {
 	t.Helper()
@@ -28,11 +23,11 @@ func serve(t *testing.T, status int, body string) {
 }
 
 func TestCallChatGPT(t *testing.T) {
-	e := adapter.Envelope{Username: "viewer", Args: []string{"hi"}}
+	e := commands.Request{Message: core.Message{User: core.User{Name: "viewer"}}, Args: []string{"hi"}}
 
 	t.Run("answer", func(t *testing.T) {
 		serve(t, http.StatusOK, `{"output":[{"type":"web_search_call"},{"type":"message","content":[{"type":"output_text","text":"hello"}]}]}`)
-		got, err := callChatGPT(context.Background(), e, testDeps())
+		got, err := callChatGPT(context.Background(), e, "test")
 		if err != nil || got != "hello" {
 			t.Fatalf("got %q, %v; want \"hello\", nil", got, err)
 		}
@@ -49,7 +44,7 @@ func TestCallChatGPT(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			serve(t, tc.status, tc.body)
-			if _, err := callChatGPT(context.Background(), e, testDeps()); err == nil {
+			if _, err := callChatGPT(context.Background(), e, "test"); err == nil {
 				t.Fatal("got no error")
 			}
 		})
@@ -59,7 +54,7 @@ func TestCallChatGPT(t *testing.T) {
 		old := responsesURL
 		responsesURL = "http://127.0.0.1:1"
 		t.Cleanup(func() { responsesURL = old })
-		if _, err := callChatGPT(context.Background(), e, testDeps()); err == nil {
+		if _, err := callChatGPT(context.Background(), e, "test"); err == nil {
 			t.Fatal("got no error")
 		}
 	})

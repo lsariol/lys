@@ -9,10 +9,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/lsariol/lys/internal/app/dependencies"
 )
 
-func FindLeagueLinkConflict(leagueID string, channelID string, ctx context.Context, deps *dependencies.Deps) (*SleeperLeagueLink, error) {
+func FindLeagueLinkConflict(leagueID string, channelID string, ctx context.Context, sl *Sleeper) (*SleeperLeagueLink, error) {
 
 	const query string = `
 		SELECT twitch_channel_id, sleeper_league_id
@@ -22,7 +21,7 @@ func FindLeagueLinkConflict(leagueID string, channelID string, ctx context.Conte
 		LIMIT 1`
 
 	var link SleeperLeagueLink
-	err := deps.DB.Pool.QueryRow(ctx, query, channelID, leagueID).Scan(&link.TwitchChannelID, &link.SleeperLeagueID)
+	err := sl.db.QueryRow(ctx, query, channelID, leagueID).Scan(&link.TwitchChannelID, &link.SleeperLeagueID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
@@ -33,7 +32,7 @@ func FindLeagueLinkConflict(leagueID string, channelID string, ctx context.Conte
 	return &link, nil
 }
 
-func addLeagueLink(league *League, channelID string, ctx context.Context, deps *dependencies.Deps) (error, bool) {
+func addLeagueLink(league *League, channelID string, ctx context.Context, sl *Sleeper) (error, bool) {
 
 	const query = `
 	INSERT INTO lys.sleeper_leagues(
@@ -44,7 +43,7 @@ func addLeagueLink(league *League, channelID string, ctx context.Context, deps *
 	)
 	VALUES ($1, $2, $3, $4)`
 
-	_, err := deps.DB.Pool.Exec(ctx, query, channelID, league.LeagueID, league.Name, league.Season)
+	_, err := sl.db.Exec(ctx, query, channelID, league.LeagueID, league.Name, league.Season)
 	if err != nil {
 		log.Println(err)
 		return err, false
@@ -52,7 +51,7 @@ func addLeagueLink(league *League, channelID string, ctx context.Context, deps *
 	return nil, true
 }
 
-func getLeagueByChannel(ctx context.Context, channelID string, deps *dependencies.Deps) (*SleeperLeague, error) {
+func getLeagueByChannel(ctx context.Context, channelID string, sl *Sleeper) (*SleeperLeague, error) {
 	const query string = `
 		SELECT 
 		id,
@@ -65,7 +64,7 @@ func getLeagueByChannel(ctx context.Context, channelID string, deps *dependencie
 		`
 
 	var league SleeperLeague
-	err := deps.DB.Pool.QueryRow(ctx, query, channelID).Scan(&league.ID, &league.TwitchChannelID, &league.SleeperLeagueID, &league.LeagueName, &league.Season)
+	err := sl.db.QueryRow(ctx, query, channelID).Scan(&league.ID, &league.TwitchChannelID, &league.SleeperLeagueID, &league.LeagueName, &league.Season)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
@@ -76,7 +75,7 @@ func getLeagueByChannel(ctx context.Context, channelID string, deps *dependencie
 	return &league, nil
 }
 
-func getConnectionByUserID(ctx context.Context, leagueID uuid.UUID, twitchUserID string, deps *dependencies.Deps) (*SleeperConnection, error) {
+func getConnectionByUserID(ctx context.Context, leagueID uuid.UUID, twitchUserID string, sl *Sleeper) (*SleeperConnection, error) {
 
 	const query = `
 		SELECT
@@ -91,7 +90,7 @@ func getConnectionByUserID(ctx context.Context, leagueID uuid.UUID, twitchUserID
 			AND twitch_user_id = $2`
 
 	var connection SleeperConnection
-	err := deps.DB.Pool.QueryRow(ctx, query, leagueID, twitchUserID).Scan(
+	err := sl.db.QueryRow(ctx, query, leagueID, twitchUserID).Scan(
 		&connection.LeagueID,
 		&connection.TwitchUserID,
 		&connection.TwitchUsername,
@@ -109,7 +108,7 @@ func getConnectionByUserID(ctx context.Context, leagueID uuid.UUID, twitchUserID
 	return &connection, nil
 }
 
-func getConnectionByUsername(ctx context.Context, leagueID uuid.UUID, twitchUsername string, deps *dependencies.Deps) (*SleeperConnection, error) {
+func getConnectionByUsername(ctx context.Context, leagueID uuid.UUID, twitchUsername string, sl *Sleeper) (*SleeperConnection, error) {
 
 	twitchUsername = strings.TrimPrefix(strings.TrimSpace(twitchUsername), "@")
 	if twitchUsername == "" {
@@ -128,7 +127,7 @@ func getConnectionByUsername(ctx context.Context, leagueID uuid.UUID, twitchUser
 		WHERE league_id = $1
 			AND LOWER(twitch_username) = LOWER($2)`
 
-	rows, err := deps.DB.Pool.Query(ctx, query, leagueID, twitchUsername)
+	rows, err := sl.db.Query(ctx, query, leagueID, twitchUsername)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +161,7 @@ func getConnectionByUsername(ctx context.Context, leagueID uuid.UUID, twitchUser
 	return connection, nil
 }
 
-func linkUser(ctx context.Context, leagueID uuid.UUID, twitchUserID string, twitchUsername string, sleeperUserID string, sleeperUsername string, sleeperRosterID int, deps *dependencies.Deps) error {
+func linkUser(ctx context.Context, leagueID uuid.UUID, twitchUserID string, twitchUsername string, sleeperUserID string, sleeperUsername string, sleeperRosterID int, sl *Sleeper) error {
 
 	const query = `
 	INSERT INTO lys.sleeper_connections(
@@ -175,12 +174,12 @@ func linkUser(ctx context.Context, leagueID uuid.UUID, twitchUserID string, twit
 	)
 	VALUES ($1, $2, $3, $4, $5, $6)`
 
-	_, err := deps.DB.Pool.Exec(ctx, query, leagueID, twitchUserID, twitchUsername, sleeperUserID, sleeperUsername, sleeperRosterID)
+	_, err := sl.db.Exec(ctx, query, leagueID, twitchUserID, twitchUsername, sleeperUserID, sleeperUsername, sleeperRosterID)
 
 	return err
 }
 
-func updateTwitchUsername(ctx context.Context, twitchUserID string, twitchUsername string, deps *dependencies.Deps) error {
+func updateTwitchUsername(ctx context.Context, twitchUserID string, twitchUsername string, sl *Sleeper) error {
 
 	if twitchUserID == "" || twitchUsername == "" {
 		return nil
@@ -192,12 +191,12 @@ func updateTwitchUsername(ctx context.Context, twitchUserID string, twitchUserna
 		WHERE twitch_user_id = $1
 			AND twitch_username IS DISTINCT FROM $2`
 
-	_, err := deps.DB.Pool.Exec(ctx, query, twitchUserID, twitchUsername)
+	_, err := sl.db.Exec(ctx, query, twitchUserID, twitchUsername)
 
 	return err
 }
 
-func removeLeagueLink(ctx context.Context, leagueID uuid.UUID, deps *dependencies.Deps) error {
+func removeLeagueLink(ctx context.Context, leagueID uuid.UUID, sl *Sleeper) error {
 
 	const userQuery = `
 		DELETE FROM lys.sleeper_connections
@@ -207,7 +206,7 @@ func removeLeagueLink(ctx context.Context, leagueID uuid.UUID, deps *dependencie
 		DELETE FROM lys.sleeper_leagues
 		WHERE id = $1`
 
-	tx, err := deps.DB.Pool.Begin(ctx)
+	tx, err := sl.db.Begin(ctx)
 	if err != nil {
 		return err
 	}
@@ -226,50 +225,17 @@ func removeLeagueLink(ctx context.Context, leagueID uuid.UUID, deps *dependencie
 	return tx.Commit(ctx)
 }
 
-func removeUser(ctx context.Context, leagueID uuid.UUID, twitchUserID string, deps *dependencies.Deps) (bool, error) {
+func removeUser(ctx context.Context, leagueID uuid.UUID, twitchUserID string, sl *Sleeper) (bool, error) {
 
 	const query = `
 		DELETE FROM lys.sleeper_connections
 		WHERE league_id = $1
 			AND twitch_user_id = $2`
 
-	result, err := deps.DB.Pool.Exec(ctx, query, leagueID, twitchUserID)
+	result, err := sl.db.Exec(ctx, query, leagueID, twitchUserID)
 	if err != nil {
 		return false, err
 	}
 
 	return result.RowsAffected() > 0, nil
-}
-
-func registerUser(ctx context.Context, username, userID, lbUsername, feedURL, alertChannel string, deps *dependencies.Deps) error {
-	query := `
-		INSERT INTO lys.letterboxd_feed_subscriptions
-			(username, user_id, letterboxd_username, feed_url, alert_channels)
-		VALUES ($1, $2, $3, $4, $5)
-	`
-
-	_, err := deps.DB.Pool.Exec(ctx, query, username, userID, lbUsername, feedURL, []string{alertChannel})
-	if err != nil {
-		return fmt.Errorf("addSubscription: %w", err)
-	}
-
-	return nil
-}
-
-func unregisterUser(ctx context.Context, userID string, deps *dependencies.Deps) (lbUsername string, found bool, err error) {
-	query := `
-		DELETE FROM lys.letterboxd_feed_subscriptions
-		WHERE user_id = $1
-		RETURNING letterboxd_username
-	`
-
-	err = deps.DB.Pool.QueryRow(ctx, query, userID).Scan(&lbUsername)
-	if err != nil {
-		if err.Error() == "no rows in result set" {
-			return "", false, nil
-		}
-		return "", false, fmt.Errorf("removeSubscription: %w", err)
-	}
-
-	return lbUsername, true, nil
 }

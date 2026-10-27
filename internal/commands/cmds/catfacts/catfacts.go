@@ -8,45 +8,52 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/lsariol/lys/internal/adapters/adapter"
-	"github.com/lsariol/lys/internal/app/dependencies"
+	"github.com/lsariol/lys/internal/commands"
 )
 
-type CatFact struct{}
-
-func (CatFact) Name() string      { return "catfact" }
-func (CatFact) Aliases() []string { return nil }
-func (CatFact) Regexes() []string { return nil }
-func (CatFact) Description() string {
-	return "Gives you a random catfact fetched from https://catfact.ninja"
+// CatFact gives a random cat fact from catfact.ninja.
+type CatFact struct {
+	http *http.Client
 }
-func (CatFact) Usage() string          { return "!catfact" }
-func (CatFact) Timeout() time.Duration { return 20 * time.Second }
 
-// Returns a single catfact with max length set to 150
-func (CatFact) Execute(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps) (adapter.Response, error) {
+func New(http *http.Client) *CatFact { return &CatFact{http: http} }
+
+func (*CatFact) Spec() commands.Spec {
+	return commands.Spec{
+		Name:        "catfact",
+		Description: "Gives you a random catfact fetched from https://catfact.ninja",
+		Usage:       "!catfact",
+		Timeout:     20 * time.Second,
+	}
+}
+
+// Run returns a single cat fact of at most 150 characters.
+func (c *CatFact) Run(ctx context.Context, e commands.Request) (commands.Reply, error) {
 
 	type catfact struct {
 		Fact   string `json:"fact"`
 		Length int    `json:"length"`
 	}
 
-	resp, err := deps.HTTP.Get("https://catfact.ninja/fact?max_length=150")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://catfact.ninja/fact?max_length=150", nil)
 	if err != nil {
-		return adapter.Response{Error: true}, nil
+		return commands.Reply{}, err
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return commands.Reply{}, fmt.Errorf("catfact.ninja: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return adapter.Response{Error: true}, fmt.Errorf("bad status: %s, body: %s", resp.Status, string(bodyBytes))
+		return commands.Reply{}, fmt.Errorf("catfact.ninja: bad status: %s, body: %s", resp.Status, string(bodyBytes))
 	}
 
 	var cf catfact
 	if err := json.NewDecoder(resp.Body).Decode(&cf); err != nil {
-		return adapter.Response{Error: true}, err
+		return commands.Reply{}, fmt.Errorf("catfact.ninja: %w", err)
 	}
 
-	return adapter.Response{Text: fmt.Sprintf("Catfact! %s", cf.Fact)}, nil
-
+	return commands.Reply{Text: fmt.Sprintf("Catfact! %s", cf.Fact)}, nil
 }

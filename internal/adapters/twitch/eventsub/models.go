@@ -1,7 +1,6 @@
 package eventsub
 
 import (
-	"errors"
 	"time"
 )
 
@@ -9,22 +8,6 @@ type SessionData struct {
 	SessionID        string
 	KeepAliveTimeout int
 }
-
-// Deliver Types
-// Strongly-typed payloads
-type chatMessageReq struct {
-	BroadcasterID string `json:"broadcaster_id"`
-	SenderID      string `json:"sender_id"`
-	Message       string `json:"message"`
-}
-
-type helixError struct {
-	Error   string `json:"error"`
-	Status  int    `json:"status"`
-	Message string `json:"message"`
-}
-
-var ErrMissingChannelBot = errors.New("unauthorized: missing channel:bot scope")
 
 // Join response
 type EventSubJoinResponse struct {

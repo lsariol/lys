@@ -5,24 +5,31 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/lsariol/lys/internal/adapters/adapter"
-	"github.com/lsariol/lys/internal/app/dependencies"
 	"github.com/lsariol/lys/internal/commands"
+	"github.com/lsariol/lys/internal/core"
 )
 
-type Settings struct{}
+// Settings shows and changes a channel's settings.
+type Settings struct {
+	config core.ChannelConfig
+}
 
-func (Settings) Name() string           { return "settings" }
-func (Settings) Aliases() []string      { return []string{"s"} }
-func (Settings) Regexes() []string      { return nil }
-func (Settings) Description() string    { return "Configure channel settings." }
-func (Settings) Usage() string          { return "!settings" }
-func (Settings) Timeout() time.Duration { return 3 * time.Second }
+func New(config core.ChannelConfig) *Settings { return &Settings{config: config} }
 
-func (Settings) Execute(ctx context.Context, e adapter.Envelope, deps *dependencies.Deps) (adapter.Response, error) {
+func (*Settings) Spec() commands.Spec {
+	return commands.Spec{
+		Name:        "settings",
+		Aliases:     []string{"s"},
+		Description: "Configure channel settings.",
+		Usage:       "!settings prefix [set <new prefix>]",
+		Timeout:     3 * time.Second,
+	}
+}
+
+func (s *Settings) Run(ctx context.Context, e commands.Request) (commands.Reply, error) {
 
 	if len(e.Args) == 0 {
-		return commands.SuppressedReply()
+		return commands.Reply{}, nil
 	}
 
 	switch e.Args[0] {
@@ -30,45 +37,33 @@ func (Settings) Execute(ctx context.Context, e adapter.Envelope, deps *dependenc
 	case "prefix":
 
 		if len(e.Args) == 1 {
-
-			return adapter.Response{Text: fmt.Sprintf("Commands in this channel use the '%s' prefix.", e.Prefix)}, nil
+			return commands.Reply{Text: fmt.Sprintf("Commands in this channel use the '%s' prefix.", e.Prefix)}, nil
 		}
 
 		if len(e.Args) != 3 || e.Args[1] != "set" {
-
-			return adapter.Response{Text: fmt.Sprintf("Invalid usage of the '%ssettings prefix' command. Usage: '%ssettings prefix set <new_prefix>'.", e.Prefix, e.Prefix)}, nil
+			return commands.Reply{Text: fmt.Sprintf("Invalid usage of the '%ssettings prefix' command. Usage: '%ssettings prefix set <new_prefix>'.", e.Prefix, e.Prefix)}, nil
 		}
 
-		if !commands.HasPrivilege(e.UserID, e.ChannelID) {
-
-			return adapter.Response{Text: "You do not have privileges to use this command."}, nil
+		if !commands.HasPrivilege(e.User.ID, e.Channel.ID) {
+			return commands.Reply{Text: "You do not have privileges to use this command."}, nil
 		}
 
 		newPrefix := e.Args[2]
 
-		if newPrefix == "" {
-
-			return adapter.Response{Text: "Prefixes cannot be empty."}, nil
+		if len(newPrefix) >= 3 {
+			return commands.Reply{Text: "Prefixes cannot be longer than 2 characters long."}, nil
 		}
 
-		if len(e.Args[2]) >= 3 {
-
-			return adapter.Response{Text: "Prefixes cannot be longer than 2 characters long."}, nil
+		if err := s.config.SetPrefix(ctx, e.Platform, e.Channel.ID, newPrefix); err != nil {
+			return commands.Reply{Text: "There was an error storing this value. Please try again in a few seconds."}, err
 		}
 
-		err := deps.Settings.UpdateTwitchChannelPrefixSetting(ctx, e.ChannelID, newPrefix)
-		if err != nil {
-
-			return adapter.Response{Text: "There was an error storing this value. Please try again in a few seconds.", Error: true}, err
-		}
-
-		return adapter.Response{Text: fmt.Sprintf("The prefix for this channel is now set to '%s'.", e.Args[2])}, nil
+		return commands.Reply{Text: fmt.Sprintf("The prefix for this channel is now set to '%s'.", newPrefix)}, nil
 
 	case "pause":
+		return commands.Reply{}, nil
 
 	default:
-		return adapter.Response{Text: "Invalid arguments for settings."}, nil
+		return commands.Reply{Text: "Invalid arguments for settings."}, nil
 	}
-
-	return adapter.Response{}, nil
 }
