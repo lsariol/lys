@@ -11,17 +11,21 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func FindLeagueLinkConflict(leagueID string, channelID string, ctx context.Context, sl *Sleeper) (*SleeperLeagueLink, error) {
+// The leagues are keyed by community and their members by platform user. The
+// Twitch columns (twitch_channel_id, twitch_user_id, twitch_username) are still
+// written so a rollback keeps working; nothing here reads them.
+
+func FindLeagueLinkConflict(leagueID string, communityID int64, ctx context.Context, sl *Sleeper) (*SleeperLeagueLink, error) {
 
 	const query string = `
-		SELECT twitch_channel_id, sleeper_league_id
+		SELECT community_id, sleeper_league_id
 		FROM lys.sleeper_leagues
-		WHERE twitch_channel_id = $1
+		WHERE community_id = $1
 			OR sleeper_league_id = $2
 		LIMIT 1`
 
 	var link SleeperLeagueLink
-	err := sl.db.QueryRow(ctx, query, channelID, leagueID).Scan(&link.TwitchChannelID, &link.SleeperLeagueID)
+	err := sl.db.QueryRow(ctx, query, communityID, leagueID).Scan(&link.CommunityID, &link.SleeperLeagueID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
@@ -32,18 +36,19 @@ func FindLeagueLinkConflict(leagueID string, channelID string, ctx context.Conte
 	return &link, nil
 }
 
-func addLeagueLink(league *League, channelID string, ctx context.Context, sl *Sleeper) (error, bool) {
+func addLeagueLink(league *League, channelID string, communityID int64, ctx context.Context, sl *Sleeper) (error, bool) {
 
 	const query = `
 	INSERT INTO lys.sleeper_leagues(
 	twitch_channel_id,
 	sleeper_league_id,
 	league_name,
-	season
+	season,
+	community_id
 	)
-	VALUES ($1, $2, $3, $4)`
+	VALUES ($1, $2, $3, $4, $5)`
 
-	_, err := sl.db.Exec(ctx, query, channelID, league.LeagueID, league.Name, league.Season)
+	_, err := sl.db.Exec(ctx, query, channelID, league.LeagueID, league.Name, league.Season, communityID)
 	if err != nil {
 		log.Println(err)
 		return err, false
@@ -51,20 +56,27 @@ func addLeagueLink(league *League, channelID string, ctx context.Context, sl *Sl
 	return nil, true
 }
 
-func getLeagueByChannel(ctx context.Context, channelID string, sl *Sleeper) (*SleeperLeague, error) {
+// getLeague returns the community's league, or nil if it has none.
+func getLeague(ctx context.Context, communityID int64, sl *Sleeper) (*SleeperLeague, error) {
+	if communityID == 0 {
+		return nil, nil
+	}
+
 	const query string = `
 		SELECT 
 		id,
-		twitch_channel_id,
+		community_id,
 		sleeper_league_id,
-		league_name,
-		season
+		COALESCE(league_name, ''),
+		COALESCE(season, '')
 		FROM lys.sleeper_leagues
-		WHERE twitch_channel_id = $1
+		WHERE community_id = $1
+		ORDER BY created_at
+		LIMIT 1
 		`
 
 	var league SleeperLeague
-	err := sl.db.QueryRow(ctx, query, channelID).Scan(&league.ID, &league.TwitchChannelID, &league.SleeperLeagueID, &league.LeagueName, &league.Season)
+	err := sl.db.QueryRow(ctx, query, communityID).Scan(&league.ID, &league.CommunityID, &league.SleeperLeagueID, &league.LeagueName, &league.Season)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
@@ -75,25 +87,27 @@ func getLeagueByChannel(ctx context.Context, channelID string, sl *Sleeper) (*Sl
 	return &league, nil
 }
 
-func getConnectionByUserID(ctx context.Context, leagueID uuid.UUID, twitchUserID string, sl *Sleeper) (*SleeperConnection, error) {
-
-	const query = `
+// selectMember reads a league member with their current chat name.
+const selectMember = `
 		SELECT
-		league_id,
-		twitch_user_id,
-		COALESCE(twitch_username, ''),
-		sleeper_user_id,
-		sleeper_username,
-		sleeper_roster_id
-		FROM lys.sleeper_connections
-		WHERE league_id = $1
-			AND twitch_user_id = $2`
+		c.league_id,
+		c.platform_user_id,
+		COALESCE(pu.display_name, c.twitch_username, ''),
+		c.sleeper_user_id,
+		c.sleeper_username,
+		c.sleeper_roster_id
+		FROM lys.sleeper_connections c
+		JOIN lys.platform_users pu ON pu.id = c.platform_user_id`
+
+func getConnectionByUserID(ctx context.Context, leagueID uuid.UUID, platformUserID int64, sl *Sleeper) (*SleeperConnection, error) {
 
 	var connection SleeperConnection
-	err := sl.db.QueryRow(ctx, query, leagueID, twitchUserID).Scan(
+	err := sl.db.QueryRow(ctx, selectMember+`
+		WHERE c.league_id = $1
+			AND c.platform_user_id = $2`, leagueID, platformUserID).Scan(
 		&connection.LeagueID,
-		&connection.TwitchUserID,
-		&connection.TwitchUsername,
+		&connection.PlatformUserID,
+		&connection.DisplayName,
 		&connection.SleeperUserID,
 		&connection.SleeperUsername,
 		&connection.SleeperRosterID,
@@ -108,26 +122,17 @@ func getConnectionByUserID(ctx context.Context, leagueID uuid.UUID, twitchUserID
 	return &connection, nil
 }
 
-func getConnectionByUsername(ctx context.Context, leagueID uuid.UUID, twitchUsername string, sl *Sleeper) (*SleeperConnection, error) {
+// getConnectionByUsername finds a member by their current chat name.
+func getConnectionByUsername(ctx context.Context, leagueID uuid.UUID, name string, sl *Sleeper) (*SleeperConnection, error) {
 
-	twitchUsername = strings.TrimPrefix(strings.TrimSpace(twitchUsername), "@")
-	if twitchUsername == "" {
+	name = strings.TrimPrefix(strings.TrimSpace(name), "@")
+	if name == "" {
 		return nil, nil
 	}
 
-	const query = `
-		SELECT
-		league_id,
-		twitch_user_id,
-		COALESCE(twitch_username, ''),
-		sleeper_user_id,
-		sleeper_username,
-		sleeper_roster_id
-		FROM lys.sleeper_connections
-		WHERE league_id = $1
-			AND LOWER(twitch_username) = LOWER($2)`
-
-	rows, err := sl.db.Query(ctx, query, leagueID, twitchUsername)
+	rows, err := sl.db.Query(ctx, selectMember+`
+		WHERE c.league_id = $1
+			AND lower(pu.display_name) = lower($2)`, leagueID, name)
 	if err != nil {
 		return nil, err
 	}
@@ -137,14 +142,14 @@ func getConnectionByUsername(ctx context.Context, leagueID uuid.UUID, twitchUser
 
 	for rows.Next() {
 		if connection != nil {
-			return nil, fmt.Errorf("multiple Sleeper connections match Twitch username %s", twitchUsername)
+			return nil, fmt.Errorf("multiple Sleeper members are called %q", name)
 		}
 
 		connection = &SleeperConnection{}
 		err := rows.Scan(
 			&connection.LeagueID,
-			&connection.TwitchUserID,
-			&connection.TwitchUsername,
+			&connection.PlatformUserID,
+			&connection.DisplayName,
 			&connection.SleeperUserID,
 			&connection.SleeperUsername,
 			&connection.SleeperRosterID,
@@ -161,7 +166,7 @@ func getConnectionByUsername(ctx context.Context, leagueID uuid.UUID, twitchUser
 	return connection, nil
 }
 
-func linkUser(ctx context.Context, leagueID uuid.UUID, twitchUserID string, twitchUsername string, sleeperUserID string, sleeperUsername string, sleeperRosterID int, sl *Sleeper) error {
+func linkUser(ctx context.Context, leagueID uuid.UUID, platformUserID int64, twitchUserID string, twitchUsername string, sleeperUserID string, sleeperUsername string, sleeperRosterID int, sl *Sleeper) error {
 
 	const query = `
 	INSERT INTO lys.sleeper_connections(
@@ -170,15 +175,18 @@ func linkUser(ctx context.Context, leagueID uuid.UUID, twitchUserID string, twit
 	twitch_username,
 	sleeper_user_id,
 	sleeper_username,
-	sleeper_roster_id
+	sleeper_roster_id,
+	platform_user_id
 	)
-	VALUES ($1, $2, $3, $4, $5, $6)`
+	VALUES ($1, $2, $3, $4, $5, $6, $7)`
 
-	_, err := sl.db.Exec(ctx, query, leagueID, twitchUserID, twitchUsername, sleeperUserID, sleeperUsername, sleeperRosterID)
+	_, err := sl.db.Exec(ctx, query, leagueID, twitchUserID, twitchUsername, sleeperUserID, sleeperUsername, sleeperRosterID, platformUserID)
 
 	return err
 }
 
+// updateTwitchUsername keeps the rollback copy of the member's name current;
+// Lys itself reads names from platform_users.
 func updateTwitchUsername(ctx context.Context, twitchUserID string, twitchUsername string, sl *Sleeper) error {
 
 	if twitchUserID == "" || twitchUsername == "" {
@@ -225,14 +233,14 @@ func removeLeagueLink(ctx context.Context, leagueID uuid.UUID, sl *Sleeper) erro
 	return tx.Commit(ctx)
 }
 
-func removeUser(ctx context.Context, leagueID uuid.UUID, twitchUserID string, sl *Sleeper) (bool, error) {
+func removeUser(ctx context.Context, leagueID uuid.UUID, platformUserID int64, sl *Sleeper) (bool, error) {
 
 	const query = `
 		DELETE FROM lys.sleeper_connections
 		WHERE league_id = $1
-			AND twitch_user_id = $2`
+			AND platform_user_id = $2`
 
-	result, err := sl.db.Exec(ctx, query, leagueID, twitchUserID)
+	result, err := sl.db.Exec(ctx, query, leagueID, platformUserID)
 	if err != nil {
 		return false, err
 	}

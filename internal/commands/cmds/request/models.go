@@ -23,4 +23,7 @@ type FeatureRequest struct {
 	Platform    string
 	Body        string
 	Status      RequestStatus
+
+	ConnectionID   int64
+	PlatformUserID int64
 }

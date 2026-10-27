@@ -53,8 +53,8 @@ func (r *Request) Run(ctx context.Context, e commands.Request) (commands.Reply, 
 			//Until more is figurred out, we need to limit to 1 - CHANGE TO N WHEN READY
 			limit = n
 		}
-		if strings.ToLower(e.User.Name) != "mobasity" {
-			return commands.Reply{}, fmt.Errorf("insufficient permissions")
+		if !commands.IsBotOwner(e) {
+			return commands.Reply{}, fmt.Errorf("request get: %q isn't the bot's owner", e.User.Name)
 		}
 		return r.getHandler(ctx, mode, limit)
 	}
@@ -67,8 +67,8 @@ func (r *Request) Run(ctx context.Context, e commands.Request) (commands.Reply, 
 		if err != nil {
 			return commands.Reply{Text: "Invalid request ID."}, err
 		}
-		if strings.ToLower(e.User.Name) != "mobasity" {
-			return commands.Reply{}, fmt.Errorf("insufficient permissions")
+		if !commands.IsBotOwner(e) {
+			return commands.Reply{}, fmt.Errorf("request set: %q isn't the bot's owner", e.User.Name)
 		}
 		return r.setHandler(ctx, id, status)
 
@@ -158,6 +158,9 @@ func newFeatureRequest(e commands.Request) FeatureRequest {
 		ChannelName: e.Channel.Name,
 		Platform:    e.Platform,
 		Body:        b,
+
+		ConnectionID:   e.Connection.ID,
+		PlatformUserID: e.Identity.PlatformUserID,
 	}
 
 	return fR

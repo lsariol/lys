@@ -67,6 +67,9 @@ func (fakeConfig) Prefix(platform, channelID string) string {
 	return core.DefaultPrefix
 }
 func (fakeConfig) SetPrefix(context.Context, string, string, string) error { return nil }
+func (fakeConfig) Connection(platform, channelID string) (core.Connection, bool) {
+	return core.Connection{ID: 7, CommunityID: 3}, true
+}
 
 // fakeIdentities gives user u1 platform user 11 and account 5; anyone else fails.
 type fakeIdentities struct{}
@@ -257,12 +260,12 @@ func TestIdentity(t *testing.T) {
 	who := cmd{
 		spec: commands.Spec{Name: "who"},
 		run: func(ctx context.Context, req commands.Request) (commands.Reply, error) {
-			return commands.Reply{Text: fmt.Sprintf("%d/%d", req.Identity.PlatformUserID, req.Identity.AccountID)}, nil
+			return commands.Reply{Text: fmt.Sprintf("%d/%d %d/%d", req.Identity.PlatformUserID, req.Identity.AccountID, req.Connection.ID, req.Connection.CommunityID)}, nil
 		},
 	}
 	a := start(t, who)
 
-	if got := a.say(t, "1", "!who", wait); got != "11/5" {
+	if got := a.say(t, "1", "!who", wait); got != "11/5 7/3" {
 		t.Fatalf("identity: got %q", got)
 	}
 
@@ -270,7 +273,7 @@ func TestIdentity(t *testing.T) {
 	a.in <- core.Message{Platform: "fake", Channel: core.Channel{ID: "1"}, User: core.User{ID: "u2"}, Text: "!who"}
 	select {
 	case out := <-a.sent:
-		if out.Text != "0/0" {
+		if out.Text != "0/0 7/3" {
 			t.Fatalf("failed lookup: got %q", out.Text)
 		}
 	case <-time.After(wait):

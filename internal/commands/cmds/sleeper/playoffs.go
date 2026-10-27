@@ -25,7 +25,7 @@ func playoffs(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Re
 		page = requestedPage
 	}
 
-	league, err := getLeagueByChannel(ctx, e.Channel.ID, sl)
+	league, err := getLeague(ctx, e.Connection.CommunityID, sl)
 	if err != nil {
 		log.Print(err)
 		return commands.Reply{Text: "Internal error getting league information."}, err

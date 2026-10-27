@@ -29,6 +29,8 @@ func packageGame(e commands.Request) (OneUpGame, error) {
 	game.ChannelName = e.Channel.Name
 	game.GameCode = "oneuppuzzle"
 	game.RawMessage = rawMessage(e)
+	game.ConnectionID = e.Connection.ID
+	game.PlatformUserID = e.Identity.PlatformUserID
 	game.Details = gameDetails
 
 	return game, nil

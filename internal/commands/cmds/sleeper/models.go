@@ -30,8 +30,8 @@ type SleeperMatchup struct {
 // Stored Twitch to Sleeper connection
 type SleeperConnection struct {
 	LeagueID        uuid.UUID
-	TwitchUserID    string
-	TwitchUsername  string
+	PlatformUserID  int64
+	DisplayName     string // the member's current chat name
 	SleeperUserID   string
 	SleeperUsername string
 	SleeperRosterID int
@@ -39,14 +39,14 @@ type SleeperConnection struct {
 
 // used in the database to find potential double linked channels/leagues
 type SleeperLeagueLink struct {
-	TwitchChannelID string
+	CommunityID     int64
 	SleeperLeagueID string
 }
 
 // How the
 type SleeperLeague struct {
 	ID              uuid.UUID
-	TwitchChannelID string
+	CommunityID     int64
 	SleeperLeagueID string
 	LeagueName      string
 	Season          string // NFL season year, such as "2026"

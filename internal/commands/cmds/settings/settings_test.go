@@ -16,6 +16,9 @@ type stubConfig struct {
 }
 
 func (c *stubConfig) Prefix(platform, channelID string) string { return core.DefaultPrefix }
+func (c *stubConfig) Connection(platform, channelID string) (core.Connection, bool) {
+	return core.Connection{}, false
+}
 func (c *stubConfig) SetPrefix(ctx context.Context, platform, channelID, prefix string) error {
 	if c.err != nil {
 		return c.err

@@ -43,13 +43,13 @@ func (o *OneUpPuzzle) Run(ctx context.Context, e commands.Request) (commands.Rep
 		}
 
 		if 3600 <= game.Details.TimeSeconds || game.Details.TimeSeconds <= 20 {
-			err = o.store.storeFlaggedGame(ctx, game)
+			err = o.store.storeGame(ctx, game, true)
 			if err != nil {
 				return commands.Reply{Text: "An error occured while storing your game. Please try again."}, err
 			}
 			return commands.Reply{Text: "Game has been recorded"}, nil
 		} else {
-			err = o.store.storeGame(ctx, game)
+			err = o.store.storeGame(ctx, game, false)
 			if err != nil {
 				return commands.Reply{Text: "An error occured while storing your game. Please try again."}, err
 			}
@@ -78,7 +78,7 @@ func (o *OneUpPuzzle) Run(ctx context.Context, e commands.Request) (commands.Rep
 
 			switch {
 			case len(e.Args) == 1:
-				cp, ok, err := o.store.puzzleStatsByChannel(ctx, e.Channel.ID)
+				cp, ok, err := o.store.puzzleStatsByChannel(ctx, e.Connection.ID)
 				if err != nil {
 					return commands.Reply{Text: "An error occured while fetching channel stats. Please try again."}, err
 				}
@@ -111,7 +111,7 @@ func (o *OneUpPuzzle) Run(ctx context.Context, e commands.Request) (commands.Rep
 					return o.statsForPuzzle(ctx, puzzleID)
 				}
 
-				return o.statsForUser(ctx, id)
+				return o.statsForUser(ctx, e.Platform, id)
 
 			case len(e.Args) == 3:
 
@@ -153,8 +153,12 @@ func (o *OneUpPuzzle) validateGameEntry(ctx context.Context, e commands.Request)
 
 	//Need some kind of check here to see if the game is the correct numbered game.
 
+	if newGame.PlatformUserID == 0 {
+		return newGame, fmt.Errorf("oneup: the player's identity couldn't be looked up, so the game can't be recorded")
+	}
+
 	// Validate the game ID as well as if the user has sumbitted this before
-	recorded, err := o.store.isPuzzleRecorded(ctx, e.User.ID, newGame.Details.PuzzleID)
+	recorded, err := o.store.isPuzzleRecorded(ctx, newGame.PlatformUserID, newGame.Details.PuzzleID)
 	if err != nil {
 		return newGame, fmt.Errorf("ispuzzlerecorded: %w", err)
 	}
@@ -181,9 +185,9 @@ func (o *OneUpPuzzle) statsForPuzzle(ctx context.Context, puzzleID int) (command
 
 }
 
-func (o *OneUpPuzzle) statsForUser(ctx context.Context, username string) (commands.Reply, error) {
+func (o *OneUpPuzzle) statsForUser(ctx context.Context, platform, username string) (commands.Reply, error) {
 
-	userProfile, ok, err := o.store.puzzleStatsByUser(ctx, username)
+	userProfile, ok, err := o.store.puzzleStatsByUser(ctx, platform, username)
 	if err != nil {
 		return commands.Reply{Text: "An error occured while fetching user stats. Please try again."}, err
 	}

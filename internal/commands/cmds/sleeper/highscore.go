@@ -26,7 +26,7 @@ func highscore(ctx context.Context, e commands.Request, sl *Sleeper) (commands.R
 		week = requestedWeek
 	}
 
-	league, err := getLeagueByChannel(ctx, e.Channel.ID, sl)
+	league, err := getLeague(ctx, e.Connection.CommunityID, sl)
 	if err != nil {
 		log.Print(err)
 		return commands.Reply{Text: "Internal error getting league information."}, err

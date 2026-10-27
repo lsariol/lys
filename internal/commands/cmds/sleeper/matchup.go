@@ -23,7 +23,7 @@ func matchup(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Rep
 		}
 	}
 
-	league, err := getLeagueByChannel(ctx, e.Channel.ID, sl)
+	league, err := getLeague(ctx, e.Connection.CommunityID, sl)
 	if err != nil {
 		log.Print(err)
 		return commands.Reply{Text: "Internal error getting league information."}, err
@@ -36,7 +36,7 @@ func matchup(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Rep
 	var connection *SleeperConnection
 
 	if len(e.Args) == 1 || strings.EqualFold(username, e.User.Name) {
-		connection, err = getConnectionByUserID(ctx, league.ID, e.User.ID, sl)
+		connection, err = getConnectionByUserID(ctx, league.ID, e.Identity.PlatformUserID, sl)
 	} else {
 		connection, err = getConnectionByUsername(ctx, league.ID, username, sl)
 	}

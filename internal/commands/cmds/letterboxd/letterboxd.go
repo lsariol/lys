@@ -55,7 +55,11 @@ func (l *Letterboxd) handleWatch(ctx context.Context, e commands.Request, input 
 		return commands.Reply{Text: fmt.Sprintf("@%s that doesn't look like a valid Letterboxd username or URL.", e.User.Name)}, nil
 	}
 
-	watching, err := l.store.AlreadyWatching(ctx, e.User.ID)
+	if e.Identity.PlatformUserID == 0 || e.Connection.ID == 0 {
+		return commands.Reply{}, fmt.Errorf("letterboxd watch: %q in %q has no identity or channel in Lys", e.User.Name, e.Channel.Name)
+	}
+
+	watching, err := l.store.AlreadyWatching(ctx, e.Identity.PlatformUserID)
 	if err != nil {
 		return commands.Reply{}, fmt.Errorf("letterboxd watch: check existing: %w", err)
 	}
@@ -71,7 +75,15 @@ func (l *Letterboxd) handleWatch(ctx context.Context, e commands.Request, input 
 
 	alertChannel := fmt.Sprintf("%s:%s", e.Platform, e.Channel.ID)
 
-	if err := l.store.AddSubscription(ctx, e.User.Name, e.User.ID, lbUsername, feedURL, alertChannel); err != nil {
+	if err := l.store.AddSubscription(ctx, Subscription{
+		PlatformUserID: e.Identity.PlatformUserID,
+		ConnectionID:   e.Connection.ID,
+		FeedURL:        feedURL,
+		LetterboxdName: lbUsername,
+		Username:       e.User.Name,
+		UserID:         e.User.ID,
+		AlertChannel:   alertChannel,
+	}); err != nil {
 		return commands.Reply{}, fmt.Errorf("letterboxd watch: insert: %w", err)
 	}
 
@@ -94,7 +106,7 @@ func (l *Letterboxd) feedExists(ctx context.Context, feedURL string) bool {
 }
 
 func (l *Letterboxd) handleUnwatch(ctx context.Context, e commands.Request) (commands.Reply, error) {
-	lbUsername, found, err := l.store.RemoveSubscription(ctx, e.User.ID)
+	lbUsername, found, err := l.store.RemoveSubscription(ctx, e.Identity.PlatformUserID, e.User.ID)
 	if err != nil {
 		return commands.Reply{}, fmt.Errorf("letterboxd unwatch: delete: %w", err)
 	}

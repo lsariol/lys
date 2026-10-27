@@ -230,19 +230,6 @@ func (s *Store) SetBlocked(ctx context.Context, id int64, blocked bool, reason s
 	return nil
 }
 
-// Prefixes returns every connection's command prefix, by platform and channel ID.
-func (s *Store) Prefixes(ctx context.Context) (map[[2]string]string, error) {
-	all, err := s.List(ctx)
-	if err != nil {
-		return nil, err
-	}
-	out := make(map[[2]string]string, len(all))
-	for _, c := range all {
-		out[[2]string{c.Platform, c.ExternalID}] = c.Prefix
-	}
-	return out, nil
-}
-
 // SetPrefix changes a channel's command prefix.
 func (s *Store) SetPrefix(ctx context.Context, platform, externalID, prefix string) error {
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {

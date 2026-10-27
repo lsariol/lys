@@ -61,11 +61,19 @@ type Outbound struct {
 	Text     string
 }
 
+// Connection is a channel as Lys knows it: its connection and community.
+type Connection struct {
+	ID          int64 // platform_connections row
+	CommunityID int64
+}
+
 // ChannelConfig holds per-channel settings, keyed by platform and channel ID.
 type ChannelConfig interface {
 	// Prefix returns the channel's command prefix ("!" unless set).
 	Prefix(platform, channelID string) string
 	SetPrefix(ctx context.Context, platform, channelID, prefix string) error
+	// Connection returns the channel's IDs; false if Lys doesn't know it.
+	Connection(platform, channelID string) (Connection, bool)
 }
 
 // Directory lists the channels Lys should be in on a platform.

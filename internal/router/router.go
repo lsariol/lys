@@ -184,7 +184,8 @@ func (r *Router) handle(ctx context.Context, m core.Message) {
 // Otherwise the first matching pattern.
 func (r *Router) match(m core.Message) (commands.Command, commands.Request, bool) {
 	prefix := r.config.Prefix(m.Platform, m.Channel.ID)
-	req := commands.Request{Message: m, Prefix: prefix}
+	conn, _ := r.config.Connection(m.Platform, m.Channel.ID)
+	req := commands.Request{Message: m, Prefix: prefix, Connection: conn}
 
 	text := strings.TrimSpace(m.Text)
 	if strings.HasPrefix(text, prefix) {

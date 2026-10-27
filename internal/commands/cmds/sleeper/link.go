@@ -19,7 +19,7 @@ func link(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply,
 	switch e.Args[1] {
 	case "user":
 
-		league, err := getLeagueByChannel(ctx, e.Channel.ID, sl)
+		league, err := getLeague(ctx, e.Connection.CommunityID, sl)
 		if err != nil {
 			log.Print(err)
 			return commands.Reply{Text: "Internal error Link User."}, err
@@ -27,6 +27,10 @@ func link(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply,
 
 		if league == nil {
 			return commands.Reply{Text: "This channel is not associated with any league."}, err
+		}
+
+		if e.Identity.PlatformUserID == 0 {
+			return commands.Reply{Text: "Internal error Link User."}, fmt.Errorf("sleeper link user: %q has no identity", e.User.Name)
 		}
 
 		sleeperUsers, err := getPlayersInLeague(league.SleeperLeagueID, ctx, sl)
@@ -44,7 +48,7 @@ func link(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply,
 
 				for _, roster := range *sleeperRosters {
 					if strings.EqualFold(roster.OwnerID, user.UserID) {
-						err := linkUser(ctx, league.ID, e.User.ID, e.User.Name, user.UserID, user.DisplayName, roster.RosterID, sl)
+						err := linkUser(ctx, league.ID, e.Identity.PlatformUserID, e.User.ID, e.User.Name, user.UserID, user.DisplayName, roster.RosterID, sl)
 						if err != nil {
 							log.Printf("error linking user: %v", err)
 							return commands.Reply{Text: "Internal error linking user."}, err
@@ -70,6 +74,10 @@ func link(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply,
 			return commands.Reply{Text: "You do not have privileges to use this command."}, nil
 		}
 
+		if e.Connection.CommunityID == 0 {
+			return commands.Reply{Text: "This channel isn't set up in Lys yet, so it can't be linked to a league."}, fmt.Errorf("sleeper link league: %q has no community", e.Channel.Name)
+		}
+
 		//parse leagueID from user input
 		leagueID, err := extractLeagueID(e.Args[2])
 		if err != nil {
@@ -77,18 +85,18 @@ func link(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply,
 		}
 
 		//Does this channel or league already have a link
-		existing, err := FindLeagueLinkConflict(leagueID, e.Channel.ID, ctx, sl)
+		existing, err := FindLeagueLinkConflict(leagueID, e.Connection.CommunityID, ctx, sl)
 		if err != nil {
 			return commands.Reply{Text: "An error occured when validating channel to league link."}, err
 		}
 
 		if existing != nil {
 			switch {
-			case existing.TwitchChannelID == e.Channel.ID &&
+			case existing.CommunityID == e.Connection.CommunityID &&
 				existing.SleeperLeagueID == leagueID:
 				return commands.Reply{Text: "This channel is already linked to this league."}, err
 
-			case existing.TwitchChannelID == e.Channel.ID:
+			case existing.CommunityID == e.Connection.CommunityID:
 				return commands.Reply{Text: "This channel is already linked to another league."}, err
 
 			case existing.SleeperLeagueID == leagueID:
@@ -105,7 +113,7 @@ func link(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply,
 		}
 
 		// Link in database
-		err, ok := addLeagueLink(league, e.Channel.ID, ctx, sl)
+		err, ok := addLeagueLink(league, e.Channel.ID, e.Connection.CommunityID, ctx, sl)
 		if !ok {
 			return commands.Reply{Text: "Internal error occured while inserting into database."}, err
 		}

@@ -11,6 +11,9 @@ type OneUpGame struct {
 	GameCode    string
 	RawMessage  string
 	Details     OneUpGameDetails
+
+	ConnectionID   int64 // 0 if the channel isn't known
+	PlatformUserID int64
 }
 
 type OneUpGameDetails struct {

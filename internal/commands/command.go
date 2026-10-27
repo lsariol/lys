@@ -31,11 +31,12 @@ const DefaultTimeout = 10 * time.Second
 // Request is a message that matched a command.
 type Request struct {
 	core.Message
-	Identity core.Identity // the sender's Lys identity
-	Command  string        // the command's name, even when called by an alias
-	Args     []string      // the words after the command, or a pattern's submatches
-	Prefix   string        // the channel's command prefix
-	Pattern  bool          // true when a pattern matched instead of the prefix
+	Identity   core.Identity   // the sender's Lys identity
+	Connection core.Connection // the channel's connection and community; zero if unknown
+	Command    string          // the command's name, even when called by an alias
+	Args       []string        // the words after the command, or a pattern's submatches
+	Prefix     string          // the channel's command prefix
+	Pattern    bool            // true when a pattern matched instead of the prefix
 }
 
 // Reply is a command's answer; an empty Text sends nothing.

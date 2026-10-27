@@ -11,27 +11,25 @@ import (
 	"github.com/lsariol/lys/internal/core"
 )
 
-// stubStore keeps subscriptions in a map from user ID to Letterboxd username.
+// stubStore keeps subscriptions by platform user ID.
 type stubStore struct {
-	subs     map[string]string
-	channels map[string]string
+	subs map[int64]Subscription
 }
 
-func (s *stubStore) AlreadyWatching(ctx context.Context, userID string) (bool, error) {
-	_, ok := s.subs[userID]
+func (s *stubStore) AlreadyWatching(ctx context.Context, platformUserID int64) (bool, error) {
+	_, ok := s.subs[platformUserID]
 	return ok, nil
 }
 
-func (s *stubStore) AddSubscription(ctx context.Context, username, userID, lbUsername, feedURL, alertChannel string) error {
-	s.subs[userID] = lbUsername
-	s.channels[userID] = alertChannel
+func (s *stubStore) AddSubscription(ctx context.Context, sub Subscription) error {
+	s.subs[sub.PlatformUserID] = sub
 	return nil
 }
 
-func (s *stubStore) RemoveSubscription(ctx context.Context, userID string) (string, bool, error) {
-	lb, ok := s.subs[userID]
-	delete(s.subs, userID)
-	return lb, ok, nil
+func (s *stubStore) RemoveSubscription(ctx context.Context, platformUserID int64, userID string) (string, bool, error) {
+	sub, ok := s.subs[platformUserID]
+	delete(s.subs, platformUserID)
+	return sub.LetterboxdName, ok, nil
 }
 
 // letterboxdSite answers 404 for /missing/rss/ and 200 for everything else.
@@ -57,12 +55,14 @@ func (rw rewrite) RoundTrip(r *http.Request) (*http.Response, error) {
 }
 
 func TestLetterboxd(t *testing.T) {
-	store := &stubStore{subs: map[string]string{}, channels: map[string]string{}}
+	store := &stubStore{subs: map[int64]Subscription{}}
 	l := New(store, letterboxdSite(t))
 	run := func(args ...string) string {
 		r, err := l.Run(context.Background(), commands.Request{
-			Message: core.Message{Platform: "twitch", Channel: core.Channel{ID: "100"}, User: core.User{ID: "7", Name: "viewer"}},
-			Args:    args,
+			Message:    core.Message{Platform: "twitch", Channel: core.Channel{ID: "100"}, User: core.User{ID: "7", Name: "viewer"}},
+			Identity:   core.Identity{PlatformUserID: 70},
+			Connection: core.Connection{ID: 10, CommunityID: 1},
+			Args:       args,
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -76,8 +76,11 @@ func TestLetterboxd(t *testing.T) {
 	if got := run("unwatch"); !strings.Contains(got, "don't have") {
 		t.Errorf("unwatch before watching: %q", got)
 	}
-	if got := run("watch", "https://letterboxd.com/film_fan/"); !strings.Contains(got, "subscribed") || store.subs["7"] != "film_fan" || store.channels["7"] != "twitch:100" {
-		t.Errorf("watch: %q, store %v %v", got, store.subs, store.channels)
+	if got := run("watch", "https://letterboxd.com/film_fan/"); !strings.Contains(got, "subscribed") {
+		t.Errorf("watch: %q", got)
+	}
+	if sub := store.subs[70]; sub.LetterboxdName != "film_fan" || sub.ConnectionID != 10 || sub.AlertChannel != "twitch:100" || sub.FeedURL != "https://letterboxd.com/film_fan/rss/" {
+		t.Errorf("stored: %+v", sub)
 	}
 	if got := run("watch", "other"); !strings.Contains(got, "already") {
 		t.Errorf("second watch: %q", got)

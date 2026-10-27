@@ -17,7 +17,7 @@ func unlink(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Repl
 	switch e.Args[1] {
 	case "user":
 
-		league, err := getLeagueByChannel(ctx, e.Channel.ID, sl)
+		league, err := getLeague(ctx, e.Connection.CommunityID, sl)
 		if err != nil {
 			log.Print(err)
 			return commands.Reply{Text: "Internal error unlinking user."}, err
@@ -27,7 +27,7 @@ func unlink(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Repl
 			return commands.Reply{Text: "This channel is not associated with any league."}, nil
 		}
 
-		found, err := removeUser(ctx, league.ID, e.User.ID, sl)
+		found, err := removeUser(ctx, league.ID, e.Identity.PlatformUserID, sl)
 		if err != nil {
 			log.Print(err)
 			return commands.Reply{Text: "Internal error unlinking user."}, err
@@ -46,7 +46,7 @@ func unlink(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Repl
 			return commands.Reply{Text: "You do not have privileges to use this command."}, nil
 		}
 
-		league, err := getLeagueByChannel(ctx, e.Channel.ID, sl)
+		league, err := getLeague(ctx, e.Connection.CommunityID, sl)
 		if err != nil {
 			log.Print(err)
 			return commands.Reply{Text: "Internal error unlinking league."}, err

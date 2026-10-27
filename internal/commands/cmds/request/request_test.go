@@ -35,10 +35,16 @@ func (s *stubStore) NewRequests(ctx context.Context, limit int) ([]FeatureReques
 func TestRequest(t *testing.T) {
 	store := &stubStore{updates: map[int64]string{}}
 	r := New(store)
+	// "Mobasity" with the owner's ID is the owner; the same name with another ID isn't.
 	run := func(user string, args ...string) string {
+		id := "9"
+		if user == "Mobasity" {
+			id = "42217464"
+		}
 		reply, _ := r.Run(context.Background(), commands.Request{
-			Message: core.Message{Platform: "twitch", Channel: core.Channel{ID: "1", Name: "chan"}, User: core.User{ID: "9", Name: user}},
-			Args:    args,
+			Message:  core.Message{Platform: "twitch", Channel: core.Channel{ID: "1", Name: "chan"}, User: core.User{ID: id, Name: user}},
+			Identity: core.Identity{PlatformUserID: 12},
+			Args:     args,
 		})
 		return reply.Text
 	}
@@ -46,7 +52,7 @@ func TestRequest(t *testing.T) {
 	if got := run("viewer", "dark", "mode"); got != "Your request has been saved (ID 1)" {
 		t.Errorf("create: %q", got)
 	}
-	if fr := store.saved[0]; fr.Body != "dark mode" || fr.Username != "viewer" || fr.ChannelName != "chan" || fr.Platform != "twitch" {
+	if fr := store.saved[0]; fr.Body != "dark mode" || fr.Username != "viewer" || fr.ChannelName != "chan" || fr.Platform != "twitch" || fr.PlatformUserID != 12 {
 		t.Errorf("saved: %+v", fr)
 	}
 	if got := run("viewer", "get", "recent"); got != "" {
@@ -58,7 +64,10 @@ func TestRequest(t *testing.T) {
 	if got := run("Mobasity", "get", "new"); got != "There are no pending requests to review." {
 		t.Errorf("owner new: %q", got)
 	}
-	if got := run("mobasity", "set", "1", "completed"); !strings.Contains(got, "[1]") || store.updates[1] != "completed" {
+	if got := run("mobasity", "set", "1", "rejected"); got != "" || store.updates[1] != "" {
+		t.Errorf("the owner's name without the owner's ID changed a request: %q", got)
+	}
+	if got := run("Mobasity", "set", "1", "completed"); !strings.Contains(got, "[1]") || store.updates[1] != "completed" {
 		t.Errorf("set: %q, %v", got, store.updates)
 	}
 	if got := run("viewer"); !strings.Contains(got, "Usage") {
