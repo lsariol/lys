@@ -11,18 +11,18 @@ The first release under the Lys name: a rework of BotSuite.
 - `!help` lists the commands, and `!help <command>` describes one.
 - `/health` reports whether Twitch is connected, and answers 503 while it isn't, so Docker shows Lys as unhealthy.
 - Channels, the people who use commands, and the bot account are stored platform-neutrally (communities, connections, platform users, bot accounts), ready for more platforms and for linking accounts on the website. Existing channels, prefixes and users are copied in; the old tables are kept and still written.
-- `lys channel list`, `lys channel add`, `lys channel block` and `lys channel unblock` manage channels from the command line.
+- `lys channel list`, `lys channel add`, `lys channel block` and `lys channel unblock` manage channels from the command line. A name that several channels share is refused (use the ID), and `channel list` tells a revoked channel from one that was never authorized.
 - `lys bot authorize` signs Lys in as its Twitch bot account and stores the tokens in Cove, replacing the manual token exchange.
 - `lys help` lists every command and guide; `lys help <command>` shows its usage, flags and examples.
 - `!remind <10m|1h30m|2d> <message>` posts a reminder in the same channel later (1 minute to 30 days, up to 10 waiting per person), with `!remind list` and `!remind cancel <id>`.
-- `!timer add <every> <message>` posts a message on repeat (every 5 minutes to 24 hours, up to 10 per channel), for the channel's owner and moderators, with `!timer list` and `!timer remove <id>`.
+- `!timer add <every> <message>` posts a message on repeat (every 5 minutes to 24 hours, up to 10 per channel), for the channel's owner and moderators. It only posts while chat is active, with at least 5 messages since its last post, so quiet and offline channels get nothing. `!timer list` shows each timer's number, message and next post; `!timer remove <number>` stops one.
 - Reminders and timers survive restarts; a failed one is retried with backoff, and two Lys instances never run the same one.
 - Lys announces new Letterboxd diary entries itself, replacing LetterboxdWatcher, with the same wording; the "see other entries" link now opens the member's activity page.
 - Sleeper trades and waiver claims are announced in the league's channel, once each; a league's first check only records what already happened. `!ff alerts` shows which are announced, and `!ff alerts <trades|waivers> <on|off>` changes it.
 - Adding, blocking or unblocking a channel (with `lys channel …` too) takes effect within seconds, without a restart.
 - When Twitch says the bot was banned in a channel, or the channel's account is gone, Lys leaves it and `lys channel list` shows it as revoked; `lys channel add` brings it back.
 - When Twitch revokes the bot account's own authorization, `/health` turns unhealthy and the log says to run `lys bot authorize`.
-- An enrollment API for the website: `POST /channels` adds a channel (the bot joins within seconds) and `DELETE /channels/{platform}/{id}` turns Lys off in it, keeping its settings. It needs the shared token `SHARED_LYS_ENROLLMENT_TOKEN` and is only reachable on the server's internal network.
+- An enrollment API for the website: `POST /channels` with a platform and channel ID adds the channel (the bot joins within seconds), taking its name from Twitch and refusing IDs Twitch doesn't know; `DELETE /channels/{platform}/{id}` turns Lys off in it, keeping its settings. It needs the shared token `SHARED_LYS_ENROLLMENT_TOKEN` and is only reachable on the server's internal network.
 
 ### Changed
 - Renamed from BotSuite to Lys: the database, schema, roles, Cove keys and container are all `lys` now.
