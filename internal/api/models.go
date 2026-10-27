@@ -12,7 +12,7 @@ type APIStore struct {
 	connectionString string
 }
 
-//Letterboxd
+// Letterboxd
 type LetterboxdNotification struct {
 	Message       string   `json:"message"`
 	AlertChannels []string `json:"alert_channels"`

@@ -1,0 +1,9 @@
+# Keep secrets, notes and local files out of the build context.
+.env
+.env.*
+.dev/
+.git/
+.vscode/
+notes/
+*.exe
+__debug_bin*

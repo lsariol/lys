@@ -1,12 +1,20 @@
-FROM golang:1.25.1-alpine AS builder
+FROM golang:1.27.3-alpine AS builder
 WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
 COPY . .
-RUN go build -o lys ./cmd/lys
+RUN CGO_ENABLED=0 go build -trimpath -o lys ./cmd/lys
 
-FROM alpine:latest
+# Lighthouse builds this stage before deploying: a failure stops the deploy.
+FROM builder AS test
+RUN apk add --no-cache gcc musl-dev
+RUN unformatted="$(gofmt -l .)" && [ -z "$unformatted" ] || { echo "These files need gofmt:"; echo "$unformatted"; exit 1; }
+RUN go vet ./...
+RUN CGO_ENABLED=1 go test -race -short -count=1 ./...
+
+# Pinned on purpose; bump it deliberately (e.g. for security fixes).
+FROM alpine:3.24
 WORKDIR /app
-
-RUN mkdir -p /app/lys
 
 COPY --from=builder /app/lys /lys
 
