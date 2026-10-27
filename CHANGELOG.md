@@ -20,6 +20,8 @@ The first release under the Lys name: a rework of BotSuite.
 - Lys announces new Letterboxd diary entries itself, replacing LetterboxdWatcher, with the same wording; the "see other entries" link now opens the member's activity page.
 - Sleeper trades and waiver claims are announced in the league's channel, once each; a league's first check only records what already happened. `!ff alerts` shows which are announced, and `!ff alerts <trades|waivers> <on|off>` changes it.
 - Adding, blocking or unblocking a channel (with `lys channel …` too) takes effect within seconds, without a restart.
+- When Twitch says the bot was banned in a channel, or the channel's account is gone, Lys leaves it and `lys channel list` shows it as revoked; `lys channel add` brings it back.
+- When Twitch revokes the bot account's own authorization, `/health` turns unhealthy and the log says to run `lys bot authorize`.
 
 ### Changed
 - Renamed from BotSuite to Lys: the database, schema, roles, Cove keys and container are all `lys` now.
@@ -52,3 +54,5 @@ The first release under the Lys name: a rework of BotSuite.
 - A failed connection to Twitch at startup reports the error instead of crashing.
 - A channel without a settings row no longer stops the bot from starting; it uses the `!` prefix.
 - Two Lys instances starting at once no longer fail while preparing migrations.
+- A Twitch connection that goes silent is noticed within its keepalive timeout and reopened, instead of leaving the bot deaf.
+- A channel that refuses the bot's messages (banned, timed out, or missing its permission) is paused for 10 minutes instead of failing on every reply; a rate-limited message waits for Twitch's reset and is sent once more.

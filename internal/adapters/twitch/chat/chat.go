@@ -61,17 +61,44 @@ func (c *ChatClient) queue(ctx context.Context, channelID string) chan core.Outb
 	return q
 }
 
+// pauseFor is how long a channel's messages are dropped after Twitch refuses
+// the bot there (403, or a 401 a fresh token doesn't fix), instead of failing
+// on every message.
+const pauseFor = 10 * time.Minute
+
+// maxRateLimitWait caps how long a 429 waits for Twitch's reset time.
+const maxRateLimitWait = time.Minute
+
 // drain sends one channel's messages in order, sendInterval apart.
 func (c *ChatClient) drain(ctx context.Context, q <-chan core.Outbound) {
+	var pausedUntil time.Time
+	dropped := 0
 	for {
+		var out core.Outbound
 		select {
 		case <-ctx.Done():
 			return
-		case out := <-q:
-			if err := c.deliver(ctx, out, true); err != nil {
-				log.Printf("[Chat] %v", err)
-			}
+		case out = <-q:
 		}
+
+		if time.Now().Before(pausedUntil) {
+			dropped++
+			continue
+		}
+		if dropped > 0 {
+			log.Printf("[Chat] %q: dropped %d messages while paused", out.Channel.ID, dropped)
+			dropped = 0
+		}
+
+		pause, err := c.deliver(ctx, out, true)
+		if err != nil {
+			log.Printf("[Chat] %v", err)
+		}
+		if pause > 0 {
+			pausedUntil = time.Now().Add(pause)
+			log.Printf("! [Chat] pausing %q for %s", out.Channel.ID, pause)
+		}
+
 		select {
 		case <-ctx.Done():
 			return
@@ -80,36 +107,49 @@ func (c *ChatClient) drain(ctx context.Context, q <-chan core.Outbound) {
 	}
 }
 
-// deliver sends out; on a 401 it refreshes the app token and, if retry is set, tries once more.
-func (c *ChatClient) deliver(ctx context.Context, out core.Outbound, retry bool) error {
+// deliver sends out. On a 401 it refreshes the app token and, if retry is
+// set, tries once more; on a 429 it waits for Twitch's reset and tries once
+// more. pause is how long to stop sending to the channel.
+func (c *ChatClient) deliver(ctx context.Context, out core.Outbound, retry bool) (pause time.Duration, err error) {
 	sent, helixErr, err := c.SendChat(ctx, out.Channel.ID, out.Text)
 	if err != nil {
-		return fmt.Errorf("Twitch: send to %q: %w", out.Channel.ID, err)
+		return 0, fmt.Errorf("Twitch: send to %q: %w", out.Channel.ID, err)
 	}
 
 	if helixErr == nil {
 		for _, d := range sent.Data {
 			if !d.IsSent && d.DropReason != nil {
-				return fmt.Errorf("Twitch: message to %q dropped: %s (%s)", out.Channel.ID, d.DropReason.Message, d.DropReason.Code)
+				return 0, fmt.Errorf("Twitch: message to %q dropped: %s (%s)", out.Channel.ID, d.DropReason.Message, d.DropReason.Code)
 			}
 		}
-		return nil
+		return 0, nil
 	}
 
 	switch helixErr.Status {
 	case http.StatusUnauthorized:
 		if !retry {
-			return fmt.Errorf("Twitch: send to %q: 401 with a fresh app token: %s (check the bot's user:write:chat and user:bot scopes and the channel's channel:bot grant)", out.Channel.ID, helixErr.Message)
+			return pauseFor, fmt.Errorf("Twitch: send to %q: 401 with a fresh app token: %s (check the bot's user:write:chat and user:bot scopes, and that the channel granted channel:bot or made the bot a moderator)", out.Channel.ID, helixErr.Message)
 		}
 		if err := c.Auth.RefreshAppAccessToken(ctx); err != nil {
-			return fmt.Errorf("refresh app access token: %w", err)
+			return 0, fmt.Errorf("refresh app access token: %w", err)
 		}
 		return c.deliver(ctx, out, false)
 	case http.StatusForbidden:
-		return fmt.Errorf("Twitch: send to %q: 403, the bot may not chat there (banned or timed out): %s", out.Channel.ID, helixErr.Message)
+		return pauseFor, fmt.Errorf("Twitch: send to %q: 403, the bot may not chat there (banned or timed out): %s", out.Channel.ID, helixErr.Message)
+	case http.StatusTooManyRequests:
+		if !retry {
+			return 0, fmt.Errorf("Twitch: send to %q: rate limited again after waiting", out.Channel.ID)
+		}
+		wait := min(max(helixErr.RetryAfter, time.Second), maxRateLimitWait)
+		select {
+		case <-ctx.Done():
+			return 0, ctx.Err()
+		case <-time.After(wait):
+		}
+		return c.deliver(ctx, out, false)
 	case http.StatusUnprocessableEntity:
-		return fmt.Errorf("Twitch: send to %q: 422, the message is too long: %s", out.Channel.ID, helixErr.Message)
+		return 0, fmt.Errorf("Twitch: send to %q: 422, the message is too long: %s", out.Channel.ID, helixErr.Message)
 	default:
-		return fmt.Errorf("Twitch: send to %q: %d: %s", out.Channel.ID, helixErr.Status, helixErr.Message)
+		return 0, fmt.Errorf("Twitch: send to %q: %d: %s", out.Channel.ID, helixErr.Status, helixErr.Message)
 	}
 }

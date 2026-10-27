@@ -81,5 +81,11 @@ type Directory interface {
 	Channels(ctx context.Context, platform string) ([]Channel, error)
 }
 
+// Revoker records that Lys may no longer be in a channel; it then drops out
+// of the Directory.
+type Revoker interface {
+	Revoke(ctx context.Context, platform, channelID, reason string) error
+}
+
 // DefaultPrefix is the command prefix for channels that haven't set one.
 const DefaultPrefix = "!"

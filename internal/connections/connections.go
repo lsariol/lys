@@ -235,6 +235,37 @@ func (s *Store) SetBlocked(ctx context.Context, id int64, blocked bool, reason s
 	return nil
 }
 
+// Revoke records that Lys may no longer be in a channel (its grant was taken
+// back, the bot was banned there, or the channel is gone). Lys leaves it;
+// Enroll turns it back on. It implements core.Revoker.
+func (s *Store) Revoke(ctx context.Context, platform, externalID, reason string) error {
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		var id int64
+		err := tx.QueryRow(ctx, `UPDATE lys.platform_connections SET authorized = false
+			WHERE platform = $1 AND external_id = $2 AND authorized RETURNING id`, platform, externalID).Scan(&id)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil // unknown, or already revoked
+		}
+		if err != nil {
+			return err
+		}
+		if err := event(ctx, tx, id, "authorization_revoked", map[string]string{"reason": reason}); err != nil {
+			return err
+		}
+		if platform == "twitch" {
+			// Rollback copy; its trigger logs the revoke.
+			if _, err := tx.Exec(ctx, `UPDATE lys.twitch_channels SET active = false WHERE user_id = $1`, externalID); err != nil {
+				return err
+			}
+		}
+		return notify(ctx, tx, platform)
+	})
+	if err != nil {
+		return fmt.Errorf("database: revoke %s channel %q: %w", platform, externalID, err)
+	}
+	return nil
+}
+
 // SetPrefix changes a channel's command prefix.
 func (s *Store) SetPrefix(ctx context.Context, platform, externalID, prefix string) error {
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {

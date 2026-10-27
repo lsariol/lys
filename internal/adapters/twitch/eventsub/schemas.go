@@ -33,7 +33,7 @@ type Subscription struct {
 }
 
 type Condition struct {
-	BroadcasterUserId string `json:"broadcast_user_id"`
+	BroadcasterUserId string `json:"broadcaster_user_id"`
 	UserId            string `json:"user_id"`
 }
 

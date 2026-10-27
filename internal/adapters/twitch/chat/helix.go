@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
+	"time"
 )
 
 const sendChatURL = "https://api.twitch.tv/helix/chat/messages"
@@ -48,6 +50,9 @@ func (c *ChatClient) SendChat(ctx context.Context, broadcasterID, text string) (
 		helixErr := HelixError{Status: resp.StatusCode}
 		if err := json.Unmarshal(respBody, &helixErr); err != nil {
 			return nil, nil, fmt.Errorf("status %d: unmarshal helix error: %w", resp.StatusCode, err)
+		}
+		if reset, err := strconv.ParseInt(resp.Header.Get("Ratelimit-Reset"), 10, 64); err == nil {
+			helixErr.RetryAfter = time.Until(time.Unix(reset, 0))
 		}
 		return nil, &helixErr, nil
 	}

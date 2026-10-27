@@ -9,6 +9,9 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// welcomeTimeout is how long a new connection may take to send its welcome.
+const welcomeTimeout = 10 * time.Second
+
 // Creates and returns a websocket connection, and session data
 func (c *EventSubClient) NewWebSocketConn(ctx context.Context, URL string) (*websocket.Conn, SessionData, error) {
 
@@ -17,6 +20,8 @@ func (c *EventSubClient) NewWebSocketConn(ctx context.Context, URL string) (*web
 	if err != nil {
 		return nil, sd, fmt.Errorf("Twitch: dial EventSub: %w", err)
 	}
+	// Twitch sends the welcome right away; don't wait forever for it.
+	_ = newConn.SetReadDeadline(time.Now().Add(welcomeTimeout))
 
 	var event EventSubMessage
 	for {
@@ -36,21 +41,21 @@ func (c *EventSubClient) NewWebSocketConn(ctx context.Context, URL string) (*web
 // Creates and stores a websocket in the eventsub component
 func (c *EventSubClient) dialNewWebSocketConnection(ctx context.Context, URL string) error {
 
-	newConn, _, err := websocket.DefaultDialer.Dial(URL, nil)
+	newConn, _, err := websocket.DefaultDialer.DialContext(ctx, URL, nil)
 	if err != nil {
-		return fmt.Errorf("newwebsocketconn dial error: %w", err)
+		return fmt.Errorf("Twitch: dial EventSub: %w", err)
 	}
+	_ = newConn.SetReadDeadline(time.Now().Add(welcomeTimeout))
 
 	var event EventSubMessage
-	if err := newConn.ReadJSON(&event); err != nil {
-		return fmt.Errorf("newwebsocketconn read json: %w", err)
-	}
-
 	for event.Metadata.MessageType != "session_welcome" {
-		c.ConsumeEvent(ctx, event)
-
+		if event.Metadata.MessageType != "" {
+			c.ConsumeEvent(ctx, event)
+		}
+		event = EventSubMessage{}
 		if err := newConn.ReadJSON(&event); err != nil {
-			return fmt.Errorf("newwebsocketconn read json: %w", err)
+			newConn.Close()
+			return fmt.Errorf("Twitch: wait for the EventSub welcome: %w", err)
 		}
 	}
 

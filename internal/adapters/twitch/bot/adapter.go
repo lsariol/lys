@@ -33,14 +33,15 @@ type TwitchClient struct {
 	Bots     BotAccounts
 }
 
-// New returns the Twitch adapter. It joins the channels directory lists for "twitch".
-func New(http *http.Client, cfg *config.TwitchConfig, cove *coveclient.Client, directory core.Directory, bots BotAccounts) *TwitchClient {
+// New returns the Twitch adapter. It joins the channels that channels lists for
+// "twitch", and revokes the ones Twitch says it may no longer be in.
+func New(http *http.Client, cfg *config.TwitchConfig, cove *coveclient.Client, channels eventsub.Channels, bots BotAccounts) *TwitchClient {
 
 	auth := auth.New(cove, cfg, http)
 
 	return &TwitchClient{
 		Chat:     chat.New(http, cfg, auth),
-		EventSub: eventsub.New(http, cfg, auth, directory),
+		EventSub: eventsub.New(http, cfg, auth, channels),
 		Auth:     auth,
 		Config:   cfg,
 		Bots:     bots,

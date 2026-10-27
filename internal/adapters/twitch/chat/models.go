@@ -1,5 +1,7 @@
 package chat
 
+import "time"
+
 // Will send messages, handle message queue and so on
 
 type SendChatBody struct {
@@ -27,4 +29,6 @@ type HelixError struct {
 	Error   string `json:"error"`
 	Status  int    `json:"status"`
 	Message string `json:"message"`
+
+	RetryAfter time.Duration `json:"-"` // from Ratelimit-Reset on a 429
 }

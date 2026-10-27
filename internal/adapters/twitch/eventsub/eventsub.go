@@ -33,7 +33,7 @@ const (
 type EventSubClient struct {
 	HTTP        *http.Client
 	WS          *websocket.Conn
-	Directory   core.Directory
+	Directory   Channels
 	Config      *config.TwitchConfig
 	Auth        *auth.AuthClient
 	Channels    map[string]Channel // by broadcaster ID; guarded by mu once running
@@ -43,6 +43,8 @@ type EventSubClient struct {
 	mu           sync.Mutex // guards Channels between the read loop's reconnects and Sync
 	shutdownOnce sync.Once
 	connected    atomic.Bool // joined and reading; false while reconnecting
+	botRevoked   atomic.Bool // Twitch revoked the bot account's authorization
+	unknownTypes sync.Map    // notification types already logged as unknown
 }
 
 // Channel is a joined broadcaster and its chat subscription.
@@ -52,7 +54,13 @@ type Channel struct {
 	SubscriptionID string
 }
 
-func New(http *http.Client, cfg *config.TwitchConfig, auth *auth.AuthClient, directory core.Directory) *EventSubClient {
+// Channels lists the channels to join, and records the ones Lys must leave.
+type Channels interface {
+	core.Directory
+	core.Revoker
+}
+
+func New(http *http.Client, cfg *config.TwitchConfig, auth *auth.AuthClient, directory Channels) *EventSubClient {
 
 	return &EventSubClient{
 		HTTP:      http,
@@ -66,8 +74,9 @@ func New(http *http.Client, cfg *config.TwitchConfig, auth *auth.AuthClient, dir
 
 func (c *EventSubClient) OutboundEvents() <-chan EventSubMessage { return c.out }
 
-// Connected reports whether the websocket is up and the channels are joined.
-func (c *EventSubClient) Connected() bool { return c.connected.Load() }
+// Connected reports whether the websocket is up, the channels are joined, and
+// the bot's authorization still stands.
+func (c *EventSubClient) Connected() bool { return c.connected.Load() && !c.botRevoked.Load() }
 
 func (c *EventSubClient) Initilize(ctx context.Context) error {
 
@@ -118,120 +127,132 @@ func (c *EventSubClient) Shutdown(ctx context.Context) error {
 	return nil
 }
 
+// keepaliveGrace is added to Twitch's keepalive timeout before a silent
+// connection counts as dead.
+const keepaliveGrace = 5 * time.Second
+
+// defaultKeepalive is used until Twitch says otherwise.
+const defaultKeepalive = 10 * time.Second
+
 func (c *EventSubClient) readLoop(ctx context.Context) error {
 
-	fmt.Println("[Chat] Running")
-
 	for {
-		select {
-		case <-ctx.Done():
+		if ctx.Err() != nil {
 			c.Shutdown(ctx)
 			return nil
+		}
 
-		default:
-			messageType, data, err := c.WS.ReadMessage()
-			if err != nil {
-				// Shutdown closed the socket: stop instead of reconnecting.
-				if ctx.Err() != nil {
-					return nil
-				}
-				c.connected.Store(false)
-				if c.resetWebSocket(ctx, EventSubWSURL) {
-					c.connected.Store(ctx.Err() == nil)
-					continue
-				}
+		// Twitch sends a keepalive when there's nothing else; silence for longer
+		// than its timeout means the connection is dead.
+		keepalive := time.Duration(c.SessionData.KeepAliveTimeout) * time.Second
+		if keepalive <= 0 {
+			keepalive = defaultKeepalive
+		}
+		_ = c.WS.SetReadDeadline(time.Now().Add(keepalive + keepaliveGrace))
 
+		messageType, data, err := c.WS.ReadMessage()
+		if err != nil {
+			// Shutdown closed the socket: stop instead of reconnecting.
+			if ctx.Err() != nil {
+				return nil
+			}
+			log.Printf("[EventSub] connection lost (%v); reconnecting", err)
+			c.connected.Store(false)
+			for !c.resetWebSocket(ctx, EventSubWSURL) {
 				log.Printf("[EventSub] reconnecting failed 8 times; trying again")
 			}
-
-			switch {
-			case messageType == websocket.TextMessage:
-				var event EventSubMessage
-				if err := json.Unmarshal(data, &event); err != nil {
-					fmt.Println(fmt.Errorf("json unmarshal: %w", err))
-					fmt.Println(string(data))
-				}
-
-				c.ConsumeEvent(ctx, event)
-				continue
-
-			case messageType == websocket.CloseMessage || messageType == -1:
-				log.Println("Read error, should be wsarecv")
-				log.Println("messagetype == websocket.CloseMessage || messageType == -1 ERROR PATH.")
-				log.Printf("%d: %s", messageType, err.Error())
-				c.resetWebSocket(ctx, EventSubWSURL)
-				continue
-
-			default:
-				log.Printf("unknown message type: %d", messageType)
-				log.Println("broken input: " + string(data))
-			}
-
+			c.connected.Store(ctx.Err() == nil)
+			continue
 		}
+
+		if messageType != websocket.TextMessage {
+			log.Printf("[EventSub] ignoring a websocket message of type %d", messageType)
+			continue
+		}
+		var event EventSubMessage
+		if err := json.Unmarshal(data, &event); err != nil {
+			log.Printf("[EventSub] unreadable message (%v): %.200s", err, data)
+			continue
+		}
+		c.ConsumeEvent(ctx, event)
 	}
 }
 
 func (c *EventSubClient) ConsumeEvent(ctx context.Context, event EventSubMessage) {
 
 	switch event.Metadata.MessageType {
-	case "session_welcome":
-		c.handleSessionWelcome()
-		return
-
 	case "session_keepalive":
-		//Add a timer to see if the socket is alive and healthy
-		return
+		// Nothing to do: any message extends the read deadline.
+
+	case "session_welcome":
+		// Welcomes are read when connecting; one now is unexpected but harmless.
+		log.Printf("[EventSub] unexpected welcome for session %s", event.Payload.Session.ID)
 
 	case "session_reconnect":
-
-		log.Println("Twitch has asked to reconnect.")
+		log.Println("[EventSub] Twitch asked to move to a new connection")
 		if err := c.reconnectWebSocket(ctx, event); err != nil {
 			log.Printf("[EventSub] reconnect to Twitch's new address: %v; starting a fresh connection", err)
 			c.connected.Store(false)
 			c.connected.Store(c.resetWebSocket(ctx, EventSubWSURL) && ctx.Err() == nil)
 		}
-		return
 
 	case "revocation":
-
-		fmt.Println("Revocation")
-		//youll receive the message once and then no longer receive messages for the specified user and subscription type
-		// check status field on how to handle
-
-		switch event.Payload.Subscription.Status {
-
-		case "user_removed":
-			// user_removed -> user mentioned in the subscription no longer exists. ( Channel banned or whatver)
-			fmt.Println("User Removed")
-			return
-
-		case "authorization_revoked":
-			// authorization_revoked -> user revoked the authorization token that the subscription relied on (user removed bot permissions), remove user from subscription list
-			fmt.Println("Auth Revoked")
-			return
-
-		case "version_removed":
-			// version_removed -> the subscribed to subscription type and version is no longer supported
-			fmt.Println("Version removed")
-			return
-		}
-		return
+		c.revoked(ctx, event.Payload.Subscription)
 
 	case "notification":
-		//check if message is a command
-
-		switch event.Payload.Subscription.Type {
+		switch t := event.Payload.Subscription.Type; t {
 		case "channel.chat.message":
-
-			c.out <- event
-
+			select {
+			case c.out <- event:
+			case <-ctx.Done():
+			}
 		default:
-			fmt.Printf("Unknown notification type '%s'\n", event.Payload.Subscription.Type)
-			//log error to db
+			if _, seen := c.unknownTypes.LoadOrStore(t, true); !seen {
+				log.Printf("[EventSub] ignoring notifications of type %q: Lys doesn't subscribe to it", t)
+			}
 		}
 
 	default:
+		log.Printf("[EventSub] ignoring a message of type %q", event.Metadata.MessageType)
+	}
+}
 
+// revocationReasons are the revocations that mean Lys must leave that one channel.
+var revocationReasons = map[string]string{
+	"chat_user_banned": "the bot was banned in the channel",
+	"user_removed":     "the channel's account no longer exists",
+}
+
+// revoked handles Twitch ending a subscription; after a revocation it sends
+// nothing more for it.
+func (c *EventSubClient) revoked(ctx context.Context, sub Subscription) {
+	channel := sub.Condition.BroadcasterUserId
+	name := channel
+	c.mu.Lock()
+	if ch, ok := c.Channels[channel]; ok {
+		name = ch.Username
+	}
+	c.mu.Unlock()
+
+	if reason, ok := revocationReasons[sub.Status]; ok {
+		log.Printf("! [EventSub] %q: %s; leaving it (lys channel add brings it back)", name, reason)
+		if err := c.Directory.Revoke(ctx, "twitch", channel, reason); err != nil {
+			log.Printf("✗ [EventSub] %v", err)
+		}
+		return
+	}
+
+	switch sub.Status {
+	case "authorization_revoked":
+		// The subscriptions use the bot's own token, so this is the bot account
+		// taking back its authorization: every channel stops, not just this one.
+		if !c.botRevoked.Swap(true) {
+			log.Printf("✗ [EventSub] Twitch revoked the bot account's authorization, so Lys hears no chat. Run lys bot authorize, then restart Lys.")
+		}
+	case "version_removed":
+		log.Printf("✗ [EventSub] Twitch retired %s version %s: Lys needs updating to a newer version", sub.Type, sub.Version)
+	default:
+		log.Printf("! [EventSub] subscription for %q ended: %s", name, sub.Status)
 	}
 }
 
@@ -251,8 +272,4 @@ func (c *EventSubClient) loadChannels(ctx context.Context) error {
 	c.mu.Unlock()
 
 	return nil
-}
-
-func (c *EventSubClient) handleSessionWelcome() {
-
 }
