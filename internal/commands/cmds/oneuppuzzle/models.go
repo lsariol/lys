@@ -43,8 +43,8 @@ type GameProfile struct {
 	GameID         int
 	GamesCompleted *int
 	Completions    Completions
-	FastestUser    string
-	SlowestUser    string
+	FastestUser    *string
+	SlowestUser    *string
 }
 
 // Stat profile for the entire bot across all channels.
