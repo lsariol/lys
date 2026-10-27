@@ -1,0 +1,5 @@
+# Go source, SQL and shell scripts are always LF: gofmt agrees on Windows and
+# in Docker, and psql and sh on the server never see a stray carriage return.
+*.go  text eol=lf
+*.sql text eol=lf
+*.sh  text eol=lf
