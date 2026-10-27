@@ -69,9 +69,9 @@ func PrintMigrationStatus(ctx context.Context, connString string, w io.Writer) e
 	for _, s := range statuses {
 		appliedAt := "-"
 		if !s.AppliedAt.IsZero() {
-			appliedAt = s.AppliedAt.Local().Format("2006-01-02 15:04:05")
+			appliedAt = s.AppliedAt.Local().Format("2006-01-02 15:04")
 		}
-		fmt.Fprintf(w, "%-8s %-19s %s\n", s.State, appliedAt, s.Source.Path)
+		fmt.Fprintf(w, "%-8s %-16s %s\n", s.State, appliedAt, s.Source.Path)
 	}
 	return nil
 }

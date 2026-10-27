@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	twitchbot "github.com/lsariol/lys/internal/adapters/twitch/bot"
 	"github.com/lsariol/lys/internal/botaccounts"
 	"github.com/lsariol/lys/internal/channelconfig"
+	"github.com/lsariol/lys/internal/cli"
 	"github.com/lsariol/lys/internal/commands"
 	"github.com/lsariol/lys/internal/commands/cmds/catfacts"
 	"github.com/lsariol/lys/internal/commands/cmds/chatgpt"
@@ -50,23 +52,17 @@ func main() {
 
 	_ = godotenv.Load(".env")
 
+	if len(args) > 0 {
+		os.Exit(cli.Run(ctx, cli.NewEnv(cliServices()), args))
+	}
+
 	cove := coveclient.New(os.Getenv("COVE_URL"), os.Getenv("COVE_TOKEN"))
 	cfg := config.New()
 	if err := cfg.Initilize(cove); err != nil {
 		log.Fatalf("✗ initilize config: %v", err)
 	}
 
-	migratorURL := cfg.Database.MigratorConnectionString
-
-	if len(args) > 0 {
-		if args[0] != "migrate" {
-			fmt.Fprintf(os.Stderr, "! Unknown command %q.\n%s\n", args[0], migrateUsage)
-			os.Exit(1)
-		}
-		os.Exit(runMigrate(ctx, migratorURL, args[1:]))
-	}
-
-	if migratorURL != "" {
+	if migratorURL := cfg.Database.MigratorConnectionString; migratorURL != "" {
 		if err := database.Migrate(ctx, migratorURL); err != nil {
 			log.Fatalf("✗ %v", err)
 		}
@@ -183,38 +179,44 @@ func useBotAccount(ctx context.Context, bots *botaccounts.Store, cfg *config.Twi
 	return nil
 }
 
-const migrateUsage = "Usage: lys migrate [status|up]"
+// cliServices loads Cove, the config and the database for CLI commands, once
+// and only when a command first needs them.
+func cliServices() func(ctx context.Context) (*cli.Services, error) {
+	var (
+		once     sync.Once
+		services *cli.Services
+		err      error
+	)
+	return func(ctx context.Context) (*cli.Services, error) {
+		once.Do(func() {
+			cove := coveclient.New(os.Getenv("COVE_URL"), os.Getenv("COVE_TOKEN"))
+			cfg := config.New()
+			if err = cfg.Initilize(cove); err != nil {
+				err = fmt.Errorf("initilize config: %w", err)
+				return
+			}
 
-// runMigrate handles `lys migrate [status|up]` with the migrator role and returns the exit code.
-func runMigrate(ctx context.Context, migratorURL string, args []string) int {
-	if len(args) > 1 {
-		fmt.Fprintln(os.Stderr, "! "+migrateUsage)
-		return 1
+			var (
+				dbOnce sync.Once
+				db     *database.Database
+				dbErr  error
+			)
+			services = &cli.Services{
+				Config: cfg,
+				Cove:   cove,
+				HTTP:   &http.Client{Timeout: 10 * time.Second},
+				Database: func(ctx context.Context) (*database.Database, error) {
+					dbOnce.Do(func() {
+						db = database.NewDatabase(cfg.Database)
+						if dbErr = db.Connect(ctx); dbErr != nil {
+							return
+						}
+						dbErr = db.CheckSchemaVersion(ctx)
+					})
+					return db, dbErr
+				},
+			}
+		})
+		return services, err
 	}
-	if migratorURL == "" {
-		fmt.Fprintln(os.Stderr, "✗ lys migrate: LYS_DATABASE_MIGRATOR_URL isn't in Cove. Add the lys_migrator connection string there (cove shell: create LYS_DATABASE_MIGRATOR_URL).")
-		return 1
-	}
-
-	command := "status"
-	if len(args) == 1 {
-		command = args[0]
-	}
-
-	var err error
-	switch command {
-	case "status":
-		err = database.PrintMigrationStatus(ctx, migratorURL, os.Stdout)
-	case "up":
-		err = database.Migrate(ctx, migratorURL)
-	default:
-		fmt.Fprintf(os.Stderr, "! lys migrate: unknown command %q.\n%s\n", command, migrateUsage)
-		return 1
-	}
-
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "✗ lys migrate: %v\n", err)
-		return 1
-	}
-	return 0
 }
