@@ -6,6 +6,8 @@ The first release under the Lys name: a rework of BotSuite.
 
 ### Added
 - Every deploy first runs gofmt, go vet and the tests with the race detector; a failure stops the deploy.
+- Database migrations: Lys applies them on startup with the migrator role (`LYS_DATABASE_MIGRATOR_URL` in Cove), and refuses to start if its database is older than it needs. The first migration records the existing schema and changes nothing in it.
+- `lys migrate status` lists the migrations and when each was applied; `lys migrate up` applies any that are pending.
 
 ### Changed
 - Renamed from BotSuite to Lys: the database, schema, roles, Cove keys and container are all `lys` now.
