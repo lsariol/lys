@@ -15,7 +15,8 @@
 -- password is only needed for a role that doesn't exist yet, and every missing
 -- one is checked before anything changes.
 --
--- Run as the Admin superuser; notes/v0.0.0-cutover.md has where it fits in prod:
+-- Run as the Admin superuser on a new server (prod's v0.0.0 cutover does the
+-- same by hand: notes/v0.0.0-cutover.md, window step 3):
 --   docker exec -i sparkdb psql -U Admin -d postgres \
 --     -v migrator_password="..." -v app_password="..." -v reader_password="..." \
 --     -f - < scripts/db/setup.sql
