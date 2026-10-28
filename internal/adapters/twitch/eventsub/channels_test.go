@@ -1,12 +1,20 @@
 package eventsub
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
+	"github.com/lsariol/lys/internal/adapters/twitch/auth"
+	"github.com/lsariol/lys/internal/config"
 	"github.com/lsariol/lys/internal/core"
 )
 
@@ -38,5 +46,61 @@ func TestSubscribeError(t *testing.T) {
 		if got := subscribeError(tc.resp).Error(); !strings.Contains(got, tc.want) {
 			t.Errorf("got %q, want it to contain %q", got, tc.want)
 		}
+	}
+}
+
+type roundTrip func(*http.Request) (*http.Response, error)
+
+func (f roundTrip) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
+
+func TestJoinInParallel(t *testing.T) {
+	var mu sync.Mutex
+	inFlight, most := 0, 0
+	c := New(&http.Client{Transport: roundTrip(func(req *http.Request) (*http.Response, error) {
+		var body struct {
+			Condition map[string]string `json:"condition"`
+		}
+		_ = json.NewDecoder(req.Body).Decode(&body)
+		mu.Lock()
+		inFlight++
+		most = max(most, inFlight)
+		mu.Unlock()
+		time.Sleep(50 * time.Millisecond)
+		mu.Lock()
+		inFlight--
+		mu.Unlock()
+		id := body.Condition["broadcaster_user_id"]
+		if id == "refused" {
+			return &http.Response{StatusCode: 403, Body: io.NopCloser(strings.NewReader(`{"message":"no"}`))}, nil
+		}
+		return &http.Response{StatusCode: 202, Body: io.NopCloser(strings.NewReader(`{"data":[{"id":"sub-` + id + `"}]}`))}, nil
+	})}, &config.TwitchConfig{BotAccountID: "bot"}, auth.New(nil, &config.TwitchConfig{}, nil), nil)
+
+	var channels []core.Channel
+	for i := range 40 {
+		channels = append(channels, core.Channel{ID: strconv.Itoa(i), Name: "c" + strconv.Itoa(i)})
+	}
+	channels = append(channels, core.Channel{ID: "refused", Name: "Refused"})
+
+	start := time.Now()
+	c.join(context.Background(), channels)
+	if d := time.Since(start); d > time.Second {
+		t.Fatalf("41 joins at 50 ms each took %s", d)
+	}
+	if most > joinAtOnce {
+		t.Fatalf("%d joins at once, want at most %d", most, joinAtOnce)
+	}
+	if len(c.Channels) != 40 || c.Channels["7"].SubscriptionID != "sub-7" || c.Channels["7"].Username != "c7" {
+		t.Fatalf("recorded %d channels; 7 is %+v", len(c.Channels), c.Channels["7"])
+	}
+	if _, ok := c.Channels["refused"]; ok {
+		t.Fatal("a refused join was recorded")
+	}
+}
+
+func TestSubscribeUnauthorized(t *testing.T) {
+	err := subscribeError(&http.Response{StatusCode: 401, Body: io.NopCloser(strings.NewReader(`{"message":"Invalid OAuth token"}`))})
+	if !errors.Is(err, errUnauthorized) || !strings.Contains(err.Error(), "Invalid OAuth token") {
+		t.Fatalf("got %v", err)
 	}
 }

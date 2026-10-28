@@ -14,6 +14,8 @@
 - `!oneup stats <puzzle number>` and stats by name use their own indexes instead of reading every game.
 - Built on pgx 5.11 and goose 3.29.
 - In channels where the bot isn't privileged, messages go out 1.1 seconds apart instead of 1.5, as Twitch allows 1 a second there.
+- Channels are joined 8 at a time instead of one by one (9 channels: 0.3 s instead of 1.4 s; 300: 6 s instead of 45 s), and adding or removing a channel no longer holds up the others.
+- The bot's Twitch token is refreshed only when it's about to run out (or Twitch refuses it), not on every join and twice at startup; Cove gets the refresh token only when it changed.
 - Slow commands no longer hold up chat: Lys looks at every message as it arrives and only runs the command itself in the background, so a slow `!gpt` can't delay other commands, puzzle results or the activity autoposts count. When Lys can't keep up, it drops chat messages (and logs how many) rather than falling behind Twitch, which would disconnect it.
 - The bot's owner no longer counts as the owner of other people's channels: `!settings prefix set`, `!ff link league`, `!ff unlink league` and changing `!ff alerts` are for each channel's owner (autoposts already were). `lys channel prefix` covers fixes.
 - The `!sleeper` command and the Sleeper announcements share one Sleeper client, so the 15 MB player catalog is downloaded once a day instead of once each.

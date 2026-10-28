@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/lsariol/coveclient"
 	"github.com/lsariol/lys/internal/config"
@@ -22,7 +23,9 @@ type AuthClient struct {
 	// Bot is what Twitch said about the bot's token at startup.
 	Bot *VerificationSuccess
 
-	refreshMu sync.Mutex
+	refreshMu     sync.Mutex
+	userExpires   time.Time // when the user access token runs out; zero until a refresh says
+	storedRefresh string    // the refresh token Cove has, so an unchanged one isn't written again
 }
 
 func New(cc *coveclient.Client, cfg *config.TwitchConfig, http *http.Client) *AuthClient {
@@ -53,6 +56,7 @@ func (c *AuthClient) Initilize(ctx context.Context) error {
 	}
 
 	c.Tokens.SetUserAccessTokens(access, refresh)
+	c.storedRefresh = refresh
 
 	if err := c.RefreshUserAccessToken(ctx); err != nil {
 		return fmt.Errorf("refresh user access token: %w", err)

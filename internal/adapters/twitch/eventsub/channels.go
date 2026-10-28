@@ -4,34 +4,35 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"sync"
 
 	"github.com/lsariol/lys/internal/core"
 )
 
+// joinAtOnce is how many channels are subscribed to at the same time. One at a
+// time, 300 channels took 45 s; Twitch wants them within 10 s of the welcome.
+const joinAtOnce = 8
+
 // JoinAllChannels subscribes to chat in every channel in c.Channels, for the
 // current websocket session.
 func (c *EventSubClient) JoinAllChannels(ctx context.Context) error {
-
-	if err := c.Auth.RefreshUserAccessToken(ctx); err != nil {
+	if err := c.Auth.EnsureUserToken(ctx); err != nil {
 		return fmt.Errorf("refresh user access token: %w", err)
 	}
 
 	c.mu.Lock()
-	defer c.mu.Unlock()
+	var channels []core.Channel
 	for id, ch := range c.Channels {
-		sub, err := c.subscribe(ctx, id)
-		if err != nil {
-			log.Printf("[EventSub] join %q (%s): %v", ch.Username, id, err)
-			continue
-		}
-		ch.SubscriptionID = sub
-		c.Channels[id] = ch
-		log.Printf("[EventSub] joined %s", ch.Username)
+		channels = append(channels, core.Channel{ID: id, Name: ch.Username})
 	}
+	c.mu.Unlock()
+
+	c.join(ctx, channels)
 	return nil
 }
 
@@ -41,42 +42,72 @@ func (c *EventSubClient) Sync(ctx context.Context) error {
 	if !c.Connected() {
 		return nil
 	}
+	c.syncMu.Lock()
+	defer c.syncMu.Unlock()
 	want, err := c.Directory.Channels(ctx, "twitch")
 	if err != nil {
 		return fmt.Errorf("list channels: %w", err)
 	}
 
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	join, leave := diffChannels(c.Channels, want)
+	leaving := make([]Channel, 0, len(leave))
+	for _, id := range leave {
+		leaving = append(leaving, c.Channels[id])
+	}
+	c.mu.Unlock()
 	if len(join) == 0 && len(leave) == 0 {
 		return nil
 	}
-	if err := c.Auth.RefreshUserAccessToken(ctx); err != nil {
+	if err := c.Auth.EnsureUserToken(ctx); err != nil {
 		return fmt.Errorf("refresh user access token: %w", err)
 	}
 
-	for _, id := range leave {
-		ch := c.Channels[id]
+	for _, ch := range leaving {
 		if ch.SubscriptionID != "" {
 			if err := c.unsubscribe(ctx, ch.SubscriptionID); err != nil {
-				log.Printf("[EventSub] leave %q (%s): %v", ch.Username, id, err)
+				log.Printf("[EventSub] leave %q (%s): %v", ch.Username, ch.UserID, err)
 				continue
 			}
 		}
-		delete(c.Channels, id)
+		c.mu.Lock()
+		delete(c.Channels, ch.UserID)
+		c.mu.Unlock()
 		log.Printf("[EventSub] left %s", ch.Username)
 	}
-	for _, ch := range join {
-		sub, err := c.subscribe(ctx, ch.ID)
-		if err != nil {
-			log.Printf("[EventSub] join %q (%s): %v", ch.Name, ch.ID, err)
-			continue
-		}
-		c.Channels[ch.ID] = Channel{UserID: ch.ID, Username: ch.Name, SubscriptionID: sub}
-		log.Printf("[EventSub] joined %s", ch.Name)
-	}
+	c.join(ctx, join)
 	return nil
+}
+
+// join subscribes to the channels, joinAtOnce at a time, and records each one
+// that worked. The lock is held only to record, never across a request.
+func (c *EventSubClient) join(ctx context.Context, channels []core.Channel) {
+	slots := make(chan struct{}, joinAtOnce)
+	var wg sync.WaitGroup
+	for _, ch := range channels {
+		wg.Add(1)
+		slots <- struct{}{}
+		go func() {
+			defer wg.Done()
+			defer func() { <-slots }()
+			sub, err := c.subscribe(ctx, ch.ID)
+			if errors.Is(err, errUnauthorized) {
+				// The token may have just run out: refresh it and try once more.
+				if err = c.Auth.RefreshUserAccessToken(ctx); err == nil {
+					sub, err = c.subscribe(ctx, ch.ID)
+				}
+			}
+			if err != nil {
+				log.Printf("[EventSub] join %q (%s): %v", ch.Name, ch.ID, err)
+				return
+			}
+			c.mu.Lock()
+			c.Channels[ch.ID] = Channel{UserID: ch.ID, Username: ch.Name, SubscriptionID: sub}
+			c.mu.Unlock()
+			log.Printf("[EventSub] joined %s", ch.Name)
+		}()
+	}
+	wg.Wait()
 }
 
 // diffChannels returns the channels to join (in want, not joined) and the IDs
@@ -163,6 +194,9 @@ func (c *EventSubClient) unsubscribe(ctx context.Context, subscriptionID string)
 	return nil
 }
 
+// errUnauthorized is a subscription Twitch refused for the bot's token.
+var errUnauthorized = errors.New("Twitch: subscribe: status 401, the bot's token was refused")
+
 // subscribeError turns a refused subscription into an error with Twitch's
 // reason and, where it's clear, how to fix it.
 func subscribeError(resp *http.Response) error {
@@ -175,14 +209,13 @@ func subscribeError(resp *http.Response) error {
 	} else if body.Message != "" {
 		reason = body.Message
 	}
-	hint := ""
 	switch resp.StatusCode {
 	case http.StatusBadRequest:
-		hint = " (check the channel's Twitch ID: lys channel list)"
+		return fmt.Errorf("Twitch: subscribe: status 400: %s (check the channel's Twitch ID: lys channel list)", reason)
 	case http.StatusUnauthorized:
-		hint = " (the bot's token isn't valid: run lys bot authorize)"
+		return fmt.Errorf("%w: %s (if it keeps happening, run lys bot authorize)", errUnauthorized, reason)
 	case http.StatusForbidden:
-		hint = " (the bot needs user:read:chat, and the channel must allow it)"
+		return fmt.Errorf("Twitch: subscribe: status 403: %s (the bot needs user:read:chat, and the channel must allow it)", reason)
 	}
-	return fmt.Errorf("Twitch: subscribe: status %d: %s%s", resp.StatusCode, reason, hint)
+	return fmt.Errorf("Twitch: subscribe: status %d: %s", resp.StatusCode, reason)
 }

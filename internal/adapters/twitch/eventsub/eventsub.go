@@ -40,7 +40,8 @@ type EventSubClient struct {
 	SessionData SessionData
 	out         chan EventSubMessage
 
-	mu           sync.Mutex // guards Channels between the read loop's reconnects and Sync
+	mu           sync.Mutex // guards Channels between the read loop's reconnects, Sync and the joins
+	syncMu       sync.Mutex // one Sync at a time
 	shutdownOnce sync.Once
 	connected    atomic.Bool // joined and reading; false while reconnecting
 	botRevoked   atomic.Bool // Twitch revoked the bot account's authorization
