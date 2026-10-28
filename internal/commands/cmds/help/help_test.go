@@ -18,7 +18,8 @@ func (s stub) Run(context.Context, commands.Request) (commands.Reply, error) {
 func TestHelp(t *testing.T) {
 	reg := commands.NewRegistry()
 	h := New(reg)
-	for _, c := range []commands.Command{h, stub{commands.Spec{Name: "sleeper", Aliases: []string{"ff"}, Description: "Fantasy football.", Usage: "!sleeper"}}} {
+	for _, c := range []commands.Command{h, stub{commands.Spec{Name: "sleeper", Aliases: []string{"ff"}, Description: "Fantasy football.", Usage: "!sleeper"}},
+		stub{commands.Spec{Name: "autopost", Description: "Repeat a message.", Usage: "!autopost", Access: commands.Moderator}}} {
 		if err := reg.Register(c); err != nil {
 			t.Fatal(err)
 		}
@@ -32,7 +33,7 @@ func TestHelp(t *testing.T) {
 		return r.Text
 	}
 
-	if got := run(); !strings.Contains(got, "?help, ?sleeper") {
+	if got := run(); !strings.Contains(got, "?autopost, ?help, ?sleeper") {
 		t.Errorf("list: %q", got)
 	}
 	if got := run("ff"); !strings.Contains(got, "?sleeper: Fantasy football.") || !strings.Contains(got, "also ?ff") {
@@ -40,6 +41,12 @@ func TestHelp(t *testing.T) {
 	}
 	if got := run("?sleeper"); !strings.Contains(got, "?sleeper:") {
 		t.Errorf("with the prefix: %q", got)
+	}
+	if got := run("autopost"); !strings.HasSuffix(got, " For moderators.") {
+		t.Errorf("access: %q", got)
+	}
+	if got := run("sleeper"); strings.Contains(got, " For ") {
+		t.Errorf("everyone's command names who may use it: %q", got)
 	}
 	if got := run("nope"); !strings.Contains(got, "no command called 'nope'") {
 		t.Errorf("unknown: %q", got)

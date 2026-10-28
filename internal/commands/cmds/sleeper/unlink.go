@@ -42,8 +42,8 @@ func unlink(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Repl
 
 	case "league":
 
-		if !commands.HasPrivilege(e) {
-			return commands.Reply{Text: "You do not have privileges to use this command."}, nil
+		if !e.Allowed(commands.Owner) {
+			return commands.Refuse(commands.Owner, "unlink the league"), nil
 		}
 
 		league, err := getLeague(ctx, e.Connection.CommunityID, sl)

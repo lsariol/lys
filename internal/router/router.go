@@ -35,7 +35,7 @@ type Syncer interface {
 }
 
 // Observer sees every incoming message, command or not, before it's handled.
-// It runs on the router's workers, so it must be quick and safe for concurrent use.
+// It runs as each message arrives, before any command, so it must be quick.
 type Observer interface {
 	Observe(m core.Message)
 }
@@ -44,11 +44,15 @@ type Observer interface {
 // blocking the platform or the commands.
 const (
 	inboxSize  = 256
+	jobsSize   = 256
 	outboxSize = 256
 )
 
 // panicReply is sent when a command panics.
 const panicReply = "Something went wrong running that command."
+
+// busyReply is sent when a command is at its Concurrency, or every worker is busy.
+const busyReply = "Busy, try again in a moment."
 
 // Router runs commands for incoming messages and delivers outgoing ones.
 type Router struct {
@@ -58,9 +62,17 @@ type Router struct {
 	workers    int
 
 	in        chan core.Message
+	jobs      chan job
+	limits    *limits
 	adapters  map[string]Adapter
 	outboxes  map[string]chan core.Outbound
 	observers []Observer
+}
+
+// job is an admitted command, waiting for a worker.
+type job struct {
+	cmd commands.Command
+	req commands.Request
 }
 
 // New returns a router that runs up to workers commands at once.
@@ -71,6 +83,8 @@ func New(registry *commands.Registry, config core.ChannelConfig, identities core
 		identities: identities,
 		workers:    max(workers, 1),
 		in:         make(chan core.Message, inboxSize),
+		jobs:       make(chan job, jobsSize),
+		limits:     newLimits(time.Now),
 		adapters:   make(map[string]Adapter),
 		outboxes:   make(map[string]chan core.Outbound),
 	}
@@ -110,6 +124,11 @@ func (r *Router) Run(ctx context.Context) error {
 		}()
 	}
 
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		r.dispatch(ctx)
+	}()
 	for range r.workers {
 		wg.Add(1)
 		go func() {
@@ -169,13 +188,27 @@ func (r *Router) Health() map[string]bool {
 	return h
 }
 
-func (r *Router) work(ctx context.Context) {
+// dispatch takes each message as it arrives: the observers see it, and a
+// command it calls is checked and queued for a worker. Nothing here waits on a
+// command, so a slow one never holds up chat.
+func (r *Router) dispatch(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case m := <-r.in:
-			r.handle(ctx, m)
+			r.admit(ctx, m)
+		}
+	}
+}
+
+func (r *Router) work(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case j := <-r.jobs:
+			r.execute(ctx, j)
 		}
 	}
 }
@@ -193,8 +226,9 @@ func (r *Router) deliver(ctx context.Context, a Adapter, box <-chan core.Outboun
 	}
 }
 
-// handle runs the command a message calls, if any, and queues its reply.
-func (r *Router) handle(ctx context.Context, m core.Message) {
+// admit shows a message to the observers and, if it calls a command the
+// sender may use now, queues it for a worker.
+func (r *Router) admit(ctx context.Context, m core.Message) {
 	for _, o := range r.observers {
 		o.Observe(m)
 	}
@@ -202,17 +236,64 @@ func (r *Router) handle(ctx context.Context, m core.Message) {
 	if !ok {
 		return
 	}
+	spec := cmd.Spec()
 
+	access := spec.Access
+	what := req.Prefix + req.Command
+	if !req.Pattern {
+		access = spec.SubAccess(req.Args)
+		if _, ok := spec.Sub[strings.ToLower(first(req.Args))]; ok {
+			what += " " + strings.ToLower(req.Args[0])
+		}
+	}
+	if !req.Allowed(access) {
+		if !req.Pattern {
+			r.reply(ctx, m, commands.Refuse(access, "use "+what))
+		}
+		return
+	}
+
+	switch r.limits.take(spec, req) {
+	case cooling:
+		return // quietly, as chat expects of a command used too often
+	case busy:
+		r.reply(ctx, m, commands.Reply{Text: busyReply})
+		return
+	}
+	select {
+	case r.jobs <- job{cmd: cmd, req: req}:
+	default:
+		r.limits.release(spec)
+		log.Printf("[Router] every worker is busy; dropped %q in %q", req.Command, req.Channel.Name)
+		r.reply(ctx, m, commands.Reply{Text: busyReply})
+	}
+}
+
+// execute runs an admitted command and queues its reply.
+func (r *Router) execute(ctx context.Context, j job) {
+	defer r.limits.release(j.cmd.Spec())
+	m := j.req.Message
 	id, err := r.identities.Resolve(ctx, m.Platform, m.User)
 	if err != nil {
-		log.Printf("[Router] %v; running %q without an identity", err, req.Command)
+		log.Printf("[Router] %v; running %q without an identity", err, j.req.Command)
 	}
-	req.Identity = id
+	j.req.Identity = id
 
-	reply := r.run(ctx, cmd, req)
+	r.reply(ctx, m, r.run(ctx, j.cmd, j.req))
+}
+
+// reply answers a message in its channel; an empty reply sends nothing.
+func (r *Router) reply(ctx context.Context, m core.Message, reply commands.Reply) {
 	if err := r.Publish(ctx, core.Outbound{Platform: m.Platform, Channel: m.Channel, Text: reply.Text}); err != nil {
 		log.Printf("[Router] %v", err)
 	}
+}
+
+func first(args []string) string {
+	if len(args) == 0 {
+		return ""
+	}
+	return args[0]
 }
 
 // match finds the command a message calls: by prefix and name first; a

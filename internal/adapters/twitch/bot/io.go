@@ -3,20 +3,35 @@ package bot
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/lsariol/lys/internal/adapters/twitch/eventsub"
 	"github.com/lsariol/lys/internal/core"
 )
 
+// dropReportEvery is how often messages dropped for a full router are logged.
+const dropReportEvery = time.Minute
+
 // ingestLoop turns each chat message into a core.Message for the router,
-// skipping the bot's own messages so it never answers itself.
+// skipping the bot's own messages so it never answers itself. It never waits
+// on the router: a message the router has no room for is dropped and counted,
+// so the EventSub socket keeps being read and Twitch's pings answered.
 func (c *TwitchClient) ingestLoop(ctx context.Context, events <-chan eventsub.EventSubMessage, in chan<- core.Message) error {
+	report := time.NewTicker(dropReportEvery)
+	defer report.Stop()
+	dropped := 0
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+
+		case <-report.C:
+			if dropped > 0 {
+				log.Printf("[Twitch] the router had no room: dropped %d chat messages in the last minute", dropped)
+				dropped = 0
+			}
 
 		case msg := <-events:
 			logMessage(msg)
@@ -26,8 +41,8 @@ func (c *TwitchClient) ingestLoop(ctx context.Context, events <-chan eventsub.Ev
 
 			select {
 			case in <- toMessage(msg):
-			case <-ctx.Done():
-				return ctx.Err()
+			default:
+				dropped++
 			}
 		}
 	}

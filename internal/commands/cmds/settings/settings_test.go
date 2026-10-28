@@ -46,7 +46,7 @@ func TestPrefix(t *testing.T) {
 	if got, _ := run(request("5", "prefix")); !strings.Contains(got, "'!' prefix") {
 		t.Errorf("show: %q", got)
 	}
-	if got, _ := run(request("5", "prefix", "set", "?")); !strings.Contains(got, "privileges") {
+	if got, _ := run(request("5", "prefix", "set", "?")); got != "Only the channel's owner can change the prefix." {
 		t.Errorf("a viewer changed the prefix: %q", got)
 	}
 	if got, _ := run(request("100", "prefix", "set", "???")); !strings.Contains(got, "longer than 2") {
@@ -55,8 +55,8 @@ func TestPrefix(t *testing.T) {
 	if got, _ := run(request("100", "prefix", "set", "?")); !strings.Contains(got, "now set to '?'") || cfg.set["twitch:100"] != "?" {
 		t.Errorf("broadcaster: %q, stored %v", got, cfg.set)
 	}
-	if _, err := run(request("42217464", "prefix", "set", "$")); err != nil || cfg.set["twitch:100"] != "$" {
-		t.Errorf("bot owner: err %v, stored %v", err, cfg.set)
+	if got, _ := run(request("42217464", "prefix", "set", "$")); !strings.HasPrefix(got, "Only the channel's owner") || cfg.set["twitch:100"] != "?" {
+		t.Errorf("the bot's owner changed someone else's prefix: %q, stored %v", got, cfg.set)
 	}
 	broadcaster := request("other-platform-id", "prefix", "set", "%")
 	broadcaster.User.Roles = core.RoleBroadcaster

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/lsariol/lys/internal/commands"
-	"github.com/lsariol/lys/internal/core"
 	"github.com/lsariol/lys/internal/scheduler"
 	"github.com/lsariol/lys/internal/sources"
 )
@@ -67,9 +66,10 @@ func (*Autopost) Spec() commands.Spec {
 	return commands.Spec{
 		Name:        "autopost",
 		Aliases:     []string{"autoposts"},
-		Description: "Post a message in this channel on repeat, while chat is active (owner and moderators).",
+		Description: "Post a message in this channel on repeat, while chat is active.",
 		Usage:       "!autopost add <how often, e.g. 30m> <message> | !autopost list | !autopost remove <number>",
 		Timeout:     5 * time.Second,
+		Access:      commands.Moderator,
 	}
 }
 
@@ -77,9 +77,6 @@ func (t *Autopost) Run(ctx context.Context, e commands.Request) (commands.Reply,
 	usage := fmt.Sprintf("Usage: %sautopost add 30m <message> (repeats every 30 minutes; 5m to 24h), %sautopost list, or %sautopost remove <number>.", e.Prefix, e.Prefix, e.Prefix)
 	if len(e.Args) == 0 {
 		return commands.Reply{Text: usage}, nil
-	}
-	if !commands.IsChannelOwner(e) && !e.User.Roles.Has(core.RoleModerator) {
-		return commands.Reply{Text: "Only the channel's owner and moderators can manage autoposts."}, nil
 	}
 	if e.Connection.ID == 0 {
 		return commands.Reply{Text: "Autoposts aren't available right now. Try again in a moment."},

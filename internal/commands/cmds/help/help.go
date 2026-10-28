@@ -41,5 +41,8 @@ func (h *Help) Run(ctx context.Context, e commands.Request) (commands.Reply, err
 	if len(spec.Aliases) > 0 {
 		text += fmt.Sprintf(" (also %s%s)", e.Prefix, strings.Join(spec.Aliases, ", "+e.Prefix))
 	}
+	if spec.Access != commands.Everyone {
+		text += fmt.Sprintf(" For %s.", spec.Access.Who())
+	}
 	return commands.Reply{Text: text}, nil
 }

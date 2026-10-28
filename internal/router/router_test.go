@@ -346,3 +346,99 @@ func TestObserverSeesEveryMessage(t *testing.T) {
 		}
 	}
 }
+
+// as sends text from a user with these roles and returns the reply, or "".
+func (f *fakeAdapter) as(t *testing.T, user string, roles core.Roles, text string) string {
+	t.Helper()
+	f.in <- core.Message{Platform: "fake", Channel: core.Channel{ID: "1", Name: "chan1"}, User: core.User{ID: user, Name: user, Roles: roles}, Text: text}
+	select {
+	case out := <-f.sent:
+		return out.Text
+	case <-time.After(200 * time.Millisecond):
+		return ""
+	}
+}
+
+func TestAccess(t *testing.T) {
+	ff := cmd{
+		spec: commands.Spec{Name: "ff", Access: commands.Everyone, Sub: map[string]commands.Access{"link": commands.Owner}},
+		run: func(ctx context.Context, req commands.Request) (commands.Reply, error) {
+			return commands.Reply{Text: "ran " + strings.Join(req.Args, " ")}, nil
+		},
+	}
+	mod := cmd{
+		spec: commands.Spec{Name: "mod", Access: commands.Moderator},
+		run: func(ctx context.Context, req commands.Request) (commands.Reply, error) {
+			return commands.Reply{Text: "ran mod"}, nil
+		},
+	}
+	a := start(t, ff, mod)
+
+	for _, tc := range []struct {
+		user  string
+		roles core.Roles
+		text  string
+		want  string
+	}{
+		{"u1", 0, "!ff scores", "ran scores"},
+		{"u1", 0, "!ff LINK league", "Only the channel's owner can use !ff link."},
+		{"u1", core.RoleModerator, "!ff link league", "Only the channel's owner can use !ff link."},
+		{"u1", core.RoleBroadcaster, "!ff link league", "ran link league"},
+		{"1", 0, "!ff link league", "ran link league"}, // the channel's own account
+		{"u1", 0, "!mod", "Only moderators can use !mod."},
+		{"u1", core.RoleVIP, "!mod", "Only moderators can use !mod."},
+		{"u1", core.RoleModerator, "!mod", "ran mod"},
+		{"42217464", 0, "!mod", "Only moderators can use !mod."}, // the bot's owner, in someone else's channel
+	} {
+		if got := a.as(t, tc.user, tc.roles, tc.text); got != tc.want {
+			t.Errorf("%s %v %q: got %q, want %q", tc.user, tc.roles, tc.text, got, tc.want)
+		}
+	}
+}
+
+func TestCooldown(t *testing.T) {
+	gpt := cmd{
+		spec: commands.Spec{Name: "gpt", Cooldown: time.Hour, UserCooldown: time.Hour},
+		run: func(ctx context.Context, req commands.Request) (commands.Reply, error) {
+			return commands.Reply{Text: "answer for " + req.User.ID}, nil
+		},
+	}
+	a := start(t, gpt)
+	if got := a.as(t, "u1", 0, "!gpt hi"); got != "answer for u1" {
+		t.Fatalf("first use: %q", got)
+	}
+	if got := a.as(t, "u2", 0, "!gpt hi"); got != "" {
+		t.Fatalf("the channel's cooldown let another viewer in: %q", got)
+	}
+	if got := a.as(t, "u3", core.RoleModerator, "!gpt hi"); got != "answer for u3" {
+		t.Fatalf("a moderator was held by the cooldown: %q", got)
+	}
+}
+
+func TestConcurrency(t *testing.T) {
+	release := make(chan struct{})
+	slow := cmd{
+		spec: commands.Spec{Name: "slow", Concurrency: 1, Timeout: time.Minute},
+		run: func(ctx context.Context, req commands.Request) (commands.Reply, error) {
+			<-release
+			return commands.Reply{Text: "done"}, nil
+		},
+	}
+	a := start(t, slow, echo())
+
+	a.in <- core.Message{Platform: "fake", Channel: core.Channel{ID: "1"}, User: core.User{ID: "u1"}, Text: "!slow"}
+	time.Sleep(50 * time.Millisecond)
+	if got := a.as(t, "u2", 0, "!slow"); got != busyReply {
+		t.Fatalf("second slow command: %q, want %q", got, busyReply)
+	}
+	if got := a.say(t, "1", "!echo free", wait); got != "echo:free:!" {
+		t.Fatalf("other commands waited: %q", got)
+	}
+	close(release)
+	if got := a.say(t, "1", "", wait); got != "done" {
+		t.Fatalf("the first slow command: %q", got)
+	}
+	if got := a.as(t, "u2", 0, "!slow"); got != "done" {
+		t.Fatalf("the cap wasn't released: %q", got)
+	}
+}

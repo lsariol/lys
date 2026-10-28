@@ -16,7 +16,8 @@ type ChatGPT struct {
 func New(apiKey string) *ChatGPT { return &ChatGPT{apiKey: apiKey} }
 
 func (*ChatGPT) Spec() commands.Spec {
-	return commands.Spec{Name: "gpt", Description: "Ask a question to ChatGPT.", Usage: "!gpt <message>", Timeout: 30 * time.Second}
+	return commands.Spec{Name: "gpt", Description: "Ask a question to ChatGPT.", Usage: "!gpt <message>", Timeout: 30 * time.Second,
+		UserCooldown: 30 * time.Second, Concurrency: 2}
 }
 
 func (c *ChatGPT) Run(ctx context.Context, e commands.Request) (commands.Reply, error) {

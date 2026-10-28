@@ -4,6 +4,7 @@ package commands
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/lsariol/lys/internal/core"
@@ -15,7 +16,7 @@ type Command interface {
 	Run(ctx context.Context, req Request) (Reply, error)
 }
 
-// Spec describes a command to the registry and to !help.
+// Spec describes a command to the registry, the router and !help.
 type Spec struct {
 	Name        string
 	Aliases     []string
@@ -23,6 +24,22 @@ type Spec struct {
 	Description string
 	Usage       string
 	Timeout     time.Duration // 0 means DefaultTimeout
+
+	Access       Access            // who may use it; Everyone by default
+	Sub          map[string]Access // who may use a subcommand (the first argument), when that differs
+	Cooldown     time.Duration     // between uses in a channel
+	UserCooldown time.Duration     // between one person's uses in a channel
+	Concurrency  int               // how many may run at once, across channels; 0 means no limit
+}
+
+// SubAccess is who may run the command with these arguments.
+func (s Spec) SubAccess(args []string) Access {
+	if len(args) > 0 {
+		if a, ok := s.Sub[strings.ToLower(args[0])]; ok {
+			return a
+		}
+	}
+	return s.Access
 }
 
 // DefaultTimeout limits a command whose Spec sets none.

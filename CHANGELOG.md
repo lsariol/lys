@@ -4,10 +4,15 @@
 
 ### Added
 - Lineup reminders for linked Sleeper leagues, in the league's channels during the NFL regular season: 1 day and 1 hour before the week's first game, and 1 hour before Sunday's first game. Kickoff times come from ESPN's schedule, shown in Eastern time. A reminder that's more than 30 minutes late (after a restart, say) isn't sent. `!ff alerts lineups off` turns them off.
+- Each command says who may use it (everyone, VIPs, moderators or the channel's owner), and Lys checks it before running the command; `!help <command>` shows it. A refused command answers "Only moderators can use !autopost." and the like.
+- Cooldowns and caps on slow commands: `!gpt` runs at most 2 at a time, with 30 seconds between one person's uses; `!catfact` and `!randomdog` at most 2, 10 seconds apart; Letterboxd and Sleeper at most 4. Past a cap, Lys answers "Busy, try again in a moment."; within a cooldown it stays quiet. The channel's owner and moderators skip cooldowns.
+- `lys channel prefix <channel> <prefix>` changes a channel's prefix from the CLI.
 
 ### Changed
 - `!oneup stats <puzzle number>` and stats by name use their own indexes instead of reading every game.
 - Built on pgx 5.11 and goose 3.29.
+- Slow commands no longer hold up chat: Lys looks at every message as it arrives and only runs the command itself in the background, so a slow `!gpt` can't delay other commands, puzzle results or the activity autoposts count. When Lys can't keep up, it drops chat messages (and logs how many) rather than falling behind Twitch, which would disconnect it.
+- The bot's owner no longer counts as the owner of other people's channels: `!settings prefix set`, `!ff link league`, `!ff unlink league` and changing `!ff alerts` are for each channel's owner (autoposts already were). `lys channel prefix` covers fixes.
 - The `!sleeper` command and the Sleeper announcements share one Sleeper client, so the 15 MB player catalog is downloaded once a day instead of once each.
 
 ### Removed

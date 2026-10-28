@@ -77,4 +77,16 @@ func TestChannelCommands(t *testing.T) {
 	if _, errOut, code := run("channel", "block", "nobody-here", "-y"); code != 1 || !strings.Contains(errOut, "✗ no such channel") {
 		t.Fatalf("missing channel: exit %d, %q", code, errOut)
 	}
+
+	if _, errOut, code := run("channel", "prefix", "CliTest", "?"); code != 0 || !strings.Contains(errOut, `✓ "CliTest" now uses "?" (was "!")`) {
+		t.Fatalf("prefix: exit %d, %q", code, errOut)
+	}
+	if out, _, _ := run("channel", "list"); !strings.Contains(row(out), " ? ") {
+		t.Fatalf("list after prefix:\n%s", out)
+	}
+	for _, bad := range []string{"???", "a b"} {
+		if _, errOut, code := run("channel", "prefix", "CliTest", bad); code != 1 || !strings.Contains(errOut, "Usage: lys channel prefix") {
+			t.Fatalf("prefix %q: exit %d, %q", bad, code, errOut)
+		}
+	}
 }

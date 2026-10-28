@@ -67,14 +67,13 @@ func TestAutopost(t *testing.T) {
 		return reply.Text
 	}
 
-	if got := run(0, "add", "30m", "hi"); !strings.Contains(got, "owner and moderators") {
-		t.Fatalf("a viewer added an autopost: %q", got)
+	// The router enforces Access; the bot's owner isn't the owner of someone else's channel.
+	if tm.Spec().Access != commands.Moderator {
+		t.Fatalf("access: %v", tm.Spec().Access)
 	}
-	if reply, _ := tm.Run(context.Background(), commands.Request{
-		Message:    core.Message{Platform: "twitch", Channel: core.Channel{ID: "100"}, User: core.User{ID: "42217464"}},
-		Connection: core.Connection{ID: 9}, Prefix: "!", Args: []string{"add", "30m", "hi"},
-	}); !strings.Contains(reply.Text, "owner and moderators") {
-		t.Fatalf("the bot's owner added an autopost in someone else's channel: %q", reply.Text)
+	botOwner := commands.Request{Message: core.Message{Platform: "twitch", Channel: core.Channel{ID: "100"}, User: core.User{ID: "42217464"}}}
+	if botOwner.Allowed(tm.Spec().Access) {
+		t.Fatal("the bot's owner may manage autoposts in someone else's channel")
 	}
 	if got := run(core.RoleModerator, "list"); got != "This channel has no autoposts. Add one with !autopost add 30m <message>." {
 		t.Errorf("empty list: %q", got)

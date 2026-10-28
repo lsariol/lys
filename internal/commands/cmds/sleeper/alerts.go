@@ -41,8 +41,8 @@ func alerts(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Repl
 		if !slices.Contains(alertKinds, kind) || (value != "on" && value != "off") {
 			return commands.Reply{Text: usage}, nil
 		}
-		if !commands.HasPrivilege(e) {
-			return commands.Reply{Text: "You do not have privileges to use this command."}, nil
+		if !e.Allowed(commands.Owner) {
+			return commands.Refuse(commands.Owner, "change the alerts"), nil
 		}
 		if _, err := sl.db.Exec(ctx, `
 			UPDATE lys.sleeper_leagues SET notifications = notifications || jsonb_build_object($2::text, $3::boolean), updated_at = now()

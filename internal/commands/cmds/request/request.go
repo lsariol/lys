@@ -53,7 +53,7 @@ func (r *Request) Run(ctx context.Context, e commands.Request) (commands.Reply, 
 			//Until more is figurred out, we need to limit to 1 - CHANGE TO N WHEN READY
 			limit = n
 		}
-		if !commands.IsBotOwner(e) {
+		if !e.Allowed(commands.BotOwner) {
 			return commands.Reply{}, fmt.Errorf("request get: %q isn't the bot's owner", e.User.Name)
 		}
 		return r.getHandler(ctx, mode, limit)
@@ -67,7 +67,7 @@ func (r *Request) Run(ctx context.Context, e commands.Request) (commands.Reply, 
 		if err != nil {
 			return commands.Reply{Text: "Invalid request ID."}, err
 		}
-		if !commands.IsBotOwner(e) {
+		if !e.Allowed(commands.BotOwner) {
 			return commands.Reply{}, fmt.Errorf("request set: %q isn't the bot's owner", e.User.Name)
 		}
 		return r.setHandler(ctx, id, status)

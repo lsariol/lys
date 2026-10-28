@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"text/tabwriter"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/lsariol/coveclient"
 	"github.com/lsariol/lys/internal/adapters/twitch/auth"
@@ -74,6 +76,16 @@ func init() {
 			Summary: "Let Lys join a blocked channel again",
 			Usage:   []string{"channel unblock <channel>"},
 			Run:     runChannelUnblock,
+		},
+		{
+			Names:   []string{"channel prefix"},
+			Group:   "Channels",
+			Summary: "Change a channel's command prefix (its owner can, with !settings prefix set)",
+			Usage:   []string{"channel prefix <channel> <prefix>"},
+			Examples: []Example{
+				{"channel prefix shylaughhaha ?", "Commands there become ?help, ?ff and so on, within seconds."},
+			},
+			Run: runChannelPrefix,
 		},
 		{
 			Names:   []string{"bot authorize"},
@@ -233,6 +245,33 @@ func runChannelBlock(ctx context.Context, env *Env, in Input) error {
 		return err
 	}
 	env.Success("Blocked %q. A running Lys leaves it within seconds.", c.Name)
+	return nil
+}
+
+func runChannelPrefix(ctx context.Context, env *Env, in Input) error {
+	if len(in.Args) != 2 {
+		return usageError("Name one channel and the new prefix.")
+	}
+	prefix := in.Args[1]
+	if utf8.RuneCountInString(prefix) > 2 || strings.ContainsFunc(prefix, unicode.IsSpace) {
+		return usageError("A prefix is 1 or 2 characters, without spaces.")
+	}
+	_, conns, err := connectionsStore(ctx, env)
+	if err != nil {
+		return err
+	}
+	c, err := conns.Find(ctx, "twitch", in.Args[0])
+	if err != nil {
+		return err
+	}
+	if c.Prefix == prefix {
+		env.Success("%q already uses %q.", c.Name, prefix)
+		return nil
+	}
+	if err := conns.SetPrefix(ctx, c.Platform, c.ExternalID, prefix); err != nil {
+		return err
+	}
+	env.Success("%q now uses %q (was %q). A running Lys picks it up within seconds.", c.Name, prefix, c.Prefix)
 	return nil
 }
 
