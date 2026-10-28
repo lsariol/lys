@@ -279,7 +279,12 @@ func (r *Router) execute(ctx context.Context, j job) {
 	}
 	j.req.Identity = id
 
+	start := time.Now()
 	r.reply(ctx, m, r.run(ctx, j.cmd, j.req))
+	if !m.Time.IsZero() {
+		log.Printf("[Router] %s in %q: replied %s after the message (ran %s)", j.req.Command, m.Channel.Name,
+			time.Since(m.Time).Round(time.Millisecond), time.Since(start).Round(time.Millisecond))
+	}
 }
 
 // reply answers a message in its channel; an empty reply sends nothing.

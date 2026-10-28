@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -19,20 +20,31 @@ import (
 	"github.com/lsariol/lys/internal/sources"
 )
 
-// Poller checks every feed once per window, spread evenly across it.
+// Poller checks every feed once per window, spread evenly across it. A feed
+// several channels follow is fetched once for all of them.
 type Poller struct {
 	pool *pgxpool.Pool
 	http *http.Client
 
 	window    time.Duration // how long a full round of feeds takes
-	minGap    time.Duration // at least this long between two feeds
+	minGap    time.Duration // at least this long between two fetches starting
 	notifyGap time.Duration // between two announcements
+
+	mu         sync.Mutex
+	validators map[string]validators // by feed URL, for conditional requests
 }
+
+// fetchAtOnce is how many feeds may be fetched at the same time.
+const fetchAtOnce = 4
+
+// validators are what Letterboxd sent to tell an unchanged feed by.
+type validators struct{ etag, lastModified string }
 
 var _ sources.Source = (*Poller)(nil)
 
 func New(pool *pgxpool.Pool, http *http.Client) *Poller {
-	return &Poller{pool: pool, http: http, window: 25 * time.Minute, minGap: 5 * time.Second, notifyGap: 3 * time.Second}
+	return &Poller{pool: pool, http: http, window: 25 * time.Minute, minGap: 1250 * time.Millisecond, notifyGap: 3 * time.Second,
+		validators: make(map[string]validators)}
 }
 
 func (p *Poller) Name() string { return "letterboxd" }
@@ -62,16 +74,72 @@ func (p *Poller) Run(ctx context.Context, pub sources.Publisher) error {
 			continue
 		}
 
-		gap := max(p.window/time.Duration(len(subs)), p.minGap)
-		for _, s := range subs {
-			if err := p.check(ctx, s, pub); err != nil {
-				log.Printf("[Letterboxd] %q for %q: %v", s.feedName, s.channel.Name, err)
-			}
+		feeds := group(subs)
+		gap := max(p.window/time.Duration(len(feeds)), p.minGap)
+		slots := make(chan struct{}, fetchAtOnce)
+		var wg sync.WaitGroup
+		for _, f := range feeds {
+			slots <- struct{}{}
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				defer func() { <-slots }()
+				p.checkFeed(ctx, f, pub)
+			}()
 			if !sleep(ctx, gap) {
+				wg.Wait()
 				return ctx.Err()
 			}
 		}
+		wg.Wait()
 	}
+}
+
+// feed is one feed URL and every subscription to it.
+type feed struct {
+	url  string
+	subs []subscription
+}
+
+// group puts subscriptions to the same feed together, in the order they came.
+func group(subs []subscription) []feed {
+	var feeds []feed
+	at := make(map[string]int)
+	for _, s := range subs {
+		i, ok := at[s.feedURL]
+		if !ok {
+			i = len(feeds)
+			at[s.feedURL] = i
+			feeds = append(feeds, feed{url: s.feedURL})
+		}
+		feeds[i].subs = append(feeds[i].subs, s)
+	}
+	return feeds
+}
+
+// checkFeed fetches a feed once and announces its new entries to each
+// subscriber. The feed counts as unchanged next time only if all of that worked,
+// so a failed announcement is tried again.
+func (p *Poller) checkFeed(ctx context.Context, f feed, pub sources.Publisher) {
+	movies, v, err := p.fetch(ctx, f.url)
+	if err != nil {
+		log.Printf("[Letterboxd] %q: %v", f.subs[0].feedName, err)
+		return
+	}
+	ok := true
+	for _, s := range f.subs {
+		if err := p.announce(ctx, s, movies, pub); err != nil {
+			log.Printf("[Letterboxd] %q for %q: %v", s.feedName, s.channel.Name, err)
+			ok = false
+		}
+	}
+	p.mu.Lock()
+	if ok && movies != nil {
+		p.validators[f.url] = v
+	} else if !ok {
+		delete(p.validators, f.url)
+	}
+	p.mu.Unlock()
 }
 
 func (p *Poller) subscriptions(ctx context.Context) ([]subscription, error) {
@@ -97,11 +165,11 @@ func (p *Poller) subscriptions(ctx context.Context) ([]subscription, error) {
 	return subs, nil
 }
 
-// check announces a feed's new entries, then records the newest as seen.
-func (p *Poller) check(ctx context.Context, s subscription, pub sources.Publisher) error {
-	movies, err := p.fetch(ctx, s.feedURL)
-	if err != nil {
-		return err
+// announce posts the feed's entries this subscription hasn't seen, then
+// records the newest as seen. No movies (an unchanged feed) announces nothing.
+func (p *Poller) announce(ctx context.Context, s subscription, movies []movie, pub sources.Publisher) error {
+	if len(movies) == 0 {
+		return nil
 	}
 	fresh := newMovies(movies, s.lastSeen, s.lastAlerted)
 	if len(fresh) == 0 {
@@ -118,28 +186,44 @@ func (p *Poller) check(ctx context.Context, s subscription, pub sources.Publishe
 	return p.markSeen(ctx, s, movies[0].GUID)
 }
 
-func (p *Poller) fetch(ctx context.Context, url string) ([]movie, error) {
+// fetch reads a feed's entries, newest first, and what tells this version of
+// it apart. It asks only for a feed that changed since the last fetch; an
+// unchanged one returns no movies.
+func (p *Poller) fetch(ctx context.Context, url string) ([]movie, validators, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("Letterboxd: %w", err)
+		return nil, validators{}, fmt.Errorf("Letterboxd: %w", err)
+	}
+	p.mu.Lock()
+	v := p.validators[url]
+	p.mu.Unlock()
+	if v.etag != "" {
+		req.Header.Set("If-None-Match", v.etag)
+	}
+	if v.lastModified != "" {
+		req.Header.Set("If-Modified-Since", v.lastModified)
 	}
 	resp, err := p.http.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("Letterboxd: %w", err)
+		return nil, validators{}, fmt.Errorf("Letterboxd: %w", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Letterboxd: %s: status %s", url, resp.Status)
+	if resp.StatusCode == http.StatusNotModified {
+		return nil, v, nil
 	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, validators{}, fmt.Errorf("Letterboxd: %s: status %s", url, resp.Status)
+	}
+	v = validators{etag: resp.Header.Get("ETag"), lastModified: resp.Header.Get("Last-Modified")}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 5<<20))
 	if err != nil {
-		return nil, fmt.Errorf("Letterboxd: read %s: %w", url, err)
+		return nil, validators{}, fmt.Errorf("Letterboxd: read %s: %w", url, err)
 	}
 	var feed rss
 	if err := xml.Unmarshal(body, &feed); err != nil {
-		return nil, fmt.Errorf("Letterboxd: %s isn't an RSS feed: %w", url, err)
+		return nil, validators{}, fmt.Errorf("Letterboxd: %s isn't an RSS feed: %w", url, err)
 	}
-	return parse(feed), nil
+	return parse(feed), v, nil
 }
 
 // markSeen records the newest entry, so it isn't announced again.
