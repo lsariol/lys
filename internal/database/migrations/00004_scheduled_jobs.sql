@@ -1,4 +1,4 @@
--- Jobs that run at a time: reminders, repeating channel timers, and whatever
+-- Jobs that run at a time: reminders, repeating channel autoposts, and whatever
 -- comes later. A job survives restarts; whichever Lys instance claims a due
 -- job first runs it, with a lease so a crashed run is picked up again.
 

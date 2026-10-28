@@ -37,7 +37,7 @@ Impact weighs how likely it is to happen, how many people notice, and whether it
 
 ### 1. Slow commands stall all of chat (high, today)
 
-**What happens.** Every incoming message, command or not, goes through one pool of 8 workers (`workers = 8` in `cmd/lys/main.go`). A command holds its worker until it finishes: `!gpt` up to 30 s, `!catfact` and `!dog` up to 20 s, Letterboxd and Sleeper up to 10 s. When 8 slow commands are in flight, nothing else is handled: other commands, puzzle results, and the activity tracker that timers rely on.
+**What happens.** Every incoming message, command or not, goes through one pool of 8 workers (`workers = 8` in `cmd/lys/main.go`). A command holds its worker until it finishes: `!gpt` up to 30 s, `!catfact` and `!dog` up to 20 s, Letterboxd and Sleeper up to 10 s. When 8 slow commands are in flight, nothing else is handled: other commands, puzzle results, and the activity tracker that autoposts rely on.
 
 **Measured.** 8 commands waiting on a 3 s API: a `!ping`-style command queued behind them replied after **3.0 s**, and a plain chat message reached the observers after **3.0 s**. In a flood of 20,000 messages with 40 slow (2 s) commands mixed in, the median message waited **2.0 s** and the slowest **4.0 s**.
 
@@ -71,13 +71,13 @@ Impact weighs how likely it is to happen, how many people notice, and whether it
 
 ### 3. Chat is paced per channel, but Twitch limits the whole account (high at growth, possibly today)
 
-**What happens.** `internal/adapters/twitch/chat` spaces messages 1.5 s apart *per channel*. Twitch's chat limits are per account across all channels: 20 messages per 30 s when the bot isn't a moderator or VIP (100 when it is), and 1 per second per channel. Breaking them makes Twitch **ignore the bot for an hour** in every channel where it isn't a mod. Nothing in Lys counts messages across channels, so timers, Letterboxd and Sleeper announcements and replies in several channels can add up. 21 timers that come due in the same 30 s are enough.
+**What happens.** `internal/adapters/twitch/chat` spaces messages 1.5 s apart *per channel*. Twitch's chat limits are per account across all channels: 20 messages per 30 s when the bot isn't a moderator or VIP (100 when it is), and 1 per second per channel. Breaking them makes Twitch **ignore the bot for an hour** in every channel where it isn't a mod. Nothing in Lys counts messages across channels, so autoposts, Letterboxd and Sleeper announcements and replies in several channels can add up. 21 autoposts that come due in the same 30 s are enough.
 
 **Caveat.** Twitch says the Send Chat Message API (what Lys uses) has a separate bucket from the regular one, with its own size in the `Ratelimit-Limit` header. That bucket may be larger, so whether this bites today is unknown until the headers are read.
 
 **Ways to improve:**
 - First, log `Ratelimit-Limit` and `Ratelimit-Remaining` from Helix's answers for a few days, to learn the real bucket.
-- One account-wide limiter in front of the per-channel queues, fed by those headers. Replies go first, then announcements and timers.
+- One account-wide limiter in front of the per-channel queues, fed by those headers. Replies go first, then announcements and autoposts.
 - Mod-aware pacing (already planned): faster where the bot is a moderator or VIP, using `twitch_connection_details.bot_is_moderator`.
 
 ### 4. The bot's token is refreshed on every join, twice at startup (medium)

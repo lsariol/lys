@@ -20,6 +20,7 @@ import (
 	"github.com/lsariol/lys/internal/channelconfig"
 	"github.com/lsariol/lys/internal/cli"
 	"github.com/lsariol/lys/internal/commands"
+	"github.com/lsariol/lys/internal/commands/cmds/autopost"
 	"github.com/lsariol/lys/internal/commands/cmds/catfacts"
 	"github.com/lsariol/lys/internal/commands/cmds/chatgpt"
 	"github.com/lsariol/lys/internal/commands/cmds/help"
@@ -31,7 +32,6 @@ import (
 	"github.com/lsariol/lys/internal/commands/cmds/request"
 	"github.com/lsariol/lys/internal/commands/cmds/settings"
 	"github.com/lsariol/lys/internal/commands/cmds/sleeper"
-	"github.com/lsariol/lys/internal/commands/cmds/timer"
 	"github.com/lsariol/lys/internal/commands/cmds/uptime"
 	"github.com/lsariol/lys/internal/config"
 	"github.com/lsariol/lys/internal/connections"
@@ -140,7 +140,7 @@ func run(ctx context.Context, cfg *config.Config, cove *coveclient.Client, db *d
 		request.New(request.NewStore(db.Pool)),
 		settings.New(channels),
 		sleeper.New(httpClient, db.Pool),
-		timer.New(jobs),
+		autopost.New(jobs),
 		uptime.New(started),
 	} {
 		if err := registry.Register(c); err != nil {
@@ -149,7 +149,7 @@ func run(ctx context.Context, cfg *config.Config, cove *coveclient.Client, db *d
 	}
 
 	r := router.New(registry, channels, identity.New(db.Pool), workers)
-	chat := activity.New(timer.MinMessages)
+	chat := activity.New(autopost.MinMessages)
 	r.Observe(chat)
 	twitch := twitchbot.New(httpClient, cfg.Twitch, cove, conns, bots)
 	r.Add(twitch)
@@ -190,8 +190,8 @@ func run(ctx context.Context, cfg *config.Config, cove *coveclient.Client, db *d
 	}()
 
 	schedule := scheduler.New(jobs, map[string]scheduler.Handler{
-		remind.Kind: scheduler.SendMessage,
-		timer.Kind:  timer.Post(chat),
+		remind.Kind:   scheduler.SendMessage,
+		autopost.Kind: autopost.Post(chat),
 	})
 
 	for _, s := range []sources.Source{notifications, schedule, letterboxdfeeds.New(db.Pool, httpClient), sleeper.NewPoller(httpClient, db.Pool)} {

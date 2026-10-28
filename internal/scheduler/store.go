@@ -1,5 +1,5 @@
 // Package scheduler runs jobs at their time: reminders, repeating channel
-// timers, and any other kind with a handler. Jobs live in lys.scheduled_jobs,
+// autoposts, and any other kind with a handler. Jobs live in lys.scheduled_jobs,
 // so they survive restarts.
 package scheduler
 

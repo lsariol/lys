@@ -1,4 +1,4 @@
-package timer
+package autopost
 
 import (
 	"context"
@@ -48,7 +48,7 @@ func (s *stubJobs) Cancel(ctx context.Context, id, connectionID int64, kind stri
 	return scheduler.ErrNotFound
 }
 
-func TestTimer(t *testing.T) {
+func TestAutopost(t *testing.T) {
 	jobs := &stubJobs{}
 	now := time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC)
 	tm := New(jobs)
@@ -68,18 +68,18 @@ func TestTimer(t *testing.T) {
 	}
 
 	if got := run(0, "add", "30m", "hi"); !strings.Contains(got, "owner and moderators") {
-		t.Fatalf("a viewer added a timer: %q", got)
+		t.Fatalf("a viewer added an autopost: %q", got)
 	}
 	if reply, _ := tm.Run(context.Background(), commands.Request{
 		Message:    core.Message{Platform: "twitch", Channel: core.Channel{ID: "100"}, User: core.User{ID: "42217464"}},
 		Connection: core.Connection{ID: 9}, Prefix: "!", Args: []string{"add", "30m", "hi"},
 	}); !strings.Contains(reply.Text, "owner and moderators") {
-		t.Fatalf("the bot's owner added a timer in someone else's channel: %q", reply.Text)
+		t.Fatalf("the bot's owner added an autopost in someone else's channel: %q", reply.Text)
 	}
-	if got := run(core.RoleModerator, "list"); got != "This channel has no timers. Add one with !timer add 30m <message>." {
+	if got := run(core.RoleModerator, "list"); got != "This channel has no autoposts. Add one with !autopost add 30m <message>." {
 		t.Errorf("empty list: %q", got)
 	}
-	if got, want := run(core.RoleModerator, "add", "30m", "Follow", "the", "channel!"), `Timer #1 added: "Follow the channel!" every 30 minutes, while chat is active (5+ messages since its last post).`; got != want {
+	if got, want := run(core.RoleModerator, "add", "30m", "Follow", "the", "channel!"), `Autopost #1 added: "Follow the channel!" every 30 minutes, while chat is active (5+ messages since its last post).`; got != want {
 		t.Fatalf("add: %q", got)
 	}
 	if j := jobs.jobs[0]; j.RepeatEvery != 30*time.Minute || !j.RunAt.Equal(now.Add(30*time.Minute)) {
@@ -88,13 +88,13 @@ func TestTimer(t *testing.T) {
 	if got := run(core.RoleBroadcaster, "add", "1m", "x"); !strings.Contains(got, "every 5 minutes") {
 		t.Errorf("too often: %q", got)
 	}
-	if got, want := run(core.RoleBroadcaster, "list"), `Timers (1): #1 "Follow the channel!" every 30 minutes, next in 30 minutes. Remove one with !timer remove <number>.`; got != want {
+	if got, want := run(core.RoleBroadcaster, "list"), `Autoposts (1): #1 "Follow the channel!" every 30 minutes, next in 30 minutes. Remove one with !autopost remove <number>.`; got != want {
 		t.Errorf("list: %q", got)
 	}
-	if got := run(core.RoleBroadcaster, "remove", "2"); got != "This channel has no timer #2; see !timer list." {
+	if got := run(core.RoleBroadcaster, "remove", "2"); got != "This channel has no autopost #2; see !autopost list." {
 		t.Errorf("remove missing: %q", got)
 	}
-	if got := run(core.RoleBroadcaster, "remove", "#1"); got != "Timer #1 removed." {
+	if got := run(core.RoleBroadcaster, "remove", "#1"); got != "Autopost #1 removed." {
 		t.Errorf("remove: %q", got)
 	}
 }
@@ -107,8 +107,8 @@ func TestListFitsInOneMessage(t *testing.T) {
 		Connection: core.Connection{ID: 9},
 		Prefix:     "!",
 	}
-	for i := range maxTimers {
-		req.Args = []string{"add", "2h", fmt.Sprintf("Timer number %d has a long message that goes on and on", i)}
+	for i := range maxAutoposts {
+		req.Args = []string{"add", "2h", fmt.Sprintf("Autopost number %d has a long message that goes on and on", i)}
 		if _, err := tm.Run(context.Background(), req); err != nil {
 			t.Fatal(err)
 		}
@@ -118,7 +118,7 @@ func TestListFitsInOneMessage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(reply.Text) > maxReply || !strings.Contains(reply.Text, "more.") || !strings.HasPrefix(reply.Text, "Timers (10): #1 ") {
+	if len(reply.Text) > maxReply || !strings.Contains(reply.Text, "more.") || !strings.HasPrefix(reply.Text, "Autoposts (10): #1 ") {
 		t.Fatalf("%d characters: %q", len(reply.Text), reply.Text)
 	}
 }
