@@ -16,8 +16,8 @@ type Server struct {
 }
 
 // New returns a server on addr. health reports each adapter's connection;
-// /health answers 503 while any is down.
-func New(addr string, health func() map[string]bool, routes map[string]http.Handler) *Server {
+// /health answers 503 while any is down, and always reports version.
+func New(addr, version string, health func() map[string]bool, routes map[string]http.Handler) *Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		adapters := health()
@@ -31,8 +31,9 @@ func New(addr string, health func() map[string]bool, routes map[string]http.Hand
 		}
 		_ = json.NewEncoder(w).Encode(struct {
 			Healthy  bool            `json:"healthy"`
+			Version  string          `json:"version"`
 			Adapters map[string]bool `json:"adapters"`
-		}{healthy, adapters})
+		}{healthy, version, adapters})
 	})
 	for pattern, h := range routes {
 		mux.Handle(pattern, h)

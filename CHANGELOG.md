@@ -9,7 +9,7 @@ The first release under the Lys name: a rework of BotSuite.
 - Database migrations: Lys applies them on startup with the migrator role (`LYS_DATABASE_MIGRATOR_URL` in Cove), and refuses to start if its database is older than it needs. The first migration records the existing schema and changes nothing in it.
 - `lys migrate status` lists the migrations and when each was applied; `lys migrate up` applies any that are pending.
 - `!help` lists the commands, and `!help <command>` describes one.
-- `/health` reports whether Twitch is connected, and answers 503 while it isn't, so Docker shows Lys as unhealthy.
+- `/health` reports whether Twitch is connected, and answers 503 while it isn't, so Docker shows Lys as unhealthy. It also reports the version running (the release or commit Lighthouse deployed), which Lys logs at startup too.
 - Channels, the people who use commands, and the bot account are stored platform-neutrally (communities, connections, platform users, bot accounts), ready for more platforms and for linking accounts on the website. Existing channels, prefixes and users are copied in; the old tables are kept and still written.
 - `lys channel list`, `lys channel add`, `lys channel block` and `lys channel unblock` manage channels from the command line. A name that several channels share is refused (use the ID), and `channel list` tells a revoked channel from one that was never authorized.
 - `lys bot authorize` signs Lys in as its Twitch bot account and stores the tokens in Cove, replacing the manual token exchange.

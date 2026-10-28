@@ -61,6 +61,7 @@ func main() {
 	if len(args) > 0 {
 		os.Exit(cli.Run(ctx, cli.NewEnv(cliServices()), args))
 	}
+	log.Printf("Lys %s", version())
 
 	cove, err := newCove()
 	if err != nil {
@@ -164,7 +165,7 @@ func run(ctx context.Context, cfg *config.Config, cove *coveclient.Client, db *d
 	for pattern, h := range enroll.New(conns, os.Getenv("SHARED_LYS_ENROLLMENT_TOKEN"), twitch).Routes() {
 		routes[pattern] = h
 	}
-	srv := server.New(":"+port, r.Health, routes)
+	srv := server.New(":"+port, version(), r.Health, routes)
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -219,6 +220,14 @@ func useBotAccount(ctx context.Context, bots *botaccounts.Store, cfg *config.Twi
 		cfg.RefreshTokenKey = bot.RefreshTokenKey
 	}
 	return nil
+}
+
+// version is the release or commit Lighthouse deployed (LYS_VERSION), or "dev".
+func version() string {
+	if v := os.Getenv("LYS_VERSION"); v != "" {
+		return v
+	}
+	return "dev"
 }
 
 // newCove connects to Cove with COVE_URL and COVE_TOKEN.
