@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/lsariol/lys/internal/commands"
+	api "github.com/lsariol/lys/internal/features/sleeper"
 )
 
 func whohas(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply, error) {
@@ -30,7 +31,7 @@ func whohas(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Repl
 		return commands.Reply{Text: "This channel is not associated with any league."}, nil
 	}
 
-	players, err := getPlayerCatalog(ctx, sl)
+	players, err := sl.client.Players(ctx)
 	if err != nil {
 		log.Print(err)
 		return commands.Reply{Text: "Player names are loading or temporarily unavailable. Please try again shortly."}, nil
@@ -48,7 +49,7 @@ func whohas(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Repl
 			limit = 5
 		}
 		for _, playerID := range matches[:limit] {
-			name := getPlayerName(playerID, players)
+			name := api.PlayerName(playerID, players)
 			names = append(names, formatRosterEntry("", fmt.Sprintf("%s [%s]", name, playerID)))
 		}
 
@@ -60,9 +61,9 @@ func whohas(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Repl
 	}
 
 	playerID := matches[0]
-	name := formatRosterEntry("", getPlayerName(playerID, players))
+	name := formatRosterEntry("", api.PlayerName(playerID, players))
 
-	sleeperRosters, err := getRosters(league.SleeperLeagueID, ctx, sl)
+	sleeperRosters, err := sl.client.Rosters(ctx, league.SleeperLeagueID)
 	if err != nil {
 		log.Print(err)
 		return commands.Reply{Text: "Unable to get league rosters from Sleeper."}, err
@@ -71,7 +72,7 @@ func whohas(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Repl
 		return commands.Reply{Text: "No rosters are available for this league yet."}, nil
 	}
 
-	var owners []SleeperRoster
+	var owners []api.Roster
 	for _, roster := range *sleeperRosters {
 		if rosterHasPlayer(roster, playerID) {
 			owners = append(owners, roster)
@@ -84,12 +85,12 @@ func whohas(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Repl
 		return commands.Reply{Text: fmt.Sprintf("Sleeper lists %s on multiple rosters, so ownership is unclear.", name)}, nil
 	}
 
-	sleeperUsers, err := getPlayersInLeague(league.SleeperLeagueID, ctx, sl)
+	sleeperUsers, err := sl.client.LeagueUsers(ctx, league.SleeperLeagueID)
 	if err != nil {
 		log.Print(err)
 		return commands.Reply{Text: "Unable to get league members from Sleeper."}, err
 	}
-	var users []SleeperLeagueUser
+	var users []api.LeagueUser
 	if sleeperUsers != nil {
 		users = *sleeperUsers
 	}
@@ -108,7 +109,7 @@ func whohas(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Repl
 	return commands.Reply{Text: fmt.Sprintf("%s is rostered on %s.", name, teamName)}, nil
 }
 
-func findPlayers(search string, players map[string]SleeperPlayer) []string {
+func findPlayers(search string, players map[string]api.Player) []string {
 
 	search = strings.ToLower(strings.Join(strings.Fields(search), " "))
 	if search == "" {
@@ -122,7 +123,7 @@ func findPlayers(search string, players map[string]SleeperPlayer) []string {
 		if strings.EqualFold(playerID, search) {
 			idMatches = append(idMatches, playerID)
 		}
-		name := strings.ToLower(strings.Join(strings.Fields(getPlayerName(playerID, players)), " "))
+		name := strings.ToLower(strings.Join(strings.Fields(api.PlayerName(playerID, players)), " "))
 		if name == search {
 			exactMatches = append(exactMatches, playerID)
 		} else if strings.Contains(name, search) {
@@ -138,8 +139,8 @@ func findPlayers(search string, players map[string]SleeperPlayer) []string {
 		matches = idMatches
 	}
 	sort.Slice(matches, func(i, j int) bool {
-		firstName := strings.ToLower(getPlayerName(matches[i], players))
-		secondName := strings.ToLower(getPlayerName(matches[j], players))
+		firstName := strings.ToLower(api.PlayerName(matches[i], players))
+		secondName := strings.ToLower(api.PlayerName(matches[j], players))
 		if firstName != secondName {
 			return firstName < secondName
 		}
@@ -148,7 +149,7 @@ func findPlayers(search string, players map[string]SleeperPlayer) []string {
 	return matches
 }
 
-func rosterHasPlayer(roster SleeperRoster, playerID string) bool {
+func rosterHasPlayer(roster api.Roster, playerID string) bool {
 
 	for _, players := range [][]string{roster.Players, roster.Starters, roster.Reserve, roster.Taxi} {
 		for _, id := range players {

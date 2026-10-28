@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	api "github.com/lsariol/lys/internal/features/sleeper"
 )
 
 // The leagues are keyed by community and their members by platform user.
@@ -34,7 +35,7 @@ func FindLeagueLinkConflict(leagueID string, communityID int64, ctx context.Cont
 	return &link, nil
 }
 
-func addLeagueLink(league *League, communityID int64, ctx context.Context, sl *Sleeper) (error, bool) {
+func addLeagueLink(league *api.League, communityID int64, ctx context.Context, sl *Sleeper) (error, bool) {
 
 	const query = `
 	INSERT INTO lys.sleeper_leagues(

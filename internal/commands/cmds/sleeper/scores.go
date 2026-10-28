@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/lsariol/lys/internal/commands"
+	api "github.com/lsariol/lys/internal/features/sleeper"
 )
 
 func scores(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply, error) {
@@ -34,7 +35,7 @@ func scores(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Repl
 		return commands.Reply{Text: "This channel is not associated with any league."}, nil
 	}
 
-	state, err := getNFLState(ctx, sl)
+	state, err := sl.client.NFLState(ctx)
 	if err != nil {
 		log.Print(err)
 		return commands.Reply{Text: "Unable to get the current week from Sleeper."}, err
@@ -45,7 +46,7 @@ func scores(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Repl
 		return commands.Reply{Text: message}, nil
 	}
 
-	sleeperMatchups, err := getMatchups(league.SleeperLeagueID, week, ctx, sl)
+	sleeperMatchups, err := sl.client.Matchups(ctx, league.SleeperLeagueID, week)
 	if err != nil {
 		log.Print(err)
 		return commands.Reply{Text: "Unable to get matchup scores from Sleeper."}, err
@@ -61,23 +62,23 @@ func scores(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Repl
 		return commands.Reply{Text: fmt.Sprintf("Scores has %d page(s).", totalPages)}, nil
 	}
 
-	sleeperRosters, err := getRosters(league.SleeperLeagueID, ctx, sl)
+	sleeperRosters, err := sl.client.Rosters(ctx, league.SleeperLeagueID)
 	if err != nil {
 		log.Print(err)
 		return commands.Reply{Text: "Unable to get league rosters from Sleeper."}, err
 	}
 
-	sleeperUsers, err := getPlayersInLeague(league.SleeperLeagueID, ctx, sl)
+	sleeperUsers, err := sl.client.LeagueUsers(ctx, league.SleeperLeagueID)
 	if err != nil {
 		log.Print(err)
 		return commands.Reply{Text: "Unable to get league members from Sleeper."}, err
 	}
 
-	var rosters []SleeperRoster
+	var rosters []api.Roster
 	if sleeperRosters != nil {
 		rosters = *sleeperRosters
 	}
-	var users []SleeperLeagueUser
+	var users []api.LeagueUser
 	if sleeperUsers != nil {
 		users = *sleeperUsers
 	}

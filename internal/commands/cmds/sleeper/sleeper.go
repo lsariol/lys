@@ -3,20 +3,20 @@ package sleeper
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lsariol/lys/internal/commands"
+	api "github.com/lsariol/lys/internal/features/sleeper"
 )
 
 // Sleeper answers fantasy football questions from a channel's Sleeper league.
 type Sleeper struct {
-	http *http.Client
-	db   *pgxpool.Pool
+	client *api.Client
+	db     *pgxpool.Pool
 }
 
-func New(http *http.Client, db *pgxpool.Pool) *Sleeper { return &Sleeper{http: http, db: db} }
+func New(client *api.Client, db *pgxpool.Pool) *Sleeper { return &Sleeper{client: client, db: db} }
 
 func (*Sleeper) Spec() commands.Spec {
 	return commands.Spec{

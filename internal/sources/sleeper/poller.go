@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"sort"
 	"time"
 
@@ -14,20 +13,22 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lsariol/lys/internal/core"
+	api "github.com/lsariol/lys/internal/features/sleeper"
 	"github.com/lsariol/lys/internal/sources"
 )
 
 // Poller is the source that announces each league's trades and waiver claims
 // in its community's channels.
 type Poller struct {
-	sl    *Sleeper
-	every time.Duration
+	client *api.Client
+	db     *pgxpool.Pool
+	every  time.Duration
 }
 
 var _ sources.Source = (*Poller)(nil)
 
-func NewPoller(http *http.Client, db *pgxpool.Pool) *Poller {
-	return &Poller{sl: New(http, db), every: 10 * time.Minute}
+func New(client *api.Client, db *pgxpool.Pool) *Poller {
+	return &Poller{client: client, db: db, every: 10 * time.Minute}
 }
 
 func (p *Poller) Name() string { return "sleeper" }
@@ -58,7 +59,7 @@ type polledLeague struct {
 }
 
 func (p *Poller) poll(ctx context.Context, pub sources.Publisher) error {
-	rows, err := p.sl.db.Query(ctx, `
+	rows, err := p.db.Query(ctx, `
 		SELECT id, sleeper_league_id, community_id, last_polled_at IS NULL,
 		       COALESCE((notifications->>'trades')::boolean, true), COALESCE((notifications->>'waivers')::boolean, true)
 		FROM lys.sleeper_leagues
@@ -78,7 +79,7 @@ func (p *Poller) poll(ctx context.Context, pub sources.Publisher) error {
 		return nil
 	}
 
-	state, err := getNFLState(ctx, p.sl)
+	state, err := p.client.NFLState(ctx)
 	if err != nil {
 		return fmt.Errorf("Sleeper: NFL state: %w", err)
 	}
@@ -98,9 +99,9 @@ func (p *Poller) poll(ctx context.Context, pub sources.Publisher) error {
 }
 
 func (p *Poller) pollLeague(ctx context.Context, l polledLeague, weeks []int, week int, pub sources.Publisher) error {
-	var txs []SleeperTransaction
+	var txs []api.Transaction
 	for _, w := range weeks {
-		got, err := getTransactions(l.sleeperID, w, ctx, p.sl)
+		got, err := p.client.Transactions(ctx, l.sleeperID, w)
 		if err != nil {
 			return err
 		}
@@ -138,7 +139,7 @@ func (p *Poller) pollLeague(ctx context.Context, l polledLeague, weeks []int, we
 		}
 	}
 
-	_, err := p.sl.db.Exec(ctx, `
+	_, err := p.db.Exec(ctx, `
 		UPDATE lys.sleeper_leagues
 		SET last_polled_at = now(), current_week = $2,
 		    last_transaction_at = GREATEST(last_transaction_at, CASE WHEN $3::bigint > 0 THEN to_timestamp($3::bigint / 1000.0) END),
@@ -151,13 +152,13 @@ func (p *Poller) pollLeague(ctx context.Context, l polledLeague, weeks []int, we
 }
 
 // record notes a transaction in sleeper_events; false if it was already there.
-func (p *Poller) record(ctx context.Context, l polledLeague, tx SleeperTransaction) (bool, error) {
+func (p *Poller) record(ctx context.Context, l polledLeague, tx api.Transaction) (bool, error) {
 	data, err := json.Marshal(tx)
 	if err != nil {
 		return false, err
 	}
 	var id uuid.UUID
-	err = p.sl.db.QueryRow(ctx, `
+	err = p.db.QueryRow(ctx, `
 		INSERT INTO lys.sleeper_events (sleeper_league_id, event_type, external_event_id, event_data, occurred_at)
 		VALUES ($1, $2, $3, $4, to_timestamp($5::bigint / 1000.0))
 		ON CONFLICT (sleeper_league_id, event_type, external_event_id) DO NOTHING
@@ -172,8 +173,8 @@ func (p *Poller) record(ctx context.Context, l polledLeague, tx SleeperTransacti
 }
 
 // announce posts text in every active channel of the league's community.
-func (p *Poller) announce(ctx context.Context, l polledLeague, tx SleeperTransaction, text string, pub sources.Publisher) error {
-	rows, err := p.sl.db.Query(ctx, `
+func (p *Poller) announce(ctx context.Context, l polledLeague, tx api.Transaction, text string, pub sources.Publisher) error {
+	rows, err := p.db.Query(ctx, `
 		SELECT platform, external_id, name FROM lys.platform_connections
 		WHERE community_id = $1 AND authorized AND enabled AND NOT admin_blocked`, l.communityID)
 	if err != nil {
@@ -201,7 +202,7 @@ func (p *Poller) announce(ctx context.Context, l polledLeague, tx SleeperTransac
 		sent = true
 	}
 	if sent {
-		if _, err := p.sl.db.Exec(ctx, `UPDATE lys.sleeper_events SET published_at = now()
+		if _, err := p.db.Exec(ctx, `UPDATE lys.sleeper_events SET published_at = now()
 			WHERE sleeper_league_id = $1 AND event_type = $2 AND external_event_id = $3`, l.sleeperID, tx.Type, tx.TransactionID); err != nil {
 			return fmt.Errorf("database: mark Sleeper %s %s announced: %w", tx.Type, tx.TransactionID, err)
 		}
@@ -212,15 +213,15 @@ func (p *Poller) announce(ctx context.Context, l polledLeague, tx SleeperTransac
 // names loads the league's teams and the player catalog for messages; what
 // can't be loaded falls back to IDs.
 func (p *Poller) names(ctx context.Context, sleeperID string) transactionNames {
-	rosters, err := getRosters(sleeperID, ctx, p.sl)
+	rosters, err := p.client.Rosters(ctx, sleeperID)
 	if err != nil {
 		log.Printf("[Sleeper] league %s rosters: %v", sleeperID, err)
 	}
-	users, err := getPlayersInLeague(sleeperID, ctx, p.sl)
+	users, err := p.client.LeagueUsers(ctx, sleeperID)
 	if err != nil {
 		log.Printf("[Sleeper] league %s users: %v", sleeperID, err)
 	}
-	catalog, err := getPlayerCatalog(ctx, p.sl)
+	catalog, err := p.client.Players(ctx)
 	if err != nil {
 		log.Printf("[Sleeper] players: %v", err)
 	}
@@ -230,12 +231,12 @@ func (p *Poller) names(ctx context.Context, sleeperID string) transactionNames {
 			if rosters != nil && users != nil {
 				for _, r := range *rosters {
 					if r.RosterID == rosterID {
-						return getTeamName(r, *users)
+						return api.TeamName(r, *users)
 					}
 				}
 			}
 			return fmt.Sprintf("Team %d", rosterID)
 		},
-		player: func(playerID string) string { return getPlayerName(playerID, catalog) },
+		player: func(playerID string) string { return api.PlayerName(playerID, catalog) },
 	}
 }

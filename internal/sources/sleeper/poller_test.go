@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lsariol/lys/internal/core"
 	"github.com/lsariol/lys/internal/database"
+	api "github.com/lsariol/lys/internal/features/sleeper"
 )
 
 type outbox struct {
@@ -93,9 +94,9 @@ func TestPoller(t *testing.T) {
 	exec(`INSERT INTO lys.platform_connections (community_id, platform, external_id, name) VALUES ($1, 'twitch', 'pt-ch', 'SleeperPollTest')`, community)
 	exec(`INSERT INTO lys.sleeper_leagues (twitch_channel_id, sleeper_league_id, community_id) VALUES ('pt-ch', 'pt-league', $1)`, community)
 
-	api := &fakeSleeper{}
-	api.set("[" + trade1 + "]")
-	p := NewPoller(&http.Client{Transport: api}, pool)
+	fake := &fakeSleeper{}
+	fake.set("[" + trade1 + "]")
+	p := New(api.New(&http.Client{Transport: fake}), pool)
 	pub := &outbox{}
 
 	// The first check records what's there without announcing it.
@@ -106,7 +107,7 @@ func TestPoller(t *testing.T) {
 		t.Fatalf("first check announced: %+v", pub.sent)
 	}
 
-	api.set("[" + trade1 + "," + trade2 + "]")
+	fake.set("[" + trade1 + "," + trade2 + "]")
 	if err := p.poll(ctx, pub); err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +125,7 @@ func TestPoller(t *testing.T) {
 
 	// With trades turned off, a new trade is recorded but not announced.
 	exec(`UPDATE lys.sleeper_leagues SET notifications = '{"trades": false}' WHERE sleeper_league_id = 'pt-league'`)
-	api.set("[" + trade1 + "," + trade2 + `,{"transaction_id": "tx3", "type": "trade", "status": "complete", "status_updated": 1790000200000, "roster_ids": [1, 2], "adds": {"11": 2}}]`)
+	fake.set("[" + trade1 + "," + trade2 + `,{"transaction_id": "tx3", "type": "trade", "status": "complete", "status_updated": 1790000200000, "roster_ids": [1, 2], "adds": {"11": 2}}]`)
 	if err := p.poll(ctx, pub); err != nil {
 		t.Fatal(err)
 	}

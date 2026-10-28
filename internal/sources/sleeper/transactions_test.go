@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	api "github.com/lsariol/lys/internal/features/sleeper"
 )
 
 func testNames() transactionNames {
@@ -15,7 +17,7 @@ func testNames() transactionNames {
 }
 
 func TestDescribeTrade(t *testing.T) {
-	var tx SleeperTransaction
+	var tx api.Transaction
 	if err := json.Unmarshal([]byte(`{
 		"transaction_id": "t1", "type": "trade", "status": "complete",
 		"roster_ids": [1, 2],
@@ -34,7 +36,7 @@ func TestDescribeTrade(t *testing.T) {
 
 func TestDescribeWaiver(t *testing.T) {
 	bid := 44
-	tx := SleeperTransaction{Type: "waiver", Status: "complete", RosterIDs: []int{3}, Adds: map[string]int{"7": 3}, Drops: map[string]int{"8": 3}}
+	tx := api.Transaction{Type: "waiver", Status: "complete", RosterIDs: []int{3}, Adds: map[string]int{"7": 3}, Drops: map[string]int{"8": 3}}
 	tx.Settings = &struct {
 		WaiverBid *int `json:"waiver_bid"`
 	}{&bid}
@@ -42,7 +44,7 @@ func TestDescribeWaiver(t *testing.T) {
 		t.Fatalf("got %q, %v", got, ok)
 	}
 
-	for name, tx := range map[string]SleeperTransaction{
+	for name, tx := range map[string]api.Transaction{
 		"failed claim": {Type: "waiver", Status: "failed", RosterIDs: []int{3}, Adds: map[string]int{"7": 3}},
 		"free agent":   {Type: "free_agent", Status: "complete", RosterIDs: []int{3}, Adds: map[string]int{"7": 3}},
 		"drop only":    {Type: "waiver", Status: "complete", RosterIDs: []int{3}, Drops: map[string]int{"7": 3}},

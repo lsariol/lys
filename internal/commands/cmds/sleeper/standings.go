@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/lsariol/lys/internal/commands"
+	api "github.com/lsariol/lys/internal/features/sleeper"
 )
 
 func standings(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply, error) {
@@ -35,7 +36,7 @@ func standings(ctx context.Context, e commands.Request, sl *Sleeper) (commands.R
 		return commands.Reply{Text: "This channel is not associated with any league."}, nil
 	}
 
-	sleeperRosters, err := getRosters(league.SleeperLeagueID, ctx, sl)
+	sleeperRosters, err := sl.client.Rosters(ctx, league.SleeperLeagueID)
 	if err != nil {
 		log.Print(err)
 		return commands.Reply{Text: "Unable to get standings from Sleeper."}, err
@@ -52,13 +53,13 @@ func standings(ctx context.Context, e commands.Request, sl *Sleeper) (commands.R
 		return commands.Reply{Text: fmt.Sprintf("Standings has %d page(s).", totalPages)}, nil
 	}
 
-	sleeperUsers, err := getPlayersInLeague(league.SleeperLeagueID, ctx, sl)
+	sleeperUsers, err := sl.client.LeagueUsers(ctx, league.SleeperLeagueID)
 	if err != nil {
 		log.Print(err)
 		return commands.Reply{Text: "Unable to get league members from Sleeper."}, err
 	}
 
-	var users []SleeperLeagueUser
+	var users []api.LeagueUser
 	if sleeperUsers != nil {
 		users = *sleeperUsers
 	}
@@ -76,7 +77,7 @@ func standings(ctx context.Context, e commands.Request, sl *Sleeper) (commands.R
 	for i := start; i < end; i++ {
 		roster := rosters[i]
 
-		name := getTeamName(roster, users)
+		name := api.TeamName(roster, users)
 		name = strings.Join(strings.Fields(name), " ")
 
 		nameRunes := []rune(name)

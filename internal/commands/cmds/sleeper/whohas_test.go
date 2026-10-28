@@ -3,10 +3,12 @@ package sleeper
 import (
 	"reflect"
 	"testing"
+
+	api "github.com/lsariol/lys/internal/features/sleeper"
 )
 
 func TestFindPlayers(t *testing.T) {
-	players := map[string]SleeperPlayer{
+	players := map[string]api.Player{
 		"1":   {FullName: "Alex Smith"},
 		"2":   {FullName: "Alex Smith"},
 		"3":   {FullName: "Alex Smith Jr."},
@@ -32,7 +34,7 @@ func TestFindPlayers(t *testing.T) {
 }
 
 func TestRosterHasPlayer(t *testing.T) {
-	for _, roster := range []SleeperRoster{
+	for _, roster := range []api.Roster{
 		{Players: []string{"1"}},
 		{Starters: []string{"1"}},
 		{Reserve: []string{"1"}},
@@ -42,7 +44,7 @@ func TestRosterHasPlayer(t *testing.T) {
 			t.Errorf("incorrect ownership for %+v", roster)
 		}
 	}
-	if rosterHasPlayer(SleeperRoster{}, "1") {
+	if rosterHasPlayer(api.Roster{}, "1") {
 		t.Fatal("empty roster should not own a player")
 	}
 }

@@ -33,12 +33,12 @@ func link(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply,
 			return commands.Reply{Text: "Internal error Link User."}, fmt.Errorf("sleeper link user: %q has no identity", e.User.Name)
 		}
 
-		sleeperUsers, err := getPlayersInLeague(league.SleeperLeagueID, ctx, sl)
+		sleeperUsers, err := sl.client.LeagueUsers(ctx, league.SleeperLeagueID)
 		if err != nil {
 			return commands.Reply{Text: "Unable to link user due to an invalid response from the Sleeper API."}, fmt.Errorf("Sleeper: get league users: %w", err)
 		}
 
-		sleeperRosters, err := getRosters(league.SleeperLeagueID, ctx, sl)
+		sleeperRosters, err := sl.client.Rosters(ctx, league.SleeperLeagueID)
 		if err != nil {
 			return commands.Reply{Text: "Unable to link user due to an invalid response from the Sleeper API."}, fmt.Errorf("Sleeper: get league rosters: %w", err)
 		}
@@ -106,7 +106,7 @@ func link(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply,
 		}
 
 		//Get League from API
-		league, err := GetLeague(ctx, leagueID, sl.http)
+		league, err := sl.client.League(ctx, leagueID)
 		if err != nil {
 			log.Println(err)
 			return commands.Reply{Text: "Unable to link league due to a invalid response from sleeper API."}, err

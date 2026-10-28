@@ -37,6 +37,7 @@ import (
 	"github.com/lsariol/lys/internal/connections"
 	"github.com/lsariol/lys/internal/database"
 	"github.com/lsariol/lys/internal/enroll"
+	sleeperapi "github.com/lsariol/lys/internal/features/sleeper"
 	"github.com/lsariol/lys/internal/identity"
 	"github.com/lsariol/lys/internal/router"
 	"github.com/lsariol/lys/internal/scheduler"
@@ -44,6 +45,7 @@ import (
 	"github.com/lsariol/lys/internal/sources"
 	"github.com/lsariol/lys/internal/sources/inlet"
 	letterboxdfeeds "github.com/lsariol/lys/internal/sources/letterboxd"
+	sleeperfeed "github.com/lsariol/lys/internal/sources/sleeper"
 )
 
 // workers is how many commands may run at once.
@@ -124,6 +126,7 @@ func run(ctx context.Context, cfg *config.Config, cove *coveclient.Client, db *d
 
 	jobs := scheduler.NewStore(db.Pool)
 
+	sleeperClient := sleeperapi.New(httpClient) // shared, so the player catalog is kept once
 	registry := commands.NewRegistry()
 	for _, c := range []commands.Command{
 		catfacts.New(httpClient),
@@ -136,7 +139,7 @@ func run(ctx context.Context, cfg *config.Config, cove *coveclient.Client, db *d
 		remind.New(jobs),
 		request.New(request.NewStore(db.Pool)),
 		settings.New(channels),
-		sleeper.New(httpClient, db.Pool),
+		sleeper.New(sleeperClient, db.Pool),
 		autopost.New(jobs),
 		uptime.New(started),
 	} {
@@ -191,7 +194,7 @@ func run(ctx context.Context, cfg *config.Config, cove *coveclient.Client, db *d
 		autopost.Kind: autopost.Post(chat),
 	})
 
-	for _, s := range []sources.Source{notifications, schedule, letterboxdfeeds.New(db.Pool, httpClient), sleeper.NewPoller(httpClient, db.Pool)} {
+	for _, s := range []sources.Source{notifications, schedule, letterboxdfeeds.New(db.Pool, httpClient), sleeperfeed.New(sleeperClient, db.Pool)} {
 		go func() {
 			if err := s.Run(ctx, r); err != nil && !errors.Is(err, context.Canceled) {
 				log.Printf("✗ source %q: %v", s.Name(), err)

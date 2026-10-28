@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/lsariol/lys/internal/commands"
+	api "github.com/lsariol/lys/internal/features/sleeper"
 )
 
 func team(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply, error) {
@@ -51,7 +52,7 @@ func team(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply,
 			username)}, nil
 	}
 
-	sleeperRosters, err := getRosters(league.SleeperLeagueID, ctx, sl)
+	sleeperRosters, err := sl.client.Rosters(ctx, league.SleeperLeagueID)
 	if err != nil {
 		log.Print(err)
 		return commands.Reply{Text: "Unable to get league rosters from Sleeper."}, err
@@ -63,7 +64,7 @@ func team(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply,
 
 	rosters := sortStandings(*sleeperRosters)
 
-	var roster *SleeperRoster
+	var roster *api.Roster
 	position := 0
 
 	for i := range rosters {
@@ -84,13 +85,13 @@ func team(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply,
 			username)}, nil
 	}
 
-	sleeperUsers, err := getPlayersInLeague(league.SleeperLeagueID, ctx, sl)
+	sleeperUsers, err := sl.client.LeagueUsers(ctx, league.SleeperLeagueID)
 	if err != nil {
 		log.Print(err)
 		return commands.Reply{Text: "Unable to get league members from Sleeper."}, err
 	}
 
-	var users []SleeperLeagueUser
+	var users []api.LeagueUser
 	if sleeperUsers != nil {
 		users = *sleeperUsers
 	}
@@ -111,7 +112,7 @@ func team(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply,
 	text := fmt.Sprintf("@%s - %s | #%d by record/PF | %s | %.2f PF | %.2f PA",
 		username, name, position, record, pointsFor, pointsAgainst)
 
-	state, err := getNFLState(ctx, sl)
+	state, err := sl.client.NFLState(ctx)
 	if err != nil {
 		log.Print(err)
 		return commands.Reply{Text: text + " | Current matchup unavailable."}, nil
@@ -122,7 +123,7 @@ func team(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply,
 		return commands.Reply{Text: text + " | " + message}, nil
 	}
 
-	sleeperMatchups, err := getMatchups(league.SleeperLeagueID, week, ctx, sl)
+	sleeperMatchups, err := sl.client.Matchups(ctx, league.SleeperLeagueID, week)
 	if err != nil {
 		log.Print(err)
 		return commands.Reply{Text: text + " | Current matchup unavailable."}, nil

@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	api "github.com/lsariol/lys/internal/features/sleeper"
 )
 
-func getCurrentWeek(league SleeperLeague, state SleeperNFLState) (int, string) {
+func getCurrentWeek(league SleeperLeague, state api.NFLState) (int, string) {
 
 	if league.Season != state.Season {
 		return 0, "This league is not associated with the current NFL season."
@@ -18,7 +20,7 @@ func getCurrentWeek(league SleeperLeague, state SleeperNFLState) (int, string) {
 	return state.Week, ""
 }
 
-func getMatchupPoints(matchup SleeperMatchup) float64 {
+func getMatchupPoints(matchup api.Matchup) float64 {
 
 	if matchup.CustomPoints != nil {
 		return *matchup.CustomPoints
@@ -26,18 +28,18 @@ func getMatchupPoints(matchup SleeperMatchup) float64 {
 	return matchup.Points
 }
 
-func groupMatchups(matchups []SleeperMatchup) [][]SleeperMatchup {
+func groupMatchups(matchups []api.Matchup) [][]api.Matchup {
 
-	sorted := append([]SleeperMatchup(nil), matchups...)
+	sorted := append([]api.Matchup(nil), matchups...)
 	sort.Slice(sorted, func(i, j int) bool {
 		return sorted[i].RosterID < sorted[j].RosterID
 	})
 
-	var groups [][]SleeperMatchup
+	var groups [][]api.Matchup
 	groupIndexes := make(map[int]int)
 	for _, matchup := range sorted {
 		if matchup.MatchupID == nil || *matchup.MatchupID <= 0 {
-			groups = append(groups, []SleeperMatchup{matchup})
+			groups = append(groups, []api.Matchup{matchup})
 			continue
 		}
 
@@ -48,18 +50,18 @@ func groupMatchups(matchups []SleeperMatchup) [][]SleeperMatchup {
 		}
 
 		groupIndexes[*matchup.MatchupID] = len(groups)
-		groups = append(groups, []SleeperMatchup{matchup})
+		groups = append(groups, []api.Matchup{matchup})
 	}
 
 	return groups
 }
 
-func getMatchupTeamName(rosterID int, rosters []SleeperRoster, users []SleeperLeagueUser) string {
+func getMatchupTeamName(rosterID int, rosters []api.Roster, users []api.LeagueUser) string {
 
 	name := fmt.Sprintf("Team %d", rosterID)
 	for _, roster := range rosters {
 		if roster.RosterID == rosterID {
-			name = getTeamName(roster, users)
+			name = api.TeamName(roster, users)
 			break
 		}
 	}
@@ -72,24 +74,7 @@ func getMatchupTeamName(rosterID int, rosters []SleeperRoster, users []SleeperLe
 	return name
 }
 
-func getTeamName(roster SleeperRoster, users []SleeperLeagueUser) string {
-
-	for _, user := range users {
-		if roster.OwnerID != "" && user.UserID == roster.OwnerID {
-			if strings.TrimSpace(user.Metadata.TeamName) != "" {
-				return user.Metadata.TeamName
-			}
-
-			if strings.TrimSpace(user.DisplayName) != "" {
-				return user.DisplayName
-			}
-		}
-	}
-
-	return fmt.Sprintf("Team %d", roster.RosterID)
-}
-
-func getWinningPercentage(settings SleeperRosterSettings) float64 {
+func getWinningPercentage(settings api.RosterSettings) float64 {
 
 	games := settings.Wins + settings.Losses + settings.Ties
 	if games == 0 {
@@ -99,9 +84,9 @@ func getWinningPercentage(settings SleeperRosterSettings) float64 {
 	return (float64(settings.Wins) + float64(settings.Ties)/2) / float64(games)
 }
 
-func sortStandings(rosters []SleeperRoster) []SleeperRoster {
+func sortStandings(rosters []api.Roster) []api.Roster {
 
-	sorted := append([]SleeperRoster(nil), rosters...)
+	sorted := append([]api.Roster(nil), rosters...)
 
 	sort.Slice(sorted, func(i, j int) bool {
 		first := sorted[i].Settings

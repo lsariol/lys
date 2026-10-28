@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/lsariol/lys/internal/commands"
+	api "github.com/lsariol/lys/internal/features/sleeper"
 )
 
 func roster(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply, error) {
@@ -67,7 +68,7 @@ func roster(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Repl
 		return commands.Reply{Text: fmt.Sprintf("@%s is not linked to a Sleeper account in this league.", username)}, nil
 	}
 
-	sleeperRosters, err := getRosters(league.SleeperLeagueID, ctx, sl)
+	sleeperRosters, err := sl.client.Rosters(ctx, league.SleeperLeagueID)
 	if err != nil {
 		log.Print(err)
 		return commands.Reply{Text: "Unable to get league rosters from Sleeper."}, err
@@ -76,7 +77,7 @@ func roster(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Repl
 		return commands.Reply{Text: "No rosters are available for this league yet."}, nil
 	}
 
-	var selectedRoster *SleeperRoster
+	var selectedRoster *api.Roster
 	for i := range *sleeperRosters {
 		if (*sleeperRosters)[i].RosterID == connection.SleeperRosterID {
 			selectedRoster = &(*sleeperRosters)[i]
@@ -90,7 +91,7 @@ func roster(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Repl
 		return commands.Reply{Text: fmt.Sprintf("@%s's saved link no longer matches the roster owner. Please unlink and link the account again.", username)}, nil
 	}
 
-	sleeperLeague, err := GetLeague(ctx, league.SleeperLeagueID, sl.http)
+	sleeperLeague, err := sl.client.League(ctx, league.SleeperLeagueID)
 	if err != nil {
 		log.Print(err)
 		return commands.Reply{Text: "Unable to get league settings from Sleeper."}, err
@@ -99,7 +100,7 @@ func roster(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Repl
 		return commands.Reply{Text: "Sleeper did not return valid league settings."}, nil
 	}
 
-	players, err := getPlayerCatalog(ctx, sl)
+	players, err := sl.client.Players(ctx)
 	if err != nil {
 		log.Print(err)
 		return commands.Reply{Text: "Player names are loading or temporarily unavailable. Please try again shortly."}, nil
@@ -126,7 +127,7 @@ func roster(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Repl
 		username, page, totalPages, strings.Join(entries[start:end], " | "))}, nil
 }
 
-func getRosterEntries(roster SleeperRoster, positions []string, players map[string]SleeperPlayer) []string {
+func getRosterEntries(roster api.Roster, positions []string, players map[string]api.Player) []string {
 
 	var entries []string
 	var starterPositions []string
@@ -162,7 +163,7 @@ func getRosterEntries(roster SleeperRoster, positions []string, players map[stri
 		if i < len(roster.Starters) {
 			playerID = roster.Starters[i]
 		}
-		entries = append(entries, formatRosterEntry(position, getPlayerName(playerID, players)))
+		entries = append(entries, formatRosterEntry(position, api.PlayerName(playerID, players)))
 		if playerID != "" && playerID != "0" {
 			seen[playerID] = true
 		}
@@ -172,21 +173,21 @@ func getRosterEntries(roster SleeperRoster, positions []string, players map[stri
 		if playerID == "" || playerID == "0" || seen[playerID] || reserve[playerID] || taxi[playerID] {
 			continue
 		}
-		entries = append(entries, formatRosterEntry("BN", getPlayerName(playerID, players)))
+		entries = append(entries, formatRosterEntry("BN", api.PlayerName(playerID, players)))
 		seen[playerID] = true
 	}
 	for _, playerID := range roster.Reserve {
 		if playerID == "" || playerID == "0" || seen[playerID] {
 			continue
 		}
-		entries = append(entries, formatRosterEntry("IR", getPlayerName(playerID, players)))
+		entries = append(entries, formatRosterEntry("IR", api.PlayerName(playerID, players)))
 		seen[playerID] = true
 	}
 	for _, playerID := range roster.Taxi {
 		if playerID == "" || playerID == "0" || seen[playerID] {
 			continue
 		}
-		entries = append(entries, formatRosterEntry("Taxi", getPlayerName(playerID, players)))
+		entries = append(entries, formatRosterEntry("Taxi", api.PlayerName(playerID, players)))
 		seen[playerID] = true
 	}
 	return entries

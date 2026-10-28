@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lsariol/lys/internal/database"
+	api "github.com/lsariol/lys/internal/features/sleeper"
 )
 
 // TestStore needs a Postgres set up by scripts/test-db.sh.
@@ -46,7 +47,7 @@ func TestStore(t *testing.T) {
 	if l, err := getLeague(ctx, community, sl); err != nil || l != nil {
 		t.Fatalf("no league yet: %+v, %v", l, err)
 	}
-	if err, ok := addLeagueLink(&League{LeagueID: "slte-league", Name: "Test League", Season: "2026"}, community, ctx, sl); !ok {
+	if err, ok := addLeagueLink(&api.League{LeagueID: "slte-league", Name: "Test League", Season: "2026"}, community, ctx, sl); !ok {
 		t.Fatal(err)
 	}
 	league, err := getLeague(ctx, community, sl)

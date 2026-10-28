@@ -8,18 +8,19 @@ import (
 	"testing"
 
 	"github.com/lsariol/lys/internal/commands"
+	api "github.com/lsariol/lys/internal/features/sleeper"
 )
 
 func TestCurrentWeek(t *testing.T) {
 	for _, tc := range []struct {
-		state SleeperNFLState
+		state api.NFLState
 		want  int
 	}{
-		{SleeperNFLState{Season: "2026", SeasonType: "regular", Week: 2}, 2},
-		{SleeperNFLState{Season: "2025", SeasonType: "regular", Week: 2}, 0},
-		{SleeperNFLState{Season: "2026", SeasonType: "pre", Week: 2}, 0},
-		{SleeperNFLState{Season: "2026", SeasonType: "post", Week: 2}, 0},
-		{SleeperNFLState{Season: "2026", SeasonType: "regular", Week: 0}, 0},
+		{api.NFLState{Season: "2026", SeasonType: "regular", Week: 2}, 2},
+		{api.NFLState{Season: "2025", SeasonType: "regular", Week: 2}, 0},
+		{api.NFLState{Season: "2026", SeasonType: "pre", Week: 2}, 0},
+		{api.NFLState{Season: "2026", SeasonType: "post", Week: 2}, 0},
+		{api.NFLState{Season: "2026", SeasonType: "regular", Week: 0}, 0},
 	} {
 		week, message := getCurrentWeek(SleeperLeague{Season: "2026"}, tc.state)
 		if week != tc.want || (message != "") != (tc.want == 0) {
@@ -30,7 +31,7 @@ func TestCurrentWeek(t *testing.T) {
 
 func TestGroupMatchups(t *testing.T) {
 	id := 7
-	matchups := []SleeperMatchup{
+	matchups := []api.Matchup{
 		{RosterID: 4},
 		{RosterID: 3, MatchupID: &id},
 		{RosterID: 2},
@@ -66,13 +67,13 @@ func TestMatchupAPI(t *testing.T) {
 		{`invalid`, 200, true},
 		{`{}`, 503, true},
 	} {
-		deps := &Sleeper{http: &http.Client{Transport: scoresTransport(func(req *http.Request) (*http.Response, error) {
+		deps := &Sleeper{client: api.New(&http.Client{Transport: scoresTransport(func(req *http.Request) (*http.Response, error) {
 			if req.URL.Path != "/v1/league/test/matchups/2" {
 				t.Errorf("unexpected path %s", req.URL.Path)
 			}
 			return &http.Response{StatusCode: tc.status, Body: io.NopCloser(strings.NewReader(tc.body)), Header: make(http.Header)}, nil
-		})}}
-		matchups, err := getMatchups("test", 2, context.Background(), deps)
+		})})}
+		matchups, err := deps.client.Matchups(context.Background(), "test", 2)
 		if (err != nil) != tc.wantError {
 			t.Fatalf("body %s: error %v", tc.body, err)
 		}

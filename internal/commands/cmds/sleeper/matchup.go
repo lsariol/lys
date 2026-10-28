@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/lsariol/lys/internal/commands"
+	api "github.com/lsariol/lys/internal/features/sleeper"
 )
 
 func matchup(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply, error) {
@@ -51,7 +52,7 @@ func matchup(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Rep
 			username)}, nil
 	}
 
-	sleeperRosters, err := getRosters(league.SleeperLeagueID, ctx, sl)
+	sleeperRosters, err := sl.client.Rosters(ctx, league.SleeperLeagueID)
 	if err != nil {
 		log.Print(err)
 		return commands.Reply{Text: "Unable to get league rosters from Sleeper."}, err
@@ -63,7 +64,7 @@ func matchup(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Rep
 
 	rosters := *sleeperRosters
 
-	var roster *SleeperRoster
+	var roster *api.Roster
 
 	for i := range rosters {
 		if rosters[i].RosterID == connection.SleeperRosterID {
@@ -82,7 +83,7 @@ func matchup(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Rep
 			username)}, nil
 	}
 
-	state, err := getNFLState(ctx, sl)
+	state, err := sl.client.NFLState(ctx)
 	if err != nil {
 		log.Print(err)
 		return commands.Reply{Text: "Unable to get the current week from Sleeper."}, err
@@ -93,7 +94,7 @@ func matchup(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Rep
 		return commands.Reply{Text: message}, nil
 	}
 
-	sleeperMatchups, err := getMatchups(league.SleeperLeagueID, week, ctx, sl)
+	sleeperMatchups, err := sl.client.Matchups(ctx, league.SleeperLeagueID, week)
 	if err != nil {
 		log.Print(err)
 		return commands.Reply{Text: "Unable to get matchup scores from Sleeper."}, err
@@ -104,8 +105,8 @@ func matchup(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Rep
 			week)}, nil
 	}
 
-	var userMatchup *SleeperMatchup
-	var opponentMatchup *SleeperMatchup
+	var userMatchup *api.Matchup
+	var opponentMatchup *api.Matchup
 
 	groups := groupMatchups(*sleeperMatchups)
 
@@ -144,13 +145,13 @@ func matchup(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Rep
 			username, week)}, nil
 	}
 
-	sleeperUsers, err := getPlayersInLeague(league.SleeperLeagueID, ctx, sl)
+	sleeperUsers, err := sl.client.LeagueUsers(ctx, league.SleeperLeagueID)
 	if err != nil {
 		log.Print(err)
 		return commands.Reply{Text: "Unable to get league members from Sleeper."}, err
 	}
 
-	var users []SleeperLeagueUser
+	var users []api.LeagueUser
 	if sleeperUsers != nil {
 		users = *sleeperUsers
 	}

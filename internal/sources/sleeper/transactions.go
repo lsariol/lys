@@ -1,64 +1,12 @@
 package sleeper
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"sort"
 	"strings"
+
+	api "github.com/lsariol/lys/internal/features/sleeper"
 )
-
-// SleeperTransaction is a trade, waiver claim or free-agent move.
-type SleeperTransaction struct {
-	TransactionID string                 `json:"transaction_id"`
-	Type          string                 `json:"type"`   // trade, waiver, free_agent, commissioner
-	Status        string                 `json:"status"` // complete, failed, ...
-	StatusUpdated int64                  `json:"status_updated"`
-	RosterIDs     []int                  `json:"roster_ids"`
-	Adds          map[string]int         `json:"adds"`  // player ID -> roster ID
-	Drops         map[string]int         `json:"drops"` // player ID -> roster ID
-	DraftPicks    []SleeperTradedPick    `json:"draft_picks"`
-	WaiverBudget  []SleeperBudgetPayment `json:"waiver_budget"`
-	Settings      *struct {
-		WaiverBid *int `json:"waiver_bid"`
-	} `json:"settings"`
-}
-
-// SleeperTradedPick is a draft pick that changes hands in a trade.
-type SleeperTradedPick struct {
-	Season  string `json:"season"`
-	Round   int    `json:"round"`
-	OwnerID int    `json:"owner_id"` // the roster that gets it
-}
-
-// SleeperBudgetPayment is FAAB budget sent in a trade.
-type SleeperBudgetPayment struct {
-	Sender   int `json:"sender"`
-	Receiver int `json:"receiver"`
-	Amount   int `json:"amount"`
-}
-
-func getTransactions(sleeperLeagueID string, week int, ctx context.Context, sl *Sleeper) ([]SleeperTransaction, error) {
-	url := fmt.Sprintf("https://api.sleeper.app/v1/league/%s/transactions/%d", sleeperLeagueID, week)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-	resp, err := sl.http.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("Sleeper: transactions: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Sleeper: transactions: status %d", resp.StatusCode)
-	}
-	var txs []SleeperTransaction
-	if err := json.NewDecoder(resp.Body).Decode(&txs); err != nil {
-		return nil, fmt.Errorf("Sleeper: transactions: %w", err)
-	}
-	return txs, nil
-}
 
 // transactionNames turns roster and player IDs into names for messages.
 type transactionNames struct {
@@ -68,7 +16,7 @@ type transactionNames struct {
 
 // describeTransaction is the chat message for a completed trade or waiver
 // claim; ok is false for anything else.
-func describeTransaction(tx SleeperTransaction, n transactionNames) (string, bool) {
+func describeTransaction(tx api.Transaction, n transactionNames) (string, bool) {
 	if tx.Status != "complete" {
 		return "", false
 	}
