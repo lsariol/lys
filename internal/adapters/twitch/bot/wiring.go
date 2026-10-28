@@ -8,11 +8,11 @@ import (
 	"github.com/lsariol/lys/internal/botaccounts"
 )
 
-// Initilize gets the bot's tokens and connects to EventSub.
-func (c *TwitchClient) Initilize(ctx context.Context) error {
+// Initialize gets the bot's tokens and connects to EventSub.
+func (c *TwitchClient) Initialize(ctx context.Context) error {
 
-	if err := c.Auth.Initilize(ctx); err != nil {
-		return fmt.Errorf("initilize auth: %w", err)
+	if err := c.Auth.Initialize(ctx); err != nil {
+		return fmt.Errorf("initialize auth: %w", err)
 	}
 
 	bot := c.Auth.Bot
@@ -31,8 +31,8 @@ func (c *TwitchClient) Initilize(ctx context.Context) error {
 		log.Printf("[Twitch] %v; sending as if the bot weren't a moderator anywhere until it speaks", err)
 	}
 
-	if err := c.EventSub.Initilize(ctx); err != nil {
-		return fmt.Errorf("initilize eventsub: %w", err)
+	if err := c.EventSub.Initialize(ctx); err != nil {
+		return fmt.Errorf("initialize eventsub: %w", err)
 	}
 
 	return nil

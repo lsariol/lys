@@ -16,7 +16,7 @@ func NewDatabaseConfig() *DatabaseConfig {
 	return &DatabaseConfig{}
 }
 
-func (c *Config) InitilizeDatabaseConfig(cove *coveclient.Client, env string) error {
+func (c *Config) InitializeDatabaseConfig(cove *coveclient.Client, env string) error {
 
 	dbString, err := cove.GetSecret("LYS_DATABASE_URL")
 	if err != nil {

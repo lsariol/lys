@@ -37,9 +37,9 @@ func New(cc *coveclient.Client, cfg *config.TwitchConfig, http *http.Client) *Au
 	}
 }
 
-// Initilize loads the bot's user tokens from Cove, refreshes them, checks they
+// Initialize loads the bot's user tokens from Cove, refreshes them, checks they
 // belong to the bot account, and fetches an app token.
-func (c *AuthClient) Initilize(ctx context.Context) error {
+func (c *AuthClient) Initialize(ctx context.Context) error {
 
 	if c.Config.BotAccountID == "" {
 		return fmt.Errorf("Twitch: no bot account: run `lys bot authorize` to sign Lys in as its bot")

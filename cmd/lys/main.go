@@ -70,8 +70,8 @@ func main() {
 		log.Fatalf("✗ %v", err)
 	}
 	cfg := config.New()
-	if err := cfg.Initilize(cove); err != nil {
-		log.Fatalf("✗ initilize config: %v", err)
+	if err := cfg.Initialize(cove); err != nil {
+		log.Fatalf("✗ initialize config: %v", err)
 	}
 
 	if migratorURL := cfg.Database.MigratorConnectionString; migratorURL != "" {
@@ -252,8 +252,8 @@ func cliServices() func(ctx context.Context) (*cli.Services, error) {
 				return
 			}
 			cfg := config.New()
-			if err = cfg.Initilize(cove); err != nil {
-				err = fmt.Errorf("initilize config: %w", err)
+			if err = cfg.Initialize(cove); err != nil {
+				err = fmt.Errorf("initialize config: %w", err)
 				return
 			}
 

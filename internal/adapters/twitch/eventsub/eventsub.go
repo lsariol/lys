@@ -79,7 +79,7 @@ func (c *EventSubClient) OutboundEvents() <-chan EventSubMessage { return c.out 
 // the bot's authorization still stands.
 func (c *EventSubClient) Connected() bool { return c.connected.Load() && !c.botRevoked.Load() }
 
-func (c *EventSubClient) Initilize(ctx context.Context) error {
+func (c *EventSubClient) Initialize(ctx context.Context) error {
 
 	if err := c.loadChannels(ctx); err != nil {
 		return fmt.Errorf("load channels: %w", err)

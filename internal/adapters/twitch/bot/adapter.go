@@ -59,8 +59,8 @@ func (c *TwitchClient) Healthy() bool { return c.EventSub.Connected() }
 // Run connects to Twitch and forwards chat messages into in until ctx is cancelled.
 func (c *TwitchClient) Run(ctx context.Context, in chan<- core.Message) error {
 
-	if err := c.Initilize(ctx); err != nil {
-		return fmt.Errorf("initilization error: %w", err)
+	if err := c.Initialize(ctx); err != nil {
+		return fmt.Errorf("initialization error: %w", err)
 	}
 	defer c.Shutdown(ctx)
 

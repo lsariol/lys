@@ -24,23 +24,23 @@ func New() *Config {
 	}
 }
 
-func (c *Config) Initilize(cove *coveclient.Client) error {
+func (c *Config) Initialize(cove *coveclient.Client) error {
 
 	env := strings.ToUpper(os.Getenv("APP_ENV"))
 
-	err := c.InitilizeDatabaseConfig(cove, env)
+	err := c.InitializeDatabaseConfig(cove, env)
 	if err != nil {
-		return fmt.Errorf("InitilizeDatabaseConfig: %w", err)
+		return fmt.Errorf("InitializeDatabaseConfig: %w", err)
 	}
 
-	err = c.InitilizeTwitchConfig(cove)
+	err = c.InitializeTwitchConfig(cove)
 	if err != nil {
-		return fmt.Errorf("InitilizeTwitchConfig: %w", err)
+		return fmt.Errorf("InitializeTwitchConfig: %w", err)
 	}
 
-	err = c.InitilizeCommandsConfig(cove)
+	err = c.InitializeCommandsConfig(cove)
 	if err != nil {
-		return fmt.Errorf("InitilizeCommandsConfig: %w", err)
+		return fmt.Errorf("InitializeCommandsConfig: %w", err)
 	}
 
 	return nil

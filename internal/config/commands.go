@@ -14,7 +14,7 @@ func NewCommandsConfig() *CommandsConfig {
 	return &CommandsConfig{}
 }
 
-func (c *Config) InitilizeCommandsConfig(cove *coveclient.Client) error {
+func (c *Config) InitializeCommandsConfig(cove *coveclient.Client) error {
 
 	chatGPTKey, err := cove.GetSecret("LYS_OPENAI_API_KEY")
 	if err != nil {

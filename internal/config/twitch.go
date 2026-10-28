@@ -26,7 +26,7 @@ func NewTwitchConfig() *TwitchConfig {
 	return &TwitchConfig{AccessTokenKey: DefaultAccessTokenKey, RefreshTokenKey: DefaultRefreshTokenKey}
 }
 
-func (c *Config) InitilizeTwitchConfig(cove *coveclient.Client) error {
+func (c *Config) InitializeTwitchConfig(cove *coveclient.Client) error {
 
 	clientID, err := cove.GetSecret("LYS_TWITCH_CLIENT_ID")
 	if err != nil {
