@@ -46,6 +46,7 @@ func (c *ChatClient) SendChat(ctx context.Context, broadcasterID, text string) (
 		return nil, nil, fmt.Errorf("read response: %w", err)
 	}
 
+	c.stats.record(resp.Header, resp.StatusCode)
 	if resp.StatusCode != http.StatusOK {
 		helixErr := HelixError{Status: resp.StatusCode}
 		if err := json.Unmarshal(respBody, &helixErr); err != nil {

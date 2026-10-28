@@ -73,7 +73,7 @@ func TestDeliver(t *testing.T) {
 			helix := &fakeHelix{statuses: tc.statuses}
 			client := &http.Client{Transport: helix}
 			cfg := &config.TwitchConfig{ClientID: "id", BotAccountID: "bot"}
-			c := New(client, cfg, auth.New(nil, cfg, client))
+			c := New(client, cfg, auth.New(nil, cfg, client), nil)
 
 			pause, err := c.deliver(context.Background(), core.Outbound{Channel: core.Channel{ID: "1"}, Text: "hi"}, true)
 			if (pause > 0) != tc.wantPause || (err != nil) != tc.wantErr || helix.sends != tc.wantSends {

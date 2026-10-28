@@ -35,7 +35,8 @@ func (c *TwitchClient) ingestLoop(ctx context.Context, events <-chan eventsub.Ev
 
 		case msg := <-events:
 			logMessage(msg)
-			if msg.Payload.Event.ChatterUserID == c.Config.BotAccountID {
+			if ev := msg.Payload.Event; ev.ChatterUserID == c.Config.BotAccountID {
+				c.Chat.SetRoles(ev.BroadcasterUserID, roles(ev.Badges)) // its badges say whether it may send faster
 				continue
 			}
 

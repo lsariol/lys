@@ -322,6 +322,39 @@ func (s *Store) SetPrefix(ctx context.Context, platform, externalID, prefix stri
 	return nil
 }
 
+// BotRoles is, by Twitch channel ID, whether the bot was last seen there as
+// a moderator, VIP or broadcaster.
+func (s *Store) BotRoles(ctx context.Context) (map[string]bool, error) {
+	rows, err := s.pool.Query(ctx, `SELECT pc.external_id, d.bot_is_moderator
+		FROM lys.twitch_connection_details d JOIN lys.platform_connections pc ON pc.id = d.connection_id`)
+	if err != nil {
+		return nil, fmt.Errorf("database: read the bot's roles: %w", err)
+	}
+	defer rows.Close()
+	roles := make(map[string]bool)
+	for rows.Next() {
+		var id string
+		var privileged bool
+		if err := rows.Scan(&id, &privileged); err != nil {
+			return nil, fmt.Errorf("database: read the bot's roles: %w", err)
+		}
+		roles[id] = privileged
+	}
+	return roles, rows.Err()
+}
+
+// SetBotRole records whether the bot is a moderator, VIP or broadcaster in a
+// Twitch channel (bot_is_moderator covers all three).
+func (s *Store) SetBotRole(ctx context.Context, channelID string, privileged bool) error {
+	if _, err := s.pool.Exec(ctx, `UPDATE lys.twitch_connection_details d SET bot_is_moderator = $2
+		FROM lys.platform_connections pc
+		WHERE pc.id = d.connection_id AND pc.platform = 'twitch' AND pc.external_id = $1 AND d.bot_is_moderator <> $2`,
+		channelID, privileged); err != nil {
+		return fmt.Errorf("database: record the bot's role in %q: %w", channelID, err)
+	}
+	return nil
+}
+
 func event(ctx context.Context, tx pgx.Tx, connectionID int64, kind string, metadata map[string]string) error {
 	if metadata == nil {
 		metadata = map[string]string{}

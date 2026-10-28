@@ -151,7 +151,7 @@ func run(ctx context.Context, cfg *config.Config, cove *coveclient.Client, db *d
 	r := router.New(registry, channels, identity.New(db.Pool), workers)
 	chat := activity.New(autopost.MinMessages)
 	r.Observe(chat)
-	twitch := twitchbot.New(httpClient, cfg.Twitch, cove, conns, bots)
+	twitch := twitchbot.New(httpClient, cfg.Twitch, cove, conns, bots, conns)
 	r.Add(twitch)
 
 	notifications := inlet.New(os.Getenv("SHARED_LYS_NOTIFICATION_TOKEN"))

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/lsariol/lys/internal/commands"
+	"github.com/lsariol/lys/internal/core"
 	"github.com/lsariol/lys/internal/scheduler"
 	"github.com/lsariol/lys/internal/sources"
 )
@@ -49,7 +50,7 @@ func Post(chat Activity) scheduler.Handler {
 		if chat.Since(j.Platform, j.Channel.ID, j.RunAt.Add(-j.RepeatEvery)) < MinMessages {
 			return nil
 		}
-		return scheduler.SendMessage(ctx, j, pub)
+		return scheduler.Send(ctx, j, pub, core.PriorityLow) // replies and announcements go first
 	}
 }
 

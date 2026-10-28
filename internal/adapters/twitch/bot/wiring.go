@@ -3,6 +3,7 @@ package bot
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/lsariol/lys/internal/botaccounts"
 )
@@ -24,6 +25,10 @@ func (c *TwitchClient) Initilize(ctx context.Context) error {
 		Scopes:          bot.Scopes,
 	}); err != nil {
 		return err
+	}
+
+	if err := c.Chat.LoadRoles(ctx); err != nil {
+		log.Printf("[Twitch] %v; sending as if the bot weren't a moderator anywhere until it speaks", err)
 	}
 
 	if err := c.EventSub.Initilize(ctx); err != nil {

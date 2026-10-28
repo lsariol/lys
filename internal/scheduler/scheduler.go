@@ -105,9 +105,14 @@ type Message struct {
 
 // SendMessage is the handler for jobs whose payload is a Message.
 func SendMessage(ctx context.Context, j Job, pub sources.Publisher) error {
+	return Send(ctx, j, pub, core.PriorityNormal)
+}
+
+// Send publishes the job's Message payload in its channel with a priority.
+func Send(ctx context.Context, j Job, pub sources.Publisher, p core.Priority) error {
 	var m Message
 	if err := json.Unmarshal(j.Payload, &m); err != nil {
 		return fmt.Errorf("decode payload: %w", err)
 	}
-	return pub.Publish(ctx, core.Outbound{Platform: j.Platform, Channel: j.Channel, Text: m.Text})
+	return pub.Publish(ctx, core.Outbound{Platform: j.Platform, Channel: j.Channel, Text: m.Text, Priority: p})
 }

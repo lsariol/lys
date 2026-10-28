@@ -7,10 +7,13 @@
 - Each command says who may use it (everyone, VIPs, moderators or the channel's owner), and Lys checks it before running the command; `!help <command>` shows it. A refused command answers "Only moderators can use !autopost." and the like.
 - Cooldowns and caps on slow commands: `!gpt` runs at most 2 at a time, with 30 seconds between one person's uses; `!catfact` and `!randomdog` at most 2, 10 seconds apart; Letterboxd and Sleeper at most 4. Past a cap, Lys answers "Busy, try again in a moment."; within a cooldown it stays quiet. The channel's owner and moderators skip cooldowns.
 - `lys channel prefix <channel> <prefix>` changes a channel's prefix from the CLI.
+- Faster chat where the bot is a moderator, VIP or broadcaster: messages there go out 0.3 seconds apart instead of 1.5. Lys learns the bot's role from the badges on its own messages and remembers it across restarts.
+- One limit for all of the bot's messages across channels, a little under Twitch's (20 per 30 seconds, 100 where the bot is privileged), so busy channels together never get the bot ignored for an hour. When messages have to wait, replies go first, then announcements and reminders, then autoposts. Helix's own rate limit is logged once a minute while Lys sends.
 
 ### Changed
 - `!oneup stats <puzzle number>` and stats by name use their own indexes instead of reading every game.
 - Built on pgx 5.11 and goose 3.29.
+- In channels where the bot isn't privileged, messages go out 1.1 seconds apart instead of 1.5, as Twitch allows 1 a second there.
 - Slow commands no longer hold up chat: Lys looks at every message as it arrives and only runs the command itself in the background, so a slow `!gpt` can't delay other commands, puzzle results or the activity autoposts count. When Lys can't keep up, it drops chat messages (and logs how many) rather than falling behind Twitch, which would disconnect it.
 - The bot's owner no longer counts as the owner of other people's channels: `!settings prefix set`, `!ff link league`, `!ff unlink league` and changing `!ff alerts` are for each channel's owner (autoposts already were). `lys channel prefix` covers fixes.
 - The `!sleeper` command and the Sleeper announcements share one Sleeper client, so the 15 MB player catalog is downloaded once a day instead of once each.

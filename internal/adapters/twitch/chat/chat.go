@@ -1,4 +1,5 @@
-// Package chat sends the bot's messages through Helix, one queue per channel.
+// Package chat sends the bot's messages through Helix: one queue per channel,
+// paced for the bot's role there, under one limit for the whole account.
 package chat
 
 import (
@@ -14,29 +15,95 @@ import (
 	"github.com/lsariol/lys/internal/core"
 )
 
-// sendInterval spaces messages in one channel: Twitch allows a bot that isn't
-// a moderator 20 messages per 30 seconds.
-const sendInterval = 1500 * time.Millisecond
-
 // queueSize is how many messages may wait per channel before new ones are dropped.
 const queueSize = 32
+
+// Roles keeps, across restarts, whether the bot is a moderator, VIP or
+// broadcaster in each channel.
+type Roles interface {
+	BotRoles(ctx context.Context) (map[string]bool, error)
+	SetBotRole(ctx context.Context, channelID string, privileged bool) error
+}
 
 type ChatClient struct {
 	HTTP   *http.Client
 	Auth   *auth.AuthClient
 	Config *config.TwitchConfig
 
-	mu     sync.Mutex
-	queues map[string]chan core.Outbound // by broadcaster ID
+	limit *limiter
+	roles Roles
+	stats helixStats
+
+	mu         sync.Mutex
+	queues     map[string]chan core.Outbound // by broadcaster ID
+	privileged map[string]bool               // by broadcaster ID
 }
 
-func New(http *http.Client, cfg *config.TwitchConfig, auth *auth.AuthClient) *ChatClient {
+func New(http *http.Client, cfg *config.TwitchConfig, auth *auth.AuthClient, roles Roles) *ChatClient {
 	return &ChatClient{
-		HTTP:   http,
-		Auth:   auth,
-		Config: cfg,
-		queues: make(map[string]chan core.Outbound),
+		HTTP:       http,
+		Auth:       auth,
+		Config:     cfg,
+		limit:      newLimiter(),
+		roles:      roles,
+		queues:     make(map[string]chan core.Outbound),
+		privileged: make(map[string]bool),
 	}
+}
+
+// LoadRoles reads the bot's last known role in each channel.
+func (c *ChatClient) LoadRoles(ctx context.Context) error {
+	if c.roles == nil {
+		return nil
+	}
+	roles, err := c.roles.BotRoles(ctx)
+	if err != nil {
+		return err
+	}
+	c.mu.Lock()
+	for id, privileged := range roles {
+		c.privileged[id] = privileged
+	}
+	c.mu.Unlock()
+	return nil
+}
+
+// SetRoles records the bot's roles in a channel, as its own messages there show them.
+func (c *ChatClient) SetRoles(channelID string, roles core.Roles) {
+	privileged := roles&(core.RoleBroadcaster|core.RoleModerator|core.RoleVIP) != 0
+	c.mu.Lock()
+	was, known := c.privileged[channelID]
+	c.privileged[channelID] = privileged
+	c.mu.Unlock()
+	if known && was == privileged {
+		return
+	}
+	if privileged {
+		log.Printf("[Chat] the bot is a moderator, VIP or broadcaster in %q: sending faster there", channelID)
+	} else if known {
+		log.Printf("[Chat] the bot is no longer a moderator, VIP or broadcaster in %q", channelID)
+	}
+	if c.roles == nil {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := c.roles.SetBotRole(ctx, channelID, privileged); err != nil {
+			log.Printf("[Chat] %v", err)
+		}
+	}()
+}
+
+// isPrivileged reports whether the bot may send faster in the channel: its
+// own channel, or one it was last seen moderating there (or as a VIP).
+func (c *ChatClient) isPrivileged(channelID string) bool {
+	if channelID == c.Config.BotAccountID {
+		return true
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.privileged[channelID]
 }
 
 // Send queues a message for its channel. The queue's sender runs until ctx is cancelled.
@@ -69,7 +136,8 @@ const pauseFor = 10 * time.Minute
 // maxRateLimitWait caps how long a 429 waits for Twitch's reset time.
 const maxRateLimitWait = time.Minute
 
-// drain sends one channel's messages in order, sendInterval apart.
+// drain sends one channel's messages in order, paced for the bot's role there
+// and within the account's limit.
 func (c *ChatClient) drain(ctx context.Context, q <-chan core.Outbound) {
 	var pausedUntil time.Time
 	dropped := 0
@@ -90,6 +158,10 @@ func (c *ChatClient) drain(ctx context.Context, q <-chan core.Outbound) {
 			dropped = 0
 		}
 
+		privileged := c.isPrivileged(out.Channel.ID)
+		if err := c.limit.wait(ctx, privileged, out.Priority); err != nil {
+			return
+		}
 		pause, err := c.deliver(ctx, out, true)
 		if err != nil {
 			log.Printf("[Chat] %v", err)
@@ -99,10 +171,14 @@ func (c *ChatClient) drain(ctx context.Context, q <-chan core.Outbound) {
 			log.Printf("! [Chat] pausing %q for %s", out.Channel.ID, pause)
 		}
 
+		gap := unprivilegedGap
+		if privileged {
+			gap = privilegedGap
+		}
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(sendInterval):
+		case <-time.After(gap):
 		}
 	}
 }

@@ -60,6 +60,16 @@ func TestEnrollBlockPrefix(t *testing.T) {
 		t.Fatalf("the old twitch_channels table was written: %d rows, %v", oldRows, err)
 	}
 
+	if roles, err := s.BotRoles(ctx); err != nil || roles["conntest-1"] {
+		t.Fatalf("a new channel's bot role: %v, %v", roles["conntest-1"], err)
+	}
+	if err := s.SetBotRole(ctx, "conntest-1", true); err != nil {
+		t.Fatal(err)
+	}
+	if roles, err := s.BotRoles(ctx); err != nil || !roles["conntest-1"] {
+		t.Fatalf("the bot's role wasn't kept: %v, %v", roles["conntest-1"], err)
+	}
+
 	if err := s.SetPrefix(ctx, "twitch", "conntest-1", "?"); err != nil {
 		t.Fatal(err)
 	}

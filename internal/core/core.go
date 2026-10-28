@@ -60,7 +60,17 @@ type Outbound struct {
 	Platform string
 	Channel  Channel
 	Text     string
+	Priority Priority // when the platform's limits make messages wait, higher goes first
 }
+
+// Priority orders messages that wait for a platform's rate limit.
+type Priority int
+
+const (
+	PriorityLow    Priority = -1 // autoposts
+	PriorityNormal Priority = 0  // announcements and reminders
+	PriorityReply  Priority = 1  // replies to commands
+)
 
 // Connection is a channel as Lys knows it: its connection and community.
 type Connection struct {
