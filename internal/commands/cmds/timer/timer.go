@@ -68,13 +68,13 @@ func (*Timer) Spec() commands.Spec {
 		Name:        "timer",
 		Aliases:     []string{"timers"},
 		Description: "Post a message in this channel on repeat, while chat is active (owner and moderators).",
-		Usage:       "!timer add <every, like 30m or 2h> <message> | !timer list | !timer remove <number>",
+		Usage:       "!timer add <how often, e.g. 30m> <message> | !timer list | !timer remove <number>",
 		Timeout:     5 * time.Second,
 	}
 }
 
 func (t *Timer) Run(ctx context.Context, e commands.Request) (commands.Reply, error) {
-	usage := fmt.Sprintf("Usage: %stimer add <every, like 30m> <message>, %stimer list, or %stimer remove <number>.", e.Prefix, e.Prefix, e.Prefix)
+	usage := fmt.Sprintf("Usage: %stimer add 30m <message> (repeats every 30 minutes; 5m to 24h), %stimer list, or %stimer remove <number>.", e.Prefix, e.Prefix, e.Prefix)
 	if len(e.Args) == 0 {
 		return commands.Reply{Text: usage}, nil
 	}
@@ -145,7 +145,7 @@ func (t *Timer) list(ctx context.Context, e commands.Request) (commands.Reply, e
 		return commands.Reply{Text: "There was an error reading the timers."}, err
 	}
 	if len(pending) == 0 {
-		return commands.Reply{Text: fmt.Sprintf("This channel has no timers. Add one with %stimer add <every> <message>.", e.Prefix)}, nil
+		return commands.Reply{Text: fmt.Sprintf("This channel has no timers. Add one with %stimer add 30m <message>.", e.Prefix)}, nil
 	}
 
 	head := fmt.Sprintf("Timers (%d): ", len(pending))

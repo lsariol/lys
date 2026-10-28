@@ -76,7 +76,7 @@ func TestTimer(t *testing.T) {
 	}); !strings.Contains(reply.Text, "owner and moderators") {
 		t.Fatalf("the bot's owner added a timer in someone else's channel: %q", reply.Text)
 	}
-	if got := run(core.RoleModerator, "list"); got != "This channel has no timers. Add one with !timer add <every> <message>." {
+	if got := run(core.RoleModerator, "list"); got != "This channel has no timers. Add one with !timer add 30m <message>." {
 		t.Errorf("empty list: %q", got)
 	}
 	if got, want := run(core.RoleModerator, "add", "30m", "Follow", "the", "channel!"), `Timer #1 added: "Follow the channel!" every 30 minutes, while chat is active (5+ messages since its last post).`; got != want {
