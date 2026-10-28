@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.0.0 (unreleased)
+## v0.0.0 (2026-10-28)
 
 The first release under the Lys name: a rework of BotSuite.
 
