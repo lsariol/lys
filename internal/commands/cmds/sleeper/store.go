@@ -11,9 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// The leagues are keyed by community and their members by platform user. The
-// Twitch columns (twitch_channel_id, twitch_user_id, twitch_username) are still
-// written so a rollback keeps working; nothing here reads them.
+// The leagues are keyed by community and their members by platform user.
 
 func FindLeagueLinkConflict(leagueID string, communityID int64, ctx context.Context, sl *Sleeper) (*SleeperLeagueLink, error) {
 
@@ -36,19 +34,18 @@ func FindLeagueLinkConflict(leagueID string, communityID int64, ctx context.Cont
 	return &link, nil
 }
 
-func addLeagueLink(league *League, channelID string, communityID int64, ctx context.Context, sl *Sleeper) (error, bool) {
+func addLeagueLink(league *League, communityID int64, ctx context.Context, sl *Sleeper) (error, bool) {
 
 	const query = `
 	INSERT INTO lys.sleeper_leagues(
-	twitch_channel_id,
 	sleeper_league_id,
 	league_name,
 	season,
 	community_id
 	)
-	VALUES ($1, $2, $3, $4, $5)`
+	VALUES ($1, $2, $3, $4)`
 
-	_, err := sl.db.Exec(ctx, query, channelID, league.LeagueID, league.Name, league.Season, communityID)
+	_, err := sl.db.Exec(ctx, query, league.LeagueID, league.Name, league.Season, communityID)
 	if err != nil {
 		log.Println(err)
 		return err, false
@@ -166,40 +163,22 @@ func getConnectionByUsername(ctx context.Context, leagueID uuid.UUID, name strin
 	return connection, nil
 }
 
-func linkUser(ctx context.Context, leagueID uuid.UUID, platformUserID int64, twitchUserID string, twitchUsername string, sleeperUserID string, sleeperUsername string, sleeperRosterID int, sl *Sleeper) error {
+func linkUser(ctx context.Context, leagueID uuid.UUID, platformUserID int64, sleeperUserID string, sleeperUsername string, sleeperRosterID int, sl *Sleeper) error {
+	if platformUserID == 0 {
+		return errors.New("sleeper: the member's identity couldn't be looked up, so they can't be linked")
+	}
 
 	const query = `
 	INSERT INTO lys.sleeper_connections(
 	league_id,
-	twitch_user_id,
-	twitch_username,
 	sleeper_user_id,
 	sleeper_username,
 	sleeper_roster_id,
 	platform_user_id
 	)
-	VALUES ($1, $2, $3, $4, $5, $6, $7)`
+	VALUES ($1, $2, $3, $4, $5)`
 
-	_, err := sl.db.Exec(ctx, query, leagueID, twitchUserID, twitchUsername, sleeperUserID, sleeperUsername, sleeperRosterID, platformUserID)
-
-	return err
-}
-
-// updateTwitchUsername keeps the rollback copy of the member's name current;
-// Lys itself reads names from platform_users.
-func updateTwitchUsername(ctx context.Context, twitchUserID string, twitchUsername string, sl *Sleeper) error {
-
-	if twitchUserID == "" || twitchUsername == "" {
-		return nil
-	}
-
-	const query = `
-		UPDATE lys.sleeper_connections
-		SET twitch_username = $2
-		WHERE twitch_user_id = $1
-			AND twitch_username IS DISTINCT FROM $2`
-
-	_, err := sl.db.Exec(ctx, query, twitchUserID, twitchUsername)
+	_, err := sl.db.Exec(ctx, query, leagueID, sleeperUserID, sleeperUsername, sleeperRosterID, platformUserID)
 
 	return err
 }

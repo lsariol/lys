@@ -23,10 +23,6 @@ func packageGame(e commands.Request) (OneUpGame, error) {
 		return game, err
 	}
 
-	game.UserID = e.User.ID
-	game.Username = e.User.Name
-	game.ChannelID = e.Channel.ID
-	game.ChannelName = e.Channel.Name
 	game.GameCode = "oneuppuzzle"
 	game.RawMessage = rawMessage(e)
 	game.ConnectionID = e.Connection.ID

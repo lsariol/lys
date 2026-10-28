@@ -36,11 +36,6 @@ func TestRevoke(t *testing.T) {
 			t.Fatal("a revoked channel is still in the directory")
 		}
 	}
-	var legacyActive bool
-	if err := pool.QueryRow(ctx, `SELECT active FROM lys.twitch_channels WHERE user_id = 'conntest-1'`).Scan(&legacyActive); err != nil || legacyActive {
-		t.Fatalf("rollback copy: active %v, %v", legacyActive, err)
-	}
-
 	if _, _, err := s.Enroll(ctx, Enrollment{Platform: "twitch", ExternalID: "conntest-1", Name: "ConnTest"}); err != nil {
 		t.Fatal(err)
 	}

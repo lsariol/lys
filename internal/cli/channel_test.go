@@ -31,7 +31,6 @@ func TestChannelCommands(t *testing.T) {
 	t.Cleanup(db.Close)
 	for _, q := range []string{
 		`DELETE FROM lys.communities WHERE id IN (SELECT community_id FROM lys.platform_connections WHERE external_id = 'clitest-1')`,
-		`DELETE FROM lys.twitch_channels WHERE user_id = 'clitest-1'`,
 	} {
 		if _, err := db.Pool.Exec(ctx, q); err != nil {
 			t.Fatal(err)

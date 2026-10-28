@@ -55,18 +55,10 @@ func TestPGStore(t *testing.T) {
 		t.Fatalf("watching: %v, %v", watching, err)
 	}
 
-	// The old table gets the same subscription, so linking at startup changes nothing.
+	// The old table gets the same subscription, which v0.0.0's startup sync reads (until v0.1.1).
 	var oldChannels []string
 	if err := pool.QueryRow(ctx, `SELECT alert_channels FROM lys.letterboxd_feed_subscriptions WHERE user_id = 'lbte-u1'`).Scan(&oldChannels); err != nil || len(oldChannels) != 1 || oldChannels[0] != "twitch:lbte-ch" {
 		t.Fatalf("old row: %v, %v", oldChannels, err)
-	}
-	db := &database.Database{Pool: pool}
-	if err := db.LinkLegacyRows(ctx); err != nil {
-		t.Fatal(err)
-	}
-	var feeds int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM lys.feed_subscriptions WHERE feed_url = $1`, sub.FeedURL).Scan(&feeds); err != nil || feeds != 1 {
-		t.Fatalf("feeds after linking: %d, %v", feeds, err)
 	}
 
 	name, found, err := s.RemoveSubscription(ctx, user, "lbte-u1")

@@ -1,6 +1,6 @@
-// Command rehearse runs what Lys's startup does to the database, against a
-// restored copy of prod: migrations (twice), the schema check and the legacy
-// linking (twice). rehearse.sh runs it in the v0.0.0 rehearsal.
+// Command rehearse runs what Lys's startup does to the database against a
+// restored copy of prod: the migrations (twice) and the schema check.
+// rehearse.sh runs it.
 package main
 
 import (
@@ -20,7 +20,7 @@ func main() {
 	}
 
 	for i := 1; i <= 2; i++ {
-		log.Printf("== migrate, run %d", i)
+		log.Printf("== migrate, run %d (run 2 should apply nothing)", i)
 		if err := database.Migrate(ctx, migrator); err != nil {
 			log.Fatalf("✗ %v", err)
 		}
@@ -36,12 +36,6 @@ func main() {
 	defer db.Close()
 	if err := db.CheckSchemaVersion(ctx); err != nil {
 		log.Fatalf("✗ %v", err)
-	}
-	for i := 1; i <= 2; i++ {
-		log.Printf("== link legacy rows, run %d (run 2 should link nothing)", i)
-		if err := db.LinkLegacyRows(ctx); err != nil {
-			log.Fatalf("✗ %v", err)
-		}
 	}
 	log.Println("✓ startup steps passed")
 }

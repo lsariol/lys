@@ -3,7 +3,6 @@ package sleeper
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 
@@ -30,11 +29,6 @@ func (*Sleeper) Spec() commands.Spec {
 }
 
 func (sl *Sleeper) Run(ctx context.Context, e commands.Request) (commands.Reply, error) {
-
-	err := updateTwitchUsername(ctx, e.User.ID, e.User.Name, sl)
-	if err != nil {
-		log.Printf("error updating Twitch username: %v", err)
-	}
 
 	if len(e.Args) == 0 {
 		return commands.Reply{Text: "https://sleeper.com/leagues/1388284269125726208"}, nil

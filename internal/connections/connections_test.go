@@ -29,8 +29,8 @@ func open(t *testing.T) *pgxpool.Pool {
 	t.Cleanup(pool.Close)
 	for _, q := range []string{
 		`DELETE FROM lys.communities WHERE id IN (SELECT community_id FROM lys.platform_connections WHERE external_id LIKE 'conntest-%')`,
-		`DELETE FROM lys.twitch_channels WHERE user_id LIKE 'conntest-%'`,
 		`DELETE FROM lys.bot_accounts WHERE external_id LIKE 'conntest-%'`,
+		`DELETE FROM lys.twitch_channels WHERE user_id LIKE 'conntest-%'`, // left by older releases' tests (until v0.1.1)
 	} {
 		if _, err := pool.Exec(ctx, q); err != nil {
 			t.Fatal(err)
@@ -52,15 +52,12 @@ func TestEnrollBlockPrefix(t *testing.T) {
 		t.Fatalf("second enroll: created %v err %v", created, err)
 	}
 
-	var legacyActive bool
-	var legacyPrefix string
-	var timesJoined int
-	if err := pool.QueryRow(ctx, `SELECT tc.active, ts.command_prefix, tc.times_joined FROM lys.twitch_channels tc
-		JOIN lys.twitch_settings ts ON ts.user_id = tc.user_id WHERE tc.user_id = 'conntest-1'`).Scan(&legacyActive, &legacyPrefix, &timesJoined); err != nil {
-		t.Fatalf("rollback copy: %v", err)
+	var timesJoined, oldRows int
+	if err := pool.QueryRow(ctx, `SELECT times_joined FROM lys.twitch_connection_details WHERE connection_id = $1`, c.ID).Scan(&timesJoined); err != nil || timesJoined != 2 {
+		t.Fatalf("times joined: %d, %v", timesJoined, err)
 	}
-	if !legacyActive || legacyPrefix != "!" || timesJoined != 2 {
-		t.Fatalf("rollback copy: active %v prefix %q joined %d", legacyActive, legacyPrefix, timesJoined)
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM lys.twitch_channels WHERE user_id = 'conntest-1'`).Scan(&oldRows); err != nil || oldRows != 0 {
+		t.Fatalf("the old twitch_channels table was written: %d rows, %v", oldRows, err)
 	}
 
 	if err := s.SetPrefix(ctx, "twitch", "conntest-1", "?"); err != nil {
@@ -69,9 +66,6 @@ func TestEnrollBlockPrefix(t *testing.T) {
 	found, err := s.Find(ctx, "twitch", "conntestrenamed")
 	if err != nil || found.ID != c.ID || found.Prefix != "?" {
 		t.Fatalf("find by name: %+v, %v", found, err)
-	}
-	if err := pool.QueryRow(ctx, `SELECT command_prefix FROM lys.twitch_settings WHERE user_id = 'conntest-1'`).Scan(&legacyPrefix); err != nil || legacyPrefix != "?" {
-		t.Fatalf("rollback prefix: %q, %v", legacyPrefix, err)
 	}
 	if err := s.SetPrefix(ctx, "twitch", "conntest-missing", "?"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("prefix for a missing channel: %v", err)
@@ -98,10 +92,6 @@ func TestEnrollBlockPrefix(t *testing.T) {
 	}
 	if inDirectory() {
 		t.Fatal("a blocked channel is still in the directory")
-	}
-	var banned bool
-	if err := pool.QueryRow(ctx, `SELECT banned FROM lys.twitch_channels WHERE user_id = 'conntest-1'`).Scan(&banned); err != nil || !banned {
-		t.Fatalf("rollback ban: %v, %v", banned, err)
 	}
 	if blocked, _ := s.Find(ctx, "twitch", "conntest-1"); !blocked.AdminBlocked || blocked.BlockReason != "spam" {
 		t.Fatalf("blocked: %+v", blocked)

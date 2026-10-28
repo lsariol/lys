@@ -17,8 +17,8 @@ type Store interface {
 	NewRequests(ctx context.Context, limit int) ([]FeatureRequest, error)
 }
 
-// PGStore is the Store in lys.feature_requests. Requesters show under their
-// current name; the old user and channel columns are still written for rollback.
+// PGStore is the Store in lys.feature_requests. Requesters and channels show
+// under their current names.
 type PGStore struct {
 	pool *pgxpool.Pool
 }
@@ -28,13 +28,13 @@ func NewStore(pool *pgxpool.Pool) *PGStore { return &PGStore{pool: pool} }
 func (s *PGStore) StoreRequest(ctx context.Context, featureRequest FeatureRequest) (int64, error) {
 
 	query := `
-	INSERT INTO lys.feature_requests (user_id, username, channel_id, channel_name, platform, body, connection_id, platform_user_id)
-	VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, 0), NULLIF($8, 0))
+	INSERT INTO lys.feature_requests (platform, body, connection_id, platform_user_id)
+	VALUES ($1, $2, NULLIF($3, 0), $4)
 	RETURNING id;
 	`
 
 	var id int64
-	err := s.pool.QueryRow(ctx, query, featureRequest.UserID, featureRequest.Username, featureRequest.ChannelID, featureRequest.ChannelName, featureRequest.Platform, featureRequest.Body,
+	err := s.pool.QueryRow(ctx, query, featureRequest.Platform, featureRequest.Body,
 		featureRequest.ConnectionID, featureRequest.PlatformUserID).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("exec query: %w", err)
@@ -64,9 +64,11 @@ func (s *PGStore) UpdateStatus(ctx context.Context, newStatus string, requestID 
 
 func (s *PGStore) RecentRequests(ctx context.Context, limit int) ([]FeatureRequest, error) {
 	query := `
-		SELECT f.id, f.occurred_at, f.user_id, COALESCE(pu.display_name, f.username), f.channel_id, f.channel_name, f.platform, f.body, f.status
+		SELECT f.id, f.occurred_at, COALESCE(pu.external_id, ''), COALESCE(pu.display_name, ''),
+		       COALESCE(pc.external_id, ''), COALESCE(pc.name, ''), f.platform, f.body, f.status
 		FROM lys.feature_requests f
 		LEFT JOIN lys.platform_users pu ON pu.id = f.platform_user_id
+		LEFT JOIN lys.platform_connections pc ON pc.id = f.connection_id
 		ORDER BY f.occurred_at DESC
 		LIMIT $1;
 	`
@@ -81,9 +83,11 @@ func (s *PGStore) RecentRequests(ctx context.Context, limit int) ([]FeatureReque
 func (s *PGStore) NewRequests(ctx context.Context, limit int) ([]FeatureRequest, error) {
 
 	query := `
-		SELECT f.id, f.occurred_at, f.user_id, COALESCE(pu.display_name, f.username), f.channel_id, f.channel_name, f.platform, f.body, f.status
+		SELECT f.id, f.occurred_at, COALESCE(pu.external_id, ''), COALESCE(pu.display_name, ''),
+		       COALESCE(pc.external_id, ''), COALESCE(pc.name, ''), f.platform, f.body, f.status
 		FROM lys.feature_requests f
 		LEFT JOIN lys.platform_users pu ON pu.id = f.platform_user_id
+		LEFT JOIN lys.platform_connections pc ON pc.id = f.connection_id
 		WHERE f.status = 'new'
 		ORDER BY f.id DESC
 		LIMIT $1;

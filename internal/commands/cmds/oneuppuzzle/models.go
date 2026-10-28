@@ -3,14 +3,10 @@ package oneuppuzzle
 import "time"
 
 type OneUpGame struct {
-	UserID      string
-	Username    string
-	ChannelID   string
-	ChannelName string
-	StoredTime  time.Time
-	GameCode    string
-	RawMessage  string
-	Details     OneUpGameDetails
+	StoredTime time.Time
+	GameCode   string
+	RawMessage string
+	Details    OneUpGameDetails
 
 	ConnectionID   int64 // 0 if the channel isn't known
 	PlatformUserID int64

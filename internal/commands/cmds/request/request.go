@@ -138,6 +138,10 @@ func (r *Request) setHandler(ctx context.Context, id int64, status string) (comm
 }
 
 func (r *Request) createHandler(ctx context.Context, e commands.Request) (commands.Reply, error) {
+	if e.Identity.PlatformUserID == 0 {
+		return commands.Reply{Text: "An error occured while storing your request. Please try again."},
+			fmt.Errorf("request: %q's identity couldn't be looked up, so the request can't be saved", e.User.Name)
+	}
 	featureRequest := newFeatureRequest(e)
 	id, err := r.store.StoreRequest(ctx, featureRequest)
 	if err != nil {
@@ -152,12 +156,8 @@ func newFeatureRequest(e commands.Request) FeatureRequest {
 	b := strings.Join(e.Args, " ")
 
 	fR := FeatureRequest{
-		UserID:      e.User.ID,
-		Username:    e.User.Name,
-		ChannelID:   e.Channel.ID,
-		ChannelName: e.Channel.Name,
-		Platform:    e.Platform,
-		Body:        b,
+		Platform: e.Platform,
+		Body:     b,
 
 		ConnectionID:   e.Connection.ID,
 		PlatformUserID: e.Identity.PlatformUserID,

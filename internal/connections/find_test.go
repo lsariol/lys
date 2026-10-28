@@ -16,10 +16,6 @@ func TestFind(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	var stale string
-	if err := pool.QueryRow(ctx, `SELECT username FROM lys.twitch_channels WHERE user_id = 'conntest-a'`).Scan(&stale); err != nil || stale != "SameName~conntest-a" {
-		t.Fatalf("the rollback copy keeps one row per name: %q %v", stale, err)
-	}
 	if _, err := s.Find(ctx, "twitch", "samename"); !errors.Is(err, ErrAmbiguous) {
 		t.Fatalf("shared name: %v", err)
 	}

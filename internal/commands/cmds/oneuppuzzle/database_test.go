@@ -31,7 +31,7 @@ func TestStore(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	exec(`DELETE FROM lys.game_events WHERE channel_id = 'oute-ch'`)
+	exec(`DELETE FROM lys.game_events WHERE game_code = 'oneuppuzzle' AND (details->>'puzzle_id')::int BETWEEN 990001 AND 990003`)
 	exec(`DELETE FROM lys.communities WHERE name = 'OneUpTest'`)
 	exec(`DELETE FROM lys.platform_users WHERE external_id LIKE 'oute-%'`)
 
@@ -52,7 +52,7 @@ func TestStore(t *testing.T) {
 	s := &store{pool: pool}
 	game := func(user int64, name string, puzzle, seconds int) OneUpGame {
 		return OneUpGame{
-			UserID: "x", Username: name, ChannelID: "oute-ch", ChannelName: "OneUpTest", GameCode: "oneuppuzzle", RawMessage: "x",
+			GameCode: "oneuppuzzle", RawMessage: name,
 			Details: OneUpGameDetails{PuzzleID: puzzle, TimeSeconds: seconds}, ConnectionID: conn, PlatformUserID: user,
 		}
 	}

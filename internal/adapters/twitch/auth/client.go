@@ -39,7 +39,7 @@ func New(cc *coveclient.Client, cfg *config.TwitchConfig, http *http.Client) *Au
 func (c *AuthClient) Initilize(ctx context.Context) error {
 
 	if c.Config.BotAccountID == "" {
-		return fmt.Errorf("Twitch: no bot account: run `lys bot authorize` (or store LYS_TWITCH_BOT_ID in Cove)")
+		return fmt.Errorf("Twitch: no bot account: run `lys bot authorize` to sign Lys in as its bot")
 	}
 
 	access, err := c.Cove.GetSecret(c.Config.AccessTokenKey)

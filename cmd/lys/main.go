@@ -90,10 +90,6 @@ func main() {
 		log.Fatalf("✗ %v", err)
 	}
 
-	if err := db.LinkLegacyRows(ctx); err != nil {
-		log.Fatalf("✗ %v", err)
-	}
-
 	if err := run(ctx, cfg, cove, db, started); err != nil {
 		log.Printf("✗ %v", err)
 		db.Close()
@@ -207,8 +203,7 @@ func run(ctx context.Context, cfg *config.Config, cove *coveclient.Client, db *d
 }
 
 // useBotAccount points the Twitch config at the default bot account in
-// bot_accounts. Without one, LYS_TWITCH_BOT_ID from Cove is used, and the
-// account is recorded once Twitch confirms its token.
+// bot_accounts; without one, Lys can't start (lys bot authorize adds it).
 func useBotAccount(ctx context.Context, bots *botaccounts.Store, cfg *config.TwitchConfig) error {
 	bot, found, err := bots.Default(ctx, twitchbot.Platform)
 	if err != nil || !found {

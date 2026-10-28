@@ -142,17 +142,9 @@ func (p *Poller) fetch(ctx context.Context, url string) ([]movie, error) {
 	return parse(feed), nil
 }
 
-// markSeen records the newest entry, here and in the old table a rollback's
-// LetterboxdWatcher reads, so neither announces it again.
+// markSeen records the newest entry, so it isn't announced again.
 func (p *Poller) markSeen(ctx context.Context, s subscription, guid string) error {
-	err := pgx.BeginFunc(ctx, p.pool, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `UPDATE lys.feed_subscriptions SET last_seen_guid = $2, last_alerted_at = now() WHERE id = $1`, s.id, guid); err != nil {
-			return err
-		}
-		_, err := tx.Exec(ctx, `UPDATE lys.letterboxd_feed_subscriptions SET last_seen_guid = $2, last_alerted_at = now() WHERE feed_url = $1`, s.feedURL, guid)
-		return err
-	})
-	if err != nil {
+	if _, err := p.pool.Exec(ctx, `UPDATE lys.feed_subscriptions SET last_seen_guid = $2, last_alerted_at = now() WHERE id = $1`, s.id, guid); err != nil {
 		return fmt.Errorf("database: record what was announced: %w", err)
 	}
 	return nil

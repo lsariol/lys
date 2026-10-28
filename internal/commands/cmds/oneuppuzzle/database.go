@@ -17,9 +17,8 @@ type store struct {
 func (s *store) storeGame(ctx context.Context, game OneUpGame, flagged bool) error {
 
 	query := `
-	INSERT INTO lys.game_events
-		(user_id, username, channel_id, channel_name, game_code, raw_message, details, is_flagged, connection_id, platform_user_id)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULLIF($9, 0), NULLIF($10, 0));
+	INSERT INTO lys.game_events (game_code, raw_message, details, is_flagged, connection_id, platform_user_id)
+	VALUES ($1, $2, $3, $4, NULLIF($5, 0), $6);
 	`
 
 	b, err := json.Marshal(game.Details)
@@ -27,7 +26,7 @@ func (s *store) storeGame(ctx context.Context, game OneUpGame, flagged bool) err
 		return fmt.Errorf("encode details: %w", err)
 	}
 
-	_, err = s.pool.Exec(ctx, query, game.UserID, game.Username, game.ChannelID, game.ChannelName, game.GameCode, game.RawMessage, b, flagged,
+	_, err = s.pool.Exec(ctx, query, game.GameCode, game.RawMessage, b, flagged,
 		game.ConnectionID, game.PlatformUserID)
 	if err != nil {
 		return fmt.Errorf("database: store game: %w", err)
@@ -37,7 +36,7 @@ func (s *store) storeGame(ctx context.Context, game OneUpGame, flagged bool) err
 }
 
 // currentName is a game's player under their current display name.
-const currentName = `COALESCE(pu.display_name, g.username::text)`
+const currentName = `pu.display_name`
 
 func (s *store) puzzleStatsByChannel(ctx context.Context, connectionID int64) (ChannelProfile, bool, error) {
 	var channelProfile ChannelProfile
@@ -137,19 +136,19 @@ func (s *store) puzzleStatsByPuzzleID(ctx context.Context, gameID int) (GameProf
 		(
 			SELECT ` + currentName + `
 			FROM lys.game_events g LEFT JOIN lys.platform_users pu ON pu.id = g.platform_user_id
-			WHERE (g.details->'puzzle_id')::INT = $1 AND g.game_code = 'oneuppuzzle' AND g.is_flagged = FALSE
+			WHERE (g.details->>'puzzle_id')::int = $1 AND g.game_code = 'oneuppuzzle' AND g.is_flagged = FALSE
 			ORDER BY (g.details->>'time_seconds')::int ASC
 			LIMIT 1
 		) AS fastest_user,
 		(
 			SELECT ` + currentName + `
 			FROM lys.game_events g LEFT JOIN lys.platform_users pu ON pu.id = g.platform_user_id
-			WHERE (g.details->'puzzle_id')::INT = $1 AND g.game_code = 'oneuppuzzle' AND g.is_flagged = FALSE
+			WHERE (g.details->>'puzzle_id')::int = $1 AND g.game_code = 'oneuppuzzle' AND g.is_flagged = FALSE
 			ORDER BY (g.details->>'time_seconds')::int DESC
 			LIMIT 1
 		) AS slowest_user
 	FROM lys.game_events
-	WHERE (details->'puzzle_id')::INT = $1
+	WHERE (details->>'puzzle_id')::int = $1
 	AND game_code  = 'oneuppuzzle'
 	AND is_flagged = FALSE;
 	`

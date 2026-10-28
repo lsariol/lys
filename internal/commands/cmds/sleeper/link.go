@@ -48,7 +48,7 @@ func link(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply,
 
 				for _, roster := range *sleeperRosters {
 					if strings.EqualFold(roster.OwnerID, user.UserID) {
-						err := linkUser(ctx, league.ID, e.Identity.PlatformUserID, e.User.ID, e.User.Name, user.UserID, user.DisplayName, roster.RosterID, sl)
+						err := linkUser(ctx, league.ID, e.Identity.PlatformUserID, user.UserID, user.DisplayName, roster.RosterID, sl)
 						if err != nil {
 							log.Printf("error linking user: %v", err)
 							return commands.Reply{Text: "Internal error linking user."}, err
@@ -113,7 +113,7 @@ func link(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply,
 		}
 
 		// Link in database
-		err, ok := addLeagueLink(league, e.Channel.ID, e.Connection.CommunityID, ctx, sl)
+		err, ok := addLeagueLink(league, e.Connection.CommunityID, ctx, sl)
 		if !ok {
 			return commands.Reply{Text: "Internal error occured while inserting into database."}, err
 		}

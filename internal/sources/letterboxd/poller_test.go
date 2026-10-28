@@ -71,7 +71,6 @@ func TestPoller(t *testing.T) {
 		t.Fatal(err)
 	}
 	exec(`INSERT INTO lys.feed_subscriptions (kind, feed_url, feed_name, connection_id, platform_user_id) VALUES ('letterboxd', $1, 'pltest', $2, $3)`, feedURL, conn, user)
-	exec(`INSERT INTO lys.letterboxd_feed_subscriptions (username, user_id, letterboxd_username, feed_url, alert_channels) VALUES ('Viewer', 'pltest-u', 'pltest', $1, ARRAY['twitch:pltest-ch'])`, feedURL)
 
 	p := New(pool, srv.Client())
 	p.notifyGap = 0
@@ -95,12 +94,9 @@ func TestPoller(t *testing.T) {
 	if len(*pub) != 1 || !strings.HasPrefix((*pub)[0].Text, "🎬 Viewer watched Alien") || (*pub)[0].Channel.ID != "pltest-ch" {
 		t.Fatalf("first check: %+v", *pub)
 	}
-	var newSeen, oldSeen string
-	if err := pool.QueryRow(ctx, `SELECT f.last_seen_guid, l.last_seen_guid FROM lys.feed_subscriptions f JOIN lys.letterboxd_feed_subscriptions l USING (feed_url) WHERE f.feed_url = $1`, feedURL).Scan(&newSeen, &oldSeen); err != nil {
-		t.Fatal(err)
-	}
-	if newSeen != "letterboxd-review-2" || oldSeen != newSeen {
-		t.Fatalf("seen: new table %q, old table %q", newSeen, oldSeen)
+	var seen string
+	if err := pool.QueryRow(ctx, `SELECT last_seen_guid FROM lys.feed_subscriptions WHERE feed_url = $1`, feedURL).Scan(&seen); err != nil || seen != "letterboxd-review-2" {
+		t.Fatalf("seen: %q, %v", seen, err)
 	}
 
 	poll()

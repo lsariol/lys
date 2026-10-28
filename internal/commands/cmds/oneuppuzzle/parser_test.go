@@ -13,7 +13,7 @@ func TestPackageGame(t *testing.T) {
 		Channel: core.Channel{ID: "1", Name: "Streamer"},
 		User:    core.User{ID: "2", Name: "Viewer"},
 		Text:    text,
-	}})
+	}, Connection: core.Connection{ID: 7}, Identity: core.Identity{PlatformUserID: 9}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -23,7 +23,7 @@ func TestPackageGame(t *testing.T) {
 	if game.Details.PuzzleID != 616 || game.Details.TimeSeconds != 185 {
 		t.Fatalf("details: %+v", game.Details)
 	}
-	if game.UserID != "2" || game.ChannelName != "Streamer" || game.GameCode != "oneuppuzzle" {
+	if game.ConnectionID != 7 || game.PlatformUserID != 9 || game.GameCode != "oneuppuzzle" {
 		t.Fatalf("game: %+v", game)
 	}
 }

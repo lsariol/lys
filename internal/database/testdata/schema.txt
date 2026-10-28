@@ -142,10 +142,10 @@ table connection_settings owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=a
 table feature_requests owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdDxt/lys_owner lys_reader=r/lys_owner
   column id bigint not null default nextval('lys.feature_requests_id_seq'::regclass)
   column occurred_at timestamp with time zone not null default now()
-  column user_id text not null
-  column username text not null
-  column channel_id text not null
-  column channel_name text not null
+  column user_id text
+  column username text
+  column channel_id text
+  column channel_name text
   column platform text not null
   column body text not null
   column status lys.request_status not null default 'new'::lys.request_status
@@ -178,10 +178,10 @@ table feed_subscriptions owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=ar
 table game_events owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdDxt/lys_owner lys_reader=r/lys_owner
   column id bigint not null default nextval('lys.game_events_id_seq'::regclass)
   column occurred_at timestamp with time zone not null default now()
-  column user_id text not null
-  column username citext not null
-  column channel_id text not null
-  column channel_name text not null
+  column user_id text
+  column username citext
+  column channel_id text
+  column channel_name text
   column game_code text not null
   column raw_message text not null
   column details jsonb
@@ -193,6 +193,7 @@ table game_events owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdDxt/l
   constraint game_events_platform_user_id_fkey FOREIGN KEY (platform_user_id) REFERENCES lys.platform_users(id) ON DELETE SET NULL
   index CREATE INDEX game_events_oneuppuzzle_channel_time_idx ON lys.game_events USING btree (channel_id, (((details ->> 'time_seconds'::text))::integer)) WHERE ((game_code = 'oneuppuzzle'::text) AND (is_flagged = false))
   index CREATE INDEX game_events_oneuppuzzle_connection_time_idx ON lys.game_events USING btree (connection_id, (((details ->> 'time_seconds'::text))::integer)) WHERE ((game_code = 'oneuppuzzle'::text) AND (is_flagged = false))
+  index CREATE INDEX game_events_oneuppuzzle_puzzle_time_idx ON lys.game_events USING btree ((((details ->> 'puzzle_id'::text))::integer), (((details ->> 'time_seconds'::text))::integer)) WHERE ((game_code = 'oneuppuzzle'::text) AND (NOT is_flagged))
   index CREATE INDEX game_events_oneuppuzzle_user_puzzle_idx ON lys.game_events USING btree (user_id, (((details ->> 'puzzle_id'::text))::integer)) WHERE (game_code = 'oneuppuzzle'::text)
   index CREATE INDEX game_events_oneuppuzzle_user_puzzle_v2_idx ON lys.game_events USING btree (platform_user_id, (((details ->> 'puzzle_id'::text))::integer)) WHERE (game_code = 'oneuppuzzle'::text)
   index CREATE INDEX game_events_oneuppuzzle_username_idx ON lys.game_events USING btree (username) WHERE ((game_code = 'oneuppuzzle'::text) AND (is_flagged = false))
@@ -250,6 +251,7 @@ table platform_users owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdDx
   index CREATE INDEX platform_users_account_id_idx ON lys.platform_users USING btree (account_id) WHERE (account_id IS NOT NULL)
   index CREATE UNIQUE INDEX platform_users_pkey ON lys.platform_users USING btree (id)
   index CREATE UNIQUE INDEX platform_users_platform_external_id_key ON lys.platform_users USING btree (platform, external_id)
+  index CREATE INDEX platform_users_platform_name_idx ON lys.platform_users USING btree (platform, lower(display_name))
   trigger CREATE TRIGGER platform_users_set_updated_at BEFORE UPDATE ON lys.platform_users FOR EACH ROW EXECUTE FUNCTION lys.set_updated_at()
 table scheduled_jobs owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdDxt/lys_owner lys_reader=r/lys_owner
   column id bigint not null
@@ -277,7 +279,7 @@ table scheduled_jobs owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdDx
 table sleeper_connections owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdDxt/lys_owner lys_reader=r/lys_owner
   column id uuid not null default gen_random_uuid()
   column league_id uuid not null
-  column twitch_user_id text not null
+  column twitch_user_id text
   column sleeper_user_id text not null
   column sleeper_username text
   column sleeper_roster_id integer not null
@@ -310,7 +312,7 @@ table sleeper_events owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdDx
   index CREATE UNIQUE INDEX sleeper_events_sleeper_league_id_event_type_external_event__key ON lys.sleeper_events USING btree (sleeper_league_id, event_type, external_event_id)
 table sleeper_leagues owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdDxt/lys_owner lys_reader=r/lys_owner
   column id uuid not null default gen_random_uuid()
-  column twitch_channel_id text not null
+  column twitch_channel_id text
   column sleeper_league_id text not null
   column league_name text
   column season text

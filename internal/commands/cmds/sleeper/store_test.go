@@ -46,7 +46,7 @@ func TestStore(t *testing.T) {
 	if l, err := getLeague(ctx, community, sl); err != nil || l != nil {
 		t.Fatalf("no league yet: %+v, %v", l, err)
 	}
-	if err, ok := addLeagueLink(&League{LeagueID: "slte-league", Name: "Test League", Season: "2026"}, "slte-ch", community, ctx, sl); !ok {
+	if err, ok := addLeagueLink(&League{LeagueID: "slte-league", Name: "Test League", Season: "2026"}, community, ctx, sl); !ok {
 		t.Fatal(err)
 	}
 	league, err := getLeague(ctx, community, sl)
@@ -57,7 +57,7 @@ func TestStore(t *testing.T) {
 		t.Fatalf("conflict by community: %+v, %v", conflict, err)
 	}
 
-	if err := linkUser(ctx, league.ID, member, "slte-u1", "Manager", "s-1", "sleeperName", 4, sl); err != nil {
+	if err := linkUser(ctx, league.ID, member, "s-1", "sleeperName", 4, sl); err != nil {
 		t.Fatal(err)
 	}
 	byID, err := getConnectionByUserID(ctx, league.ID, member, sl)

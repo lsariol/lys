@@ -1,9 +1,5 @@
 // Package connections keeps the channels Lys is in: communities and their
 // connections on each platform. Every change is one explicit transaction.
-//
-// Until the old tables are dropped, Twitch changes are also written to
-// twitch_channels and twitch_settings, so rolling back to a release that
-// reads them keeps every channel and prefix.
 package connections
 
 import (
@@ -221,28 +217,16 @@ func enrollTwitch(ctx context.Context, tx pgx.Tx, id int64, e Enrollment) error 
 			    times_joined = lys.twitch_connection_details.times_joined + 1`, id, login); err != nil {
 		return err
 	}
-	// Twitch names are unique at any one time, so another ID holding this name
-	// in the rollback copy is stale (a renamed channel): free the name for this one.
-	if _, err := tx.Exec(ctx, `UPDATE lys.twitch_channels SET username = username || '~' || user_id
-		WHERE username = $2 AND user_id <> $1`, e.ExternalID, e.Name); err != nil {
-		return err
-	}
-	// Rollback copy. Its triggers create the twitch_settings row and log the grant.
-	_, err := tx.Exec(ctx, `INSERT INTO lys.twitch_channels (user_id, username, access_token, refresh_token)
-		VALUES ($1, $2, '', '')
-		ON CONFLICT (user_id) DO UPDATE
-			SET username = EXCLUDED.username, active = TRUE,
-			    times_joined = lys.twitch_channels.times_joined + 1, last_joined = now()`, e.ExternalID, e.Name)
-	return err
+	return nil
 }
 
 // SetBlocked blocks or unblocks a channel; reason is kept while it's blocked.
 func (s *Store) SetBlocked(ctx context.Context, id int64, blocked bool, reason string) error {
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
-		var platform, externalID string
+		var platform string
 		err := tx.QueryRow(ctx, `UPDATE lys.platform_connections
 			SET admin_blocked = $2, admin_block_reason = CASE WHEN $2 THEN NULLIF($3, '') END
-			WHERE id = $1 RETURNING platform, external_id`, id, blocked, reason).Scan(&platform, &externalID)
+			WHERE id = $1 RETURNING platform`, id, blocked, reason).Scan(&platform)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		}
@@ -256,13 +240,6 @@ func (s *Store) SetBlocked(ctx context.Context, id int64, blocked bool, reason s
 		}
 		if err := event(ctx, tx, id, kind, map[string]string{"reason": reason}); err != nil {
 			return err
-		}
-
-		if platform == "twitch" {
-			// Rollback copy; its trigger logs the ban or unban.
-			if _, err := tx.Exec(ctx, `UPDATE lys.twitch_channels SET banned = $2 WHERE user_id = $1`, externalID, blocked); err != nil {
-				return err
-			}
 		}
 		return notify(ctx, tx, platform)
 	})
@@ -292,12 +269,6 @@ func (s *Store) Disable(ctx context.Context, platform, externalID string) error 
 		if err := event(ctx, tx, id, "disabled", nil); err != nil {
 			return err
 		}
-		if platform == "twitch" {
-			// Rollback copy; its trigger logs the revoke.
-			if _, err := tx.Exec(ctx, `UPDATE lys.twitch_channels SET active = false WHERE user_id = $1`, externalID); err != nil {
-				return err
-			}
-		}
 		return notify(ctx, tx, platform)
 	})
 	if err != nil {
@@ -323,12 +294,6 @@ func (s *Store) Revoke(ctx context.Context, platform, externalID, reason string)
 		if err := event(ctx, tx, id, "authorization_revoked", map[string]string{"reason": reason}); err != nil {
 			return err
 		}
-		if platform == "twitch" {
-			// Rollback copy; its trigger logs the revoke.
-			if _, err := tx.Exec(ctx, `UPDATE lys.twitch_channels SET active = false WHERE user_id = $1`, externalID); err != nil {
-				return err
-			}
-		}
 		return notify(ctx, tx, platform)
 	})
 	if err != nil {
@@ -348,12 +313,6 @@ func (s *Store) SetPrefix(ctx context.Context, platform, externalID, prefix stri
 		}
 		if tag.RowsAffected() == 0 {
 			return fmt.Errorf("%w: %s %q", ErrNotFound, platform, externalID)
-		}
-		if platform == "twitch" {
-			// Rollback copy.
-			if _, err := tx.Exec(ctx, `UPDATE lys.twitch_settings SET command_prefix = $2 WHERE user_id = $1`, externalID, prefix); err != nil {
-				return err
-			}
 		}
 		return notify(ctx, tx, platform)
 	})

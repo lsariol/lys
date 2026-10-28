@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.1.0 (unreleased)
+
+### Changed
+- `!oneup stats <puzzle number>` and stats by name use their own indexes instead of reading every game.
+- Built on pgx 5.11 and goose 3.29.
+
+### Removed
+- Lys no longer copies channel, prefix, game, request and Sleeper changes into the tables the old bot read; it reads and writes only its own. Letterboxd subscriptions are still copied until v0.1.1 drops those tables, so going back to v0.0.0 keeps them.
+- The startup step that linked rows the old bot wrote.
+- `LYS_TWITCH_BOT_ID` is no longer read: the bot account comes from `lys bot authorize`.
+
 ## v0.0.0 (2026-10-28)
 
 The first release under the Lys name: a rework of BotSuite.
