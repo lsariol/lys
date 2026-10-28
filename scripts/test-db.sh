@@ -20,7 +20,7 @@ IMAGE=postgres:16.4
 
 case "${1:-}" in
 up)
-	docker rm -f "$NAME" >/dev/null 2>&1 || true
+	docker rm -fv "$NAME" >/dev/null 2>&1 || true
 	docker run -d --name "$NAME" -p "127.0.0.1:$PORT:5432" \
 		-e POSTGRES_USER=Admin -e POSTGRES_PASSWORD=admin "$IMAGE" >/dev/null
 	i=0
@@ -48,7 +48,7 @@ env)
 	echo "export LYS_TEST_COPY_MIGRATOR_DATABASE_URL='postgres://lys_migrator:migrator@127.0.0.1:$PORT/lys_copy_db?sslmode=disable'"
 	;;
 down)
-	docker rm -f "$NAME" >/dev/null
+	docker rm -fv "$NAME" >/dev/null
 	echo "Test database removed." >&2
 	;;
 *)

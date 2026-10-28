@@ -38,7 +38,7 @@ up)
 	[ -s "$DUMP" ] || { echo "✗ $DUMP is missing or empty" >&2; exit 1; }
 
 	echo "== 1. A fresh Postgres 16.4 with prod's roles"
-	docker rm -f "$NAME" >/dev/null 2>&1 || true
+	docker rm -fv "$NAME" >/dev/null 2>&1 || true
 	docker run -d --name "$NAME" -p "$URL:5432" -e POSTGRES_USER=Admin -e POSTGRES_PASSWORD=admin postgres:16.4 >/dev/null
 	until docker exec "$NAME" pg_isready -U Admin -q 2>/dev/null; do sleep 1; done
 	sleep 2
@@ -155,7 +155,7 @@ EOF
 	echo "✓ Rehearsal passed. Remove it with: scripts/rehearse/rehearse.sh down"
 	;;
 down)
-	docker rm -f "$NAME" >/dev/null
+	docker rm -fv "$NAME" >/dev/null
 	echo "✓ Rehearsal database removed."
 	;;
 *)
