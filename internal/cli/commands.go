@@ -116,6 +116,16 @@ func init() {
 			Run:     runMigrateUp,
 		},
 		{
+			Names:   []string{"shell"},
+			Group:   "Help",
+			Summary: "Run commands one after another, with history and Tab completion",
+			Usage:   []string{"shell"},
+			Examples: []Example{
+				{"shell", "On the server: docker exec -it lys /lys shell (alias lys='docker exec -it lys /lys shell'). exit or Ctrl+D leaves it."},
+			},
+			Run: runShell,
+		},
+		{
 			Names:    []string{"help"},
 			Group:    "Help",
 			Summary:  "Show the commands, or how to use one",

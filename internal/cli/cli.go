@@ -59,6 +59,8 @@ type Env struct {
 
 	// Services loads what commands need on first use, so `help` needs neither Cove nor a database.
 	Services func(ctx context.Context) (*Services, error)
+
+	readLine func(prompt string) (string, error) // in the shell, questions are asked on its prompt
 }
 
 // NewEnv returns an Env on the process's standard streams.
@@ -211,8 +213,7 @@ func (env *Env) Confirm(in Input, verb, question string) error {
 	if env.Color {
 		sym = cyan + sym + reset
 	}
-	fmt.Fprintf(env.Err, "%s %s (y/N) ", sym, question)
-	answer, _ := env.In.ReadString('\n')
+	answer, _ := env.read(fmt.Sprintf("%s %s (y/N) ", sym, question))
 	if a := strings.ToLower(strings.TrimSpace(answer)); a == "y" || a == "yes" {
 		return nil
 	}
@@ -229,12 +230,20 @@ func (env *Env) Ask(question string) (string, error) {
 	if env.Color {
 		sym = cyan + sym + reset
 	}
-	fmt.Fprintf(env.Err, "%s %s ", sym, question)
-	line, err := env.In.ReadString('\n')
+	line, err := env.read(fmt.Sprintf("%s %s ", sym, question))
 	if err != nil && line == "" {
 		return "", err
 	}
 	return strings.TrimSpace(line), nil
+}
+
+// read shows prompt and reads one line of the operator's answer.
+func (env *Env) read(prompt string) (string, error) {
+	if env.readLine != nil {
+		return env.readLine(prompt)
+	}
+	fmt.Fprint(env.Err, prompt)
+	return env.In.ReadString('\n')
 }
 
 // groups lists the help groups in the order help shows them.

@@ -7,6 +7,7 @@
 - Each command says who may use it (everyone, VIPs, moderators or the channel's owner), and Lys checks it before running the command; `!help <command>` shows it. A refused command answers "Only moderators can use !autopost." and the like.
 - Cooldowns and caps on slow commands: `!gpt` runs at most 2 at a time, with 30 seconds between one person's uses; `!catfact` and `!randomdog` at most 2, 10 seconds apart; Letterboxd and Sleeper at most 4. Past a cap, Lys answers "Busy, try again in a moment."; within a cooldown it stays quiet. The channel's owner and moderators skip cooldowns.
 - `lys channel prefix <channel> <prefix>` changes a channel's prefix from the CLI.
+- `lys shell`: the CLI's commands one after another, with line editing, history and Tab completion, and the environment in the prompt (`lys (prod)>`, prod in red). On the server: `docker exec -it lys /lys shell`, or `alias lys='docker exec -it lys /lys shell'`.
 - Faster chat where the bot is a moderator, VIP or broadcaster: messages there go out 0.3 seconds apart instead of 1.5. Lys learns the bot's role from the badges on its own messages and remembers it across restarts.
 - One limit for all of the bot's messages across channels, a little under Twitch's (20 per 30 seconds, 100 where the bot is privileged), so busy channels together never get the bot ignored for an hour. When messages have to wait, replies go first, then announcements and reminders, then autoposts. Helix's own rate limit is logged once a minute while Lys sends.
 
