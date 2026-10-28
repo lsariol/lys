@@ -57,7 +57,7 @@ EOF
 	docker run --rm -i postgres:18-alpine pg_restore -f - <"$DUMP" |
 		grep -v -e '^SET transaction_timeout' -e '^\\restrict ' -e '^\\unrestrict ' | sql -d botsuite_db >/dev/null
 
-	echo "== 3. lys-rename.md step 5: database and roles"
+	echo "== 3. Window step 4a: database and roles"
 	sql -d postgres <<'EOF'
 ALTER DATABASE botsuite_db RENAME TO lys_db;
 ALTER ROLE botsuite_owner    RENAME TO lys_owner;
@@ -67,7 +67,7 @@ ALTER ROLE botsuite_reader   RENAME TO lys_reader;
 ALTER ROLE lys_migrator SET role = 'lys_owner';
 EOF
 
-	echo "== 4. lys-rename.md step 6: schema and functions"
+	echo "== 4. Window step 4b: schema and functions"
 	sql -d lys_db <<'EOF'
 ALTER SCHEMA botsuite RENAME TO lys;
 DO $$
@@ -90,7 +90,7 @@ EOF
 	left=$(sql -d lys_db -At -c "SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'lys' AND p.prokind = 'f' AND pg_get_functiondef(p.oid) LIKE '%botsuite.%'")
 	echo "functions still naming botsuite: $left (want 0)"
 
-	echo "== 5. Window step 3: hand everything to lys_owner"
+	echo "== 5. Window step 5: hand everything to lys_owner"
 	sql -d lys_db <<'EOF'
 BEGIN;
 ALTER DATABASE lys_db OWNER TO lys_owner;

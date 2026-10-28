@@ -2,7 +2,7 @@
 
 The runbook for renaming everything called "botsuite" to "Lys": the database, its roles and schema, the Cove secrets and token, the code, and the container.
 
-**Status:** done on dev. Prod still to do.
+**Status:** done on dev. **For prod, follow `notes/v0.0.0-cutover.md` "The window" instead:** it has every step of this rename, corrected (Lighthouse's `lh stop` and `lh rename`, the Cove keys that stay, LetterboxdWatcher retired rather than updated).
 
 This is a one-off manual change because Lys has no database migrations yet. When Lys gets goose migrations, the baseline should be taken **after** this rename, so it starts from the `lys` names. After that, schema changes like this belong in migrations.
 
