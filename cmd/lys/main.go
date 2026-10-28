@@ -194,7 +194,7 @@ func run(ctx context.Context, cfg *config.Config, cove *coveclient.Client, db *d
 		autopost.Kind: autopost.Post(chat),
 	})
 
-	for _, s := range []sources.Source{notifications, schedule, letterboxdfeeds.New(db.Pool, httpClient), sleeperfeed.New(sleeperClient, db.Pool)} {
+	for _, s := range []sources.Source{notifications, schedule, letterboxdfeeds.New(db.Pool, httpClient), sleeperfeed.New(sleeperClient, db.Pool), sleeperfeed.NewLineups(sleeperClient, db.Pool)} {
 		go func() {
 			if err := s.Run(ctx, r); err != nil && !errors.Is(err, context.Canceled) {
 				log.Printf("✗ source %q: %v", s.Name(), err)

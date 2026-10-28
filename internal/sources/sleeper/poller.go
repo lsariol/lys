@@ -3,7 +3,6 @@ package sleeper
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"sort"
@@ -12,7 +11,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/lsariol/lys/internal/core"
 	api "github.com/lsariol/lys/internal/features/sleeper"
 	"github.com/lsariol/lys/internal/sources"
 )
@@ -117,12 +115,17 @@ func (p *Poller) pollLeague(ctx context.Context, l polledLeague, weeks []int, we
 		}
 		latest = max(latest, tx.StatusUpdated)
 
-		recorded, err := p.record(ctx, l, tx)
+		data, err := json.Marshal(tx)
 		if err != nil {
 			return err
 		}
-		announce := recorded && !l.firstPoll && ((tx.Type == "trade" && l.trades) || (tx.Type == "waiver" && l.waivers))
-		if !announce {
+		ev := event{league: l.sleeperID, kind: tx.Type, id: tx.TransactionID}
+		recorded, err := record(ctx, p.db, ev, data, time.UnixMilli(tx.StatusUpdated))
+		if err != nil {
+			return err
+		}
+		wanted := recorded && !l.firstPoll && ((tx.Type == "trade" && l.trades) || (tx.Type == "waiver" && l.waivers))
+		if !wanted {
 			continue
 		}
 
@@ -134,7 +137,7 @@ func (p *Poller) pollLeague(ctx context.Context, l polledLeague, weeks []int, we
 		if !ok {
 			continue
 		}
-		if err := p.announce(ctx, l, tx, text, pub); err != nil {
+		if err := announce(ctx, p.db, ev, l.communityID, text, pub); err != nil {
 			return err
 		}
 	}
@@ -147,65 +150,6 @@ func (p *Poller) pollLeague(ctx context.Context, l polledLeague, weeks []int, we
 		WHERE id = $1`, l.id, week, latest)
 	if err != nil {
 		return fmt.Errorf("database: record the Sleeper poll: %w", err)
-	}
-	return nil
-}
-
-// record notes a transaction in sleeper_events; false if it was already there.
-func (p *Poller) record(ctx context.Context, l polledLeague, tx api.Transaction) (bool, error) {
-	data, err := json.Marshal(tx)
-	if err != nil {
-		return false, err
-	}
-	var id uuid.UUID
-	err = p.db.QueryRow(ctx, `
-		INSERT INTO lys.sleeper_events (sleeper_league_id, event_type, external_event_id, event_data, occurred_at)
-		VALUES ($1, $2, $3, $4, to_timestamp($5::bigint / 1000.0))
-		ON CONFLICT (sleeper_league_id, event_type, external_event_id) DO NOTHING
-		RETURNING id`, l.sleeperID, tx.Type, tx.TransactionID, data, tx.StatusUpdated).Scan(&id)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return false, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("database: record Sleeper %s %s: %w", tx.Type, tx.TransactionID, err)
-	}
-	return true, nil
-}
-
-// announce posts text in every active channel of the league's community.
-func (p *Poller) announce(ctx context.Context, l polledLeague, tx api.Transaction, text string, pub sources.Publisher) error {
-	rows, err := p.db.Query(ctx, `
-		SELECT platform, external_id, name FROM lys.platform_connections
-		WHERE community_id = $1 AND authorized AND enabled AND NOT admin_blocked`, l.communityID)
-	if err != nil {
-		return fmt.Errorf("database: read the league's channels: %w", err)
-	}
-	type channel struct {
-		platform string
-		core.Channel
-	}
-	channels, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (channel, error) {
-		var c channel
-		err := r.Scan(&c.platform, &c.ID, &c.Name)
-		return c, err
-	})
-	if err != nil {
-		return fmt.Errorf("database: read the league's channels: %w", err)
-	}
-
-	sent := false
-	for _, c := range channels {
-		if err := pub.Publish(ctx, core.Outbound{Platform: c.platform, Channel: c.Channel, Text: text}); err != nil {
-			log.Printf("[Sleeper] announce %s %s in %q: %v", tx.Type, tx.TransactionID, c.Name, err)
-			continue
-		}
-		sent = true
-	}
-	if sent {
-		if _, err := p.db.Exec(ctx, `UPDATE lys.sleeper_events SET published_at = now()
-			WHERE sleeper_league_id = $1 AND event_type = $2 AND external_event_id = $3`, l.sleeperID, tx.Type, tx.TransactionID); err != nil {
-			return fmt.Errorf("database: mark Sleeper %s %s announced: %w", tx.Type, tx.TransactionID, err)
-		}
 	}
 	return nil
 }

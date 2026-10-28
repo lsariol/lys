@@ -1,9 +1,11 @@
 package sleeper
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -55,5 +57,58 @@ func TestPlayerCatalogLoadingAndRefreshFailure(t *testing.T) {
 	}
 	if calls != 1 {
 		t.Fatalf("retry cooldown failed: %d requests", calls)
+	}
+}
+
+func TestGames(t *testing.T) {
+	fixture, err := os.ReadFile("testdata/espn-week9.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	c := New(&http.Client{Transport: transport(func(req *http.Request) (*http.Response, error) {
+		calls++
+		if q := req.URL.Query(); req.URL.Host != "site.api.espn.com" || q.Get("week") != "9" || q.Get("dates") != "2026" || q.Get("seasontype") != "2" {
+			t.Errorf("unexpected request %s", req.URL)
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewReader(fixture)), Header: make(http.Header)}, nil
+	})})
+
+	games, err := c.Games(context.Background(), "2026", 9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(games) != 15 {
+		t.Fatalf("%d games, want 15", len(games))
+	}
+	first := games[0]
+	if first.Name() != "JAX @ BAL" || !first.Kickoff.Equal(time.Date(2026, 11, 6, 1, 15, 0, 0, time.UTC)) {
+		t.Fatalf("first game: %s at %s", first.Name(), first.Kickoff)
+	}
+	if got := first.Kickoff.In(Eastern).Format("Mon 3:04 PM"); got != "Thu 8:15 PM" {
+		t.Fatalf("in Eastern time: %s", got)
+	}
+	for i := 1; i < len(games); i++ {
+		if games[i].Kickoff.Before(games[i-1].Kickoff) {
+			t.Fatal("games aren't in kickoff order")
+		}
+	}
+	if _, err := c.Games(context.Background(), "2026", 9); err != nil || calls != 1 {
+		t.Fatalf("the week wasn't cached: %d calls, %v", calls, err)
+	}
+
+	// A different week in the answer, or one without teams, is an error, never a guess.
+	if _, err := New(&http.Client{Transport: transport(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewReader(fixture)), Header: make(http.Header)}, nil
+	})}).Games(context.Background(), "2026", 10); err == nil {
+		t.Fatal("week 9's games were accepted for week 10")
+	}
+	for _, body := range []string{`{"week":{"number":9},"events":[]}`, `{"week":{"number":9},"events":[{"date":"soon"}]}`, `{"week":{"number":9},"events":[{"date":"2026-11-06T01:15Z","competitions":[{"competitors":[]}]}]}`} {
+		_, err := New(&http.Client{Transport: transport(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+		})}).Games(context.Background(), "2026", 9)
+		if err == nil {
+			t.Errorf("accepted %s", body)
+		}
 	}
 }

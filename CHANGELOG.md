@@ -2,9 +2,13 @@
 
 ## v0.1.0 (unreleased)
 
+### Added
+- Lineup reminders for linked Sleeper leagues, in the league's channels during the NFL regular season: 1 day and 1 hour before the week's first game, and 1 hour before Sunday's first game. Kickoff times come from ESPN's schedule, shown in Eastern time. A reminder that's more than 30 minutes late (after a restart, say) isn't sent. `!ff alerts lineups off` turns them off.
+
 ### Changed
 - `!oneup stats <puzzle number>` and stats by name use their own indexes instead of reading every game.
 - Built on pgx 5.11 and goose 3.29.
+- The `!sleeper` command and the Sleeper announcements share one Sleeper client, so the 15 MB player catalog is downloaded once a day instead of once each.
 
 ### Removed
 - Lys no longer copies channel, prefix, game, request and Sleeper changes into the tables the old bot read; it reads and writes only its own. Letterboxd subscriptions are still copied until v0.1.1 drops those tables, so going back to v0.0.0 keeps them.

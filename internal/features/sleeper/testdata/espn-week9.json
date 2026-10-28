@@ -1,0 +1,446 @@
+{
+ "season": {
+  "year": 2026,
+  "type": 2
+ },
+ "week": {
+  "number": 9
+ },
+ "events": [
+  {
+   "id": "401873037",
+   "date": "2026-11-06T01:15Z",
+   "shortName": "JAX @ BAL",
+   "competitions": [
+    {
+     "date": "2026-11-06T01:15Z",
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "abbreviation": "BAL"
+       }
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "abbreviation": "JAX"
+       }
+      }
+     ]
+    }
+   ],
+   "status": {
+    "type": {
+     "name": "STATUS_SCHEDULED"
+    }
+   }
+  },
+  {
+   "id": "401873038",
+   "date": "2026-11-08T14:30Z",
+   "shortName": "CIN VS ATL",
+   "competitions": [
+    {
+     "date": "2026-11-08T14:30Z",
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "abbreviation": "ATL"
+       }
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "abbreviation": "CIN"
+       }
+      }
+     ]
+    }
+   ],
+   "status": {
+    "type": {
+     "name": "STATUS_SCHEDULED"
+    }
+   }
+  },
+  {
+   "id": "401873040",
+   "date": "2026-11-08T18:00Z",
+   "shortName": "DAL @ IND",
+   "competitions": [
+    {
+     "date": "2026-11-08T18:00Z",
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "abbreviation": "IND"
+       }
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "abbreviation": "DAL"
+       }
+      }
+     ]
+    }
+   ],
+   "status": {
+    "type": {
+     "name": "STATUS_SCHEDULED"
+    }
+   }
+  },
+  {
+   "id": "401873045",
+   "date": "2026-11-08T18:00Z",
+   "shortName": "NYJ @ KC",
+   "competitions": [
+    {
+     "date": "2026-11-08T18:00Z",
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "abbreviation": "KC"
+       }
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "abbreviation": "NYJ"
+       }
+      }
+     ]
+    }
+   ],
+   "status": {
+    "type": {
+     "name": "STATUS_SCHEDULED"
+    }
+   }
+  },
+  {
+   "id": "401873042",
+   "date": "2026-11-08T18:00Z",
+   "shortName": "DET @ MIA",
+   "competitions": [
+    {
+     "date": "2026-11-08T18:00Z",
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "abbreviation": "MIA"
+       }
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "abbreviation": "DET"
+       }
+      }
+     ]
+    }
+   ],
+   "status": {
+    "type": {
+     "name": "STATUS_SCHEDULED"
+    }
+   }
+  },
+  {
+   "id": "401873039",
+   "date": "2026-11-08T18:00Z",
+   "shortName": "CLE @ NO",
+   "competitions": [
+    {
+     "date": "2026-11-08T18:00Z",
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "abbreviation": "NO"
+       }
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "abbreviation": "CLE"
+       }
+      }
+     ]
+    }
+   ],
+   "status": {
+    "type": {
+     "name": "STATUS_SCHEDULED"
+    }
+   }
+  },
+  {
+   "id": "401873044",
+   "date": "2026-11-08T18:00Z",
+   "shortName": "NYG @ PHI",
+   "competitions": [
+    {
+     "date": "2026-11-08T18:00Z",
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "abbreviation": "PHI"
+       }
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "abbreviation": "NYG"
+       }
+      }
+     ]
+    }
+   ],
+   "status": {
+    "type": {
+     "name": "STATUS_SCHEDULED"
+    }
+   }
+  },
+  {
+   "id": "401873043",
+   "date": "2026-11-08T18:00Z",
+   "shortName": "LAR @ WSH",
+   "competitions": [
+    {
+     "date": "2026-11-08T18:00Z",
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "abbreviation": "WSH"
+       }
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "abbreviation": "LAR"
+       }
+      }
+     ]
+    }
+   ],
+   "status": {
+    "type": {
+     "name": "STATUS_SCHEDULED"
+    }
+   }
+  },
+  {
+   "id": "401873041",
+   "date": "2026-11-08T18:00Z",
+   "shortName": "DEN @ CAR",
+   "competitions": [
+    {
+     "date": "2026-11-08T18:00Z",
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "abbreviation": "CAR"
+       }
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "abbreviation": "DEN"
+       }
+      }
+     ]
+    }
+   ],
+   "status": {
+    "type": {
+     "name": "STATUS_SCHEDULED"
+    }
+   }
+  },
+  {
+   "id": "401873046",
+   "date": "2026-11-08T21:05Z",
+   "shortName": "HOU @ LAC",
+   "competitions": [
+    {
+     "date": "2026-11-08T21:05Z",
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "abbreviation": "LAC"
+       }
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "abbreviation": "HOU"
+       }
+      }
+     ]
+    }
+   ],
+   "status": {
+    "type": {
+     "name": "STATUS_SCHEDULED"
+    }
+   }
+  },
+  {
+   "id": "401873049",
+   "date": "2026-11-08T21:25Z",
+   "shortName": "GB @ NE",
+   "competitions": [
+    {
+     "date": "2026-11-08T21:25Z",
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "abbreviation": "NE"
+       }
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "abbreviation": "GB"
+       }
+      }
+     ]
+    }
+   ],
+   "status": {
+    "type": {
+     "name": "STATUS_SCHEDULED"
+    }
+   }
+  },
+  {
+   "id": "401873047",
+   "date": "2026-11-08T21:25Z",
+   "shortName": "LV @ SF",
+   "competitions": [
+    {
+     "date": "2026-11-08T21:25Z",
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "abbreviation": "SF"
+       }
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "abbreviation": "LV"
+       }
+      }
+     ]
+    }
+   ],
+   "status": {
+    "type": {
+     "name": "STATUS_SCHEDULED"
+    }
+   }
+  },
+  {
+   "id": "401873048",
+   "date": "2026-11-08T21:25Z",
+   "shortName": "ARI @ SEA",
+   "competitions": [
+    {
+     "date": "2026-11-08T21:25Z",
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "abbreviation": "SEA"
+       }
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "abbreviation": "ARI"
+       }
+      }
+     ]
+    }
+   ],
+   "status": {
+    "type": {
+     "name": "STATUS_SCHEDULED"
+    }
+   }
+  },
+  {
+   "id": "401873050",
+   "date": "2026-11-09T01:20Z",
+   "shortName": "TB @ CHI",
+   "competitions": [
+    {
+     "date": "2026-11-09T01:20Z",
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "abbreviation": "CHI"
+       }
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "abbreviation": "TB"
+       }
+      }
+     ]
+    }
+   ],
+   "status": {
+    "type": {
+     "name": "STATUS_SCHEDULED"
+    }
+   }
+  },
+  {
+   "id": "401873051",
+   "date": "2026-11-10T01:15Z",
+   "shortName": "BUF @ MIN",
+   "competitions": [
+    {
+     "date": "2026-11-10T01:15Z",
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "abbreviation": "MIN"
+       }
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "abbreviation": "BUF"
+       }
+      }
+     ]
+    }
+   ],
+   "status": {
+    "type": {
+     "name": "STATUS_SCHEDULED"
+    }
+   }
+  }
+ ]
+}

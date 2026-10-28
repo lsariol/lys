@@ -8,3 +8,5 @@ users.json
 new.txt
 __debug_bin*
 notes/*
+# Local runs keep everything they touch here.
+.dev/

@@ -18,10 +18,12 @@ const baseURL = "https://api.sleeper.app/v1"
 // ErrNotFound means Sleeper has no such league (or other object).
 var ErrNotFound = errors.New("Sleeper: not found")
 
-// Client calls the Sleeper API. Share one: it keeps the player catalog.
+// Client calls the Sleeper API, and ESPN for kickoff times. Share one: it
+// keeps the player catalog and the schedule.
 type Client struct {
-	http    *http.Client
-	catalog catalog
+	http     *http.Client
+	catalog  catalog
+	schedule schedule
 }
 
 func New(http *http.Client) *Client { return &Client{http: http} }
