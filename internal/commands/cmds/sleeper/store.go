@@ -90,7 +90,7 @@ const selectMember = `
 		SELECT
 		c.league_id,
 		c.platform_user_id,
-		COALESCE(pu.display_name, c.twitch_username, ''),
+		pu.display_name,
 		c.sleeper_user_id,
 		c.sleeper_username,
 		c.sleeper_roster_id
@@ -118,6 +118,23 @@ func getConnectionByUserID(ctx context.Context, leagueID uuid.UUID, platformUser
 	}
 
 	return &connection, nil
+}
+
+// getConnectionByRoster finds who linked a team, or nil.
+func getConnectionByRoster(ctx context.Context, leagueID uuid.UUID, rosterID int, sl *Sleeper) (*SleeperConnection, error) {
+	var c SleeperConnection
+	err := sl.db.QueryRow(ctx, selectMember+`
+		WHERE c.league_id = $1
+			AND c.sleeper_roster_id = $2`, leagueID, rosterID).Scan(
+		&c.LeagueID, &c.PlatformUserID, &c.DisplayName, &c.SleeperUserID, &c.SleeperUsername, &c.SleeperRosterID,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &c, nil
 }
 
 // getConnectionByUsername finds a member by their current chat name.
@@ -164,7 +181,7 @@ func getConnectionByUsername(ctx context.Context, leagueID uuid.UUID, name strin
 	return connection, nil
 }
 
-func linkUser(ctx context.Context, leagueID uuid.UUID, platformUserID int64, sleeperUserID string, sleeperUsername string, sleeperRosterID int, sl *Sleeper) error {
+func addMember(ctx context.Context, leagueID uuid.UUID, platformUserID int64, sleeperUserID string, sleeperUsername string, sleeperRosterID int, sl *Sleeper) error {
 	if platformUserID == 0 {
 		return errors.New("sleeper: the member's identity couldn't be looked up, so they can't be linked")
 	}

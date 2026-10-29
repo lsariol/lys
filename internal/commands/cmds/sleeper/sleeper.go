@@ -2,7 +2,7 @@ package sleeper
 
 import (
 	"context"
-	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -18,41 +18,37 @@ type Sleeper struct {
 
 func New(client *api.Client, db *pgxpool.Pool) *Sleeper { return &Sleeper{client: client, db: db} }
 
+// subcommands is what !ff does, for !ff help, !help ff and unknown words.
+const subcommands = "team, matchup, scores, standings, roster, whohas, trades, recap, highscore, playoffs, draft, link, unlink, alerts"
+
 func (*Sleeper) Spec() commands.Spec {
 	return commands.Spec{
 		Name:        "sleeper",
 		Aliases:     []string{"ff"},
-		Description: "Fantasy Football ran through Sleeper.",
-		Usage:       "!sleeper",
-		Timeout:     10 * time.Second,
+		Description: "Fantasy football from the channel's Sleeper league.",
+		Usage:       "!ff <" + strings.ReplaceAll(subcommands, ", ", "|") + ">",
+		Timeout:     20 * time.Second,
 		Concurrency: 16,
 	}
 }
 
 func (sl *Sleeper) Run(ctx context.Context, e commands.Request) (commands.Reply, error) {
-
 	if len(e.Args) == 0 {
-		return commands.Reply{Text: "https://sleeper.com/leagues/1388284269125726208"}, nil
+		return root(ctx, e, sl)
 	}
-
-	switch e.Args[0] {
+	switch strings.ToLower(e.Args[0]) {
+	case "help":
+		return say("%sff %s. Most take an @user, like %sff team @name.", e.Prefix, subcommands, e.Prefix), nil
 	case "draft":
-
-		timeUntilDraft := TimeUntilDraft()
-		return commands.Reply{Text: timeUntilDraft}, nil
-
+		return draft(ctx, e, sl)
 	case "link":
 		return link(ctx, e, sl)
-
 	case "unlink":
 		return unlink(ctx, e, sl)
-
 	case "standings":
 		return standings(ctx, e, sl)
-
 	case "team":
 		return team(ctx, e, sl)
-
 	case "matchup":
 		return matchup(ctx, e, sl)
 	case "scores":
@@ -62,24 +58,27 @@ func (sl *Sleeper) Run(ctx context.Context, e commands.Request) (commands.Reply,
 	case "highscore":
 		return highscore(ctx, e, sl)
 	case "trades":
-		return trades(e.Args), nil
+		return trades(ctx, e, sl)
+	case "recap":
+		return recap(ctx, e, sl)
 	case "whohas":
 		return whohas(ctx, e, sl)
 	case "alerts":
 		return alerts(ctx, e, sl)
 	case "playoffs":
 		return playoffs(ctx, e, sl)
-
-	default:
-		return commands.Reply{Text: "🏈 Invalid command"}, nil
 	}
-
+	return say("There's no %sff %s. Try: %s.", e.Prefix, e.Args[0], subcommands), nil
 }
 
-// trades answers "!ff trades <name>"; args includes "trades".
-func trades(args []string) commands.Reply {
-	if len(args) < 2 {
-		return commands.Reply{Text: "🏈 Usage: !ff trades <name>"}
+// root answers a bare !ff with the channel's league.
+func root(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply, error) {
+	league, err := getLeague(ctx, e.Connection.CommunityID, sl)
+	if err != nil {
+		return broken(), err
 	}
-	return commands.Reply{Text: fmt.Sprintf("🏈 Recent trades: %s ↔ noto — Lamb + 2nd for Bijan | Alex ↔ Chris — Andrews for Flowers", args[1])}
+	if league == nil {
+		return noLeague(e), nil
+	}
+	return say("%s: https://sleeper.com/leagues/%s · Try %sff help for the commands.", league.LeagueName, league.SleeperLeagueID, e.Prefix), nil
 }

@@ -3,99 +3,35 @@ package sleeper
 import (
 	"context"
 	"fmt"
-	"log"
-	"strconv"
 	"strings"
 
 	"github.com/lsariol/lys/internal/commands"
 	api "github.com/lsariol/lys/internal/features/sleeper"
 )
 
+// standings is "!ff standings": every team by record, then points scored.
 func standings(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply, error) {
-
-	if len(e.Args) < 1 || len(e.Args) > 2 {
-		return commands.Reply{Text: "Usage: !sleeper standings [page]"}, nil
-	}
-
-	page := 1
-	if len(e.Args) == 2 {
-		requestedPage, err := strconv.Atoi(e.Args[1])
-		if err != nil || requestedPage < 1 {
-			return commands.Reply{Text: "Usage: !sleeper standings [page]. Page must be a positive number."}, nil
-		}
-		page = requestedPage
-	}
-
 	league, err := getLeague(ctx, e.Connection.CommunityID, sl)
 	if err != nil {
-		log.Print(err)
-		return commands.Reply{Text: "Internal error getting league standings."}, err
+		return broken(), err
 	}
-
 	if league == nil {
-		return commands.Reply{Text: "This channel is not associated with any league."}, nil
+		return noLeague(e), nil
 	}
-
-	sleeperRosters, err := sl.client.Rosters(ctx, league.SleeperLeagueID)
+	rosters, users, err := sl.leagueData(ctx, league)
 	if err != nil {
-		log.Print(err)
-		return commands.Reply{Text: "Unable to get standings from Sleeper."}, err
+		return unreachable(), err
 	}
-
-	if sleeperRosters == nil || len(*sleeperRosters) == 0 {
-		return commands.Reply{Text: "No rosters are available for this league yet."}, nil
+	if len(rosters) == 0 {
+		return say("The league has no teams yet."), nil
 	}
-
-	const pageSize = 4
-	totalPages := (len(*sleeperRosters) + pageSize - 1) / pageSize
-
-	if page > totalPages {
-		return commands.Reply{Text: fmt.Sprintf("Standings has %d page(s).", totalPages)}, nil
-	}
-
-	sleeperUsers, err := sl.client.LeagueUsers(ctx, league.SleeperLeagueID)
-	if err != nil {
-		log.Print(err)
-		return commands.Reply{Text: "Unable to get league members from Sleeper."}, err
-	}
-
-	var users []api.LeagueUser
-	if sleeperUsers != nil {
-		users = *sleeperUsers
-	}
-
-	rosters := sortStandings(*sleeperRosters)
-
-	start := (page - 1) * pageSize
-	end := start + pageSize
-	if end > len(rosters) {
-		end = len(rosters)
-	}
+	n := sl.names(ctx, league, rosters, users, nil)
 
 	var entries []string
-
-	for i := start; i < end; i++ {
-		roster := rosters[i]
-
-		name := api.TeamName(roster, users)
-		name = strings.Join(strings.Fields(name), " ")
-
-		nameRunes := []rune(name)
-		if len(nameRunes) > 40 {
-			name = string(nameRunes[:37]) + "..."
-		}
-
-		record := fmt.Sprintf("%d-%d", roster.Settings.Wins, roster.Settings.Losses)
-		if roster.Settings.Ties > 0 {
-			record = fmt.Sprintf("%s-%d", record, roster.Settings.Ties)
-		}
-
-		points := float64(roster.Settings.Fpts) + float64(roster.Settings.FptsDecimal)/100
-
-		entries = append(entries, fmt.Sprintf("%d. %s %s (%.2f PF)",
-			i+1, name, record, points))
+	for i, r := range sortStandings(rosters) {
+		pf, _ := pointsFor(r.Settings)
+		entries = append(entries, fmt.Sprintf("%d. %s %s, %.2f PF", i+1, n.TeamAndWho(r.RosterID),
+			api.Record(r.Settings.Wins, r.Settings.Losses, r.Settings.Ties), pf))
 	}
-
-	return commands.Reply{Text: fmt.Sprintf("Standings by record/PF (%d/%d): %s",
-		page, totalPages, strings.Join(entries, " | "))}, nil
+	return say("Standings: %s", strings.Join(entries, " · ")), nil
 }

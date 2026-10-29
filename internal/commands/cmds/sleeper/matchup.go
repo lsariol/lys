@@ -3,170 +3,88 @@ package sleeper
 import (
 	"context"
 	"fmt"
-	"log"
+	"strconv"
 	"strings"
 
 	"github.com/lsariol/lys/internal/commands"
 	api "github.com/lsariol/lys/internal/features/sleeper"
 )
 
+// matchup is "!ff matchup [@user] [week]": the score of a team's matchup,
+// this week's unless a week is given.
 func matchup(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply, error) {
-
-	if len(e.Args) < 1 || len(e.Args) > 2 {
-		return commands.Reply{Text: "Usage: !sleeper matchup [@user]"}, nil
+	const form = "matchup [@user] [week]"
+	if len(e.Args) > 3 {
+		return usage(e, form), nil
 	}
-
-	username := e.User.Name
-	if len(e.Args) == 2 {
-		username = strings.TrimPrefix(strings.TrimSpace(e.Args[1]), "@")
-		if username == "" {
-			return commands.Reply{Text: "Usage: !sleeper matchup [@user]"}, nil
+	name, self := targetUser(e, e.Args[1:])
+	week := 0
+	for _, a := range e.Args[1:] {
+		if strings.HasPrefix(a, "@") {
+			continue
 		}
+		w, err := strconv.Atoi(a)
+		if err != nil || w < 1 || w > 18 {
+			return usage(e, form+" (a week from 1 to 18)"), nil
+		}
+		week = w
 	}
 
 	league, err := getLeague(ctx, e.Connection.CommunityID, sl)
 	if err != nil {
-		log.Print(err)
-		return commands.Reply{Text: "Internal error getting league information."}, err
+		return broken(), err
 	}
-
 	if league == nil {
-		return commands.Reply{Text: "This channel is not associated with any league."}, nil
+		return noLeague(e), nil
 	}
-
-	var connection *SleeperConnection
-
-	if len(e.Args) == 1 || strings.EqualFold(username, e.User.Name) {
-		connection, err = getConnectionByUserID(ctx, league.ID, e.Identity.PlatformUserID, sl)
-	} else {
-		connection, err = getConnectionByUsername(ctx, league.ID, username, sl)
-	}
-
-	if err != nil {
-		log.Print(err)
-		return commands.Reply{Text: "Internal error finding the linked account."}, err
-	}
-
-	if connection == nil {
-		return commands.Reply{Text: fmt.Sprintf("@%s is not linked to a Sleeper account in this league.",
-			username)}, nil
-	}
-
-	sleeperRosters, err := sl.client.Rosters(ctx, league.SleeperLeagueID)
-	if err != nil {
-		log.Print(err)
-		return commands.Reply{Text: "Unable to get league rosters from Sleeper."}, err
-	}
-
-	if sleeperRosters == nil || len(*sleeperRosters) == 0 {
-		return commands.Reply{Text: "No rosters are available for this league yet."}, nil
-	}
-
-	rosters := *sleeperRosters
-
-	var roster *api.Roster
-
-	for i := range rosters {
-		if rosters[i].RosterID == connection.SleeperRosterID {
-			roster = &rosters[i]
-			break
-		}
-	}
-
-	if roster == nil {
-		return commands.Reply{Text: fmt.Sprintf("@%s's linked roster could not be found in this league.",
-			username)}, nil
-	}
-
-	if roster.OwnerID == "" || roster.OwnerID != connection.SleeperUserID {
-		return commands.Reply{Text: fmt.Sprintf("@%s's saved link no longer matches the roster owner. Please unlink and link the account again.",
-			username)}, nil
-	}
-
 	state, err := sl.client.NFLState(ctx)
 	if err != nil {
-		log.Print(err)
-		return commands.Reply{Text: "Unable to get the current week from Sleeper."}, err
+		return unreachable(), err
+	}
+	current, message := getCurrentWeek(*league, *state)
+	switch {
+	case week == 0 && message != "":
+		return say("%s Ask for a week: %sff %s.", message, e.Prefix, form), nil
+	case week == 0:
+		week = current
+	case message == "" && week > current:
+		return say("Week %d hasn't started yet.", week), nil
 	}
 
-	week, message := getCurrentWeek(*league, *state)
-	if message != "" {
-		return commands.Reply{Text: message}, nil
-	}
-
-	sleeperMatchups, err := sl.client.Matchups(ctx, league.SleeperLeagueID, week)
+	rosters, users, err := sl.leagueData(ctx, league)
 	if err != nil {
-		log.Print(err)
-		return commands.Reply{Text: "Unable to get matchup scores from Sleeper."}, err
+		return unreachable(), err
 	}
-
-	if sleeperMatchups == nil || len(*sleeperMatchups) == 0 {
-		return commands.Reply{Text: fmt.Sprintf("No matchup scores are available for Week %d yet.",
-			week)}, nil
+	roster, reply, err := sl.member(ctx, e, league, name, self, rosters)
+	if reply != nil {
+		return *reply, err
 	}
+	matchups, err := sl.client.Matchups(ctx, league.SleeperLeagueID, week)
+	if err != nil {
+		return unreachable(), err
+	}
+	n := sl.names(ctx, league, rosters, users, nil)
 
-	var userMatchup *api.Matchup
-	var opponentMatchup *api.Matchup
-
-	groups := groupMatchups(*sleeperMatchups)
-
-	for _, group := range groups {
-		for i := range group {
-			if group[i].RosterID == roster.RosterID {
-				userMatchup = &group[i]
-				break
+	for _, g := range api.GroupMatchups(*matchups) {
+		mine := -1
+		for i := range g {
+			if g[i].RosterID == roster.RosterID {
+				mine = i
 			}
 		}
-
-		if userMatchup == nil {
+		switch {
+		case mine < 0:
 			continue
+		case len(g) == 1:
+			return say("Week %d: %s %.2f, with no opponent.", week, n.Who(roster.RosterID), api.Points(g[0])), nil
+		case len(g) == 2:
+			other := g[1-mine]
+			return say("Week %d: %s %.2f vs %s %.2f", week, n.Who(roster.RosterID), api.Points(g[mine]), n.Who(other.RosterID), api.Points(other)), nil
+		default:
+			return unreachable(), fmt.Errorf("Sleeper: week %d has a matchup of %d teams", week, len(g))
 		}
-
-		if len(group) > 2 {
-			return commands.Reply{Text: "Sleeper returned an unsupported matchup with more than two teams."}, nil
-		}
-
-		for i := range group {
-			if group[i].RosterID != roster.RosterID {
-				opponentMatchup = &group[i]
-				break
-			}
-		}
-
-		if len(group) == 2 && opponentMatchup == nil {
-			return commands.Reply{Text: "Sleeper returned unexpected matchup data."}, nil
-		}
-
-		break
 	}
-
-	if userMatchup == nil {
-		return commands.Reply{Text: fmt.Sprintf("No matchup is available for @%s in Week %d yet.",
-			username, week)}, nil
-	}
-
-	sleeperUsers, err := sl.client.LeagueUsers(ctx, league.SleeperLeagueID)
-	if err != nil {
-		log.Print(err)
-		return commands.Reply{Text: "Unable to get league members from Sleeper."}, err
-	}
-
-	var users []api.LeagueUser
-	if sleeperUsers != nil {
-		users = *sleeperUsers
-	}
-
-	name := getMatchupTeamName(roster.RosterID, rosters, users)
-	points := getMatchupPoints(*userMatchup)
-
-	if opponentMatchup == nil {
-		return commands.Reply{Text: fmt.Sprintf("Week %d: %s %.2f | No opponent listed.",
-			week, name, points)}, nil
-	}
-
-	opponentName := getMatchupTeamName(opponentMatchup.RosterID, rosters, users)
-	opponentPoints := getMatchupPoints(*opponentMatchup)
-
-	return commands.Reply{Text: fmt.Sprintf("Week %d: %s %.2f vs %s %.2f",
-		week, name, points, opponentName, opponentPoints)}, nil
+	return say("%s has no matchup in week %d.", n.Who(roster.RosterID), week), nil
 }
+
+func itoa(n int) string { return strconv.Itoa(n) }

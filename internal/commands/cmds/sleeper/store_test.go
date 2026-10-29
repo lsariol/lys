@@ -58,7 +58,7 @@ func TestStore(t *testing.T) {
 		t.Fatalf("conflict by community: %+v, %v", conflict, err)
 	}
 
-	if err := linkUser(ctx, league.ID, member, "s-1", "sleeperName", 4, sl); err != nil {
+	if err := addMember(ctx, league.ID, member, "s-1", "sleeperName", 4, sl); err != nil {
 		t.Fatal(err)
 	}
 	byID, err := getConnectionByUserID(ctx, league.ID, member, sl)

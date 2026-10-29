@@ -2,133 +2,53 @@ package sleeper
 
 import (
 	"context"
-	"fmt"
-	"log"
-	"strconv"
 	"strings"
 
 	"github.com/lsariol/lys/internal/commands"
 	api "github.com/lsariol/lys/internal/features/sleeper"
 )
 
+// roster is "!ff roster [@user]": starters by position, then the bench,
+// injured reserve and taxi squad. A long roster takes two messages.
 func roster(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply, error) {
-
-	const usage = "Usage: !sleeper roster [@user] [page]"
-	if len(e.Args) < 1 || len(e.Args) > 3 {
-		return commands.Reply{Text: usage}, nil
+	if len(e.Args) > 2 {
+		return usage(e, "roster [@user]"), nil
 	}
-
-	username := e.User.Name
-	page := 1
-	pageArgument := ""
-	if len(e.Args) >= 2 {
-		if strings.HasPrefix(e.Args[1], "@") {
-			username = strings.TrimPrefix(e.Args[1], "@")
-			if username == "" {
-				return commands.Reply{Text: usage}, nil
-			}
-			if len(e.Args) == 3 {
-				pageArgument = e.Args[2]
-			}
-		} else {
-			if len(e.Args) == 3 {
-				return commands.Reply{Text: usage}, nil
-			}
-			pageArgument = e.Args[1]
-		}
-		if pageArgument != "" {
-			requestedPage, err := strconv.Atoi(pageArgument)
-			if err != nil || requestedPage < 1 {
-				return commands.Reply{Text: usage + ". Page must be a positive number."}, nil
-			}
-			page = requestedPage
-		}
-	}
+	name, self := targetUser(e, e.Args[1:])
 
 	league, err := getLeague(ctx, e.Connection.CommunityID, sl)
 	if err != nil {
-		log.Print(err)
-		return commands.Reply{Text: "Internal error getting league information."}, err
+		return broken(), err
 	}
 	if league == nil {
-		return commands.Reply{Text: "This channel is not associated with any league."}, nil
+		return noLeague(e), nil
 	}
-
-	var connection *SleeperConnection
-	if strings.EqualFold(username, e.User.Name) {
-		connection, err = getConnectionByUserID(ctx, league.ID, e.Identity.PlatformUserID, sl)
-	} else {
-		connection, err = getConnectionByUsername(ctx, league.ID, username, sl)
-	}
+	rosters, users, err := sl.leagueData(ctx, league)
 	if err != nil {
-		log.Print(err)
-		return commands.Reply{Text: "Internal error finding the linked account."}, err
+		return unreachable(), err
 	}
-	if connection == nil {
-		return commands.Reply{Text: fmt.Sprintf("@%s is not linked to a Sleeper account in this league.", username)}, nil
+	selected, reply, err := sl.member(ctx, e, league, name, self, rosters)
+	if reply != nil {
+		return *reply, err
 	}
-
-	sleeperRosters, err := sl.client.Rosters(ctx, league.SleeperLeagueID)
+	settings, err := sl.client.League(ctx, league.SleeperLeagueID)
 	if err != nil {
-		log.Print(err)
-		return commands.Reply{Text: "Unable to get league rosters from Sleeper."}, err
+		return unreachable(), err
 	}
-	if sleeperRosters == nil || len(*sleeperRosters) == 0 {
-		return commands.Reply{Text: "No rosters are available for this league yet."}, nil
-	}
-
-	var selectedRoster *api.Roster
-	for i := range *sleeperRosters {
-		if (*sleeperRosters)[i].RosterID == connection.SleeperRosterID {
-			selectedRoster = &(*sleeperRosters)[i]
-			break
-		}
-	}
-	if selectedRoster == nil {
-		return commands.Reply{Text: fmt.Sprintf("@%s's linked roster could not be found in this league.", username)}, nil
-	}
-	if selectedRoster.OwnerID == "" || selectedRoster.OwnerID != connection.SleeperUserID {
-		return commands.Reply{Text: fmt.Sprintf("@%s's saved link no longer matches the roster owner. Please unlink and link the account again.", username)}, nil
-	}
-
-	sleeperLeague, err := sl.client.League(ctx, league.SleeperLeagueID)
-	if err != nil {
-		log.Print(err)
-		return commands.Reply{Text: "Unable to get league settings from Sleeper."}, err
-	}
-	if sleeperLeague == nil || sleeperLeague.LeagueID == "" {
-		return commands.Reply{Text: "Sleeper did not return valid league settings."}, nil
-	}
-
 	players, err := sl.client.Players(ctx)
 	if err != nil {
-		log.Print(err)
-		return commands.Reply{Text: "Player names are loading or temporarily unavailable. Please try again shortly."}, nil
+		return say("Player names are still loading, try again in a moment."), err
 	}
+	n := sl.names(ctx, league, rosters, users, players)
 
-	entries := getRosterEntries(*selectedRoster, sleeperLeague.RosterPositions, players)
+	entries := getRosterEntries(*selected, settings.RosterPositions, players)
 	if len(entries) == 0 {
-		return commands.Reply{Text: fmt.Sprintf("@%s's roster is empty.", username)}, nil
+		return say("%s's roster is empty.", n.Who(selected.RosterID)), nil
 	}
-
-	// Four bounded entries keep the response compact.
-	const pageSize = 4
-	totalPages := (len(entries) + pageSize - 1) / pageSize
-	if page > totalPages {
-		return commands.Reply{Text: fmt.Sprintf("Roster has %d page(s).", totalPages)}, nil
-	}
-	start := (page - 1) * pageSize
-	end := start + pageSize
-	if end > len(entries) {
-		end = len(entries)
-	}
-
-	return commands.Reply{Text: fmt.Sprintf("@%s roster (%d/%d): %s",
-		username, page, totalPages, strings.Join(entries[start:end], " | "))}, nil
+	return say("%s's roster: %s", n.Who(selected.RosterID), strings.Join(entries, " · ")), nil
 }
 
 func getRosterEntries(roster api.Roster, positions []string, players map[string]api.Player) []string {
-
 	var entries []string
 	var starterPositions []string
 	for _, position := range positions {
@@ -150,10 +70,7 @@ func getRosterEntries(roster api.Roster, positions []string, players map[string]
 		taxi[playerID] = true
 	}
 
-	slotCount := len(roster.Starters)
-	if len(starterPositions) > slotCount {
-		slotCount = len(starterPositions)
-	}
+	slotCount := max(len(roster.Starters), len(starterPositions))
 	for i := 0; i < slotCount; i++ {
 		position := "Starter"
 		if i < len(starterPositions) {
@@ -194,7 +111,6 @@ func getRosterEntries(roster api.Roster, positions []string, players map[string]
 }
 
 func formatRosterEntry(position string, name string) string {
-
 	entry := strings.Join(strings.Fields(position+" "+name), " ")
 	// Bound bytes as well as preserving complete UTF-8 characters.
 	for len(entry) > 80 {

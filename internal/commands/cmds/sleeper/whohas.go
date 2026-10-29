@@ -3,7 +3,6 @@ package sleeper
 import (
 	"context"
 	"fmt"
-	"log"
 	"sort"
 	"strings"
 
@@ -11,106 +10,64 @@ import (
 	api "github.com/lsariol/lys/internal/features/sleeper"
 )
 
+// whohas is "!ff whohas <player>": which team has the player.
 func whohas(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply, error) {
-
-	if len(e.Args) < 2 {
-		return commands.Reply{Text: "Usage: !sleeper whohas <player name or ID>"}, nil
-	}
-
 	search := strings.Join(strings.Fields(strings.Join(e.Args[1:], " ")), " ")
 	if search == "" {
-		return commands.Reply{Text: "Usage: !sleeper whohas <player name or ID>"}, nil
+		return usage(e, "whohas <player name or ID>"), nil
 	}
 
 	league, err := getLeague(ctx, e.Connection.CommunityID, sl)
 	if err != nil {
-		log.Print(err)
-		return commands.Reply{Text: "Internal error getting league information."}, err
+		return broken(), err
 	}
 	if league == nil {
-		return commands.Reply{Text: "This channel is not associated with any league."}, nil
+		return noLeague(e), nil
 	}
-
 	players, err := sl.client.Players(ctx)
 	if err != nil {
-		log.Print(err)
-		return commands.Reply{Text: "Player names are loading or temporarily unavailable. Please try again shortly."}, nil
+		return say("Player names are still loading, try again in a moment."), err
 	}
 
 	matches := findPlayers(search, players)
-	if len(matches) == 0 {
-		return commands.Reply{Text: "No player matched that name or ID."}, nil
-	}
-
-	if len(matches) > 1 {
+	switch {
+	case len(matches) == 0:
+		return say("No player matches %q.", search), nil
+	case len(matches) > 1:
 		var names []string
-		limit := len(matches)
-		if limit > 5 {
-			limit = 5
+		for _, id := range matches[:min(len(matches), 5)] {
+			names = append(names, formatRosterEntry("", fmt.Sprintf("%s [%s]", api.PlayerName(id, players), id)))
 		}
-		for _, playerID := range matches[:limit] {
-			name := api.PlayerName(playerID, players)
-			names = append(names, formatRosterEntry("", fmt.Sprintf("%s [%s]", name, playerID)))
+		text := "Several players match: " + strings.Join(names, " · ")
+		if len(matches) > 5 {
+			text += fmt.Sprintf(" · and %d more", len(matches)-5)
 		}
-
-		text := "Multiple players matched: " + strings.Join(names, " | ")
-		if len(matches) > limit {
-			text += fmt.Sprintf(" | +%d more", len(matches)-limit)
-		}
-		return commands.Reply{Text: text + ". Use a full name or player ID."}, nil
+		return say("%s. Use a full name or the ID.", text), nil
 	}
 
 	playerID := matches[0]
 	name := formatRosterEntry("", api.PlayerName(playerID, players))
-
-	sleeperRosters, err := sl.client.Rosters(ctx, league.SleeperLeagueID)
+	rosters, users, err := sl.leagueData(ctx, league)
 	if err != nil {
-		log.Print(err)
-		return commands.Reply{Text: "Unable to get league rosters from Sleeper."}, err
+		return unreachable(), err
 	}
-	if sleeperRosters == nil || len(*sleeperRosters) == 0 {
-		return commands.Reply{Text: "No rosters are available for this league yet."}, nil
-	}
-
 	var owners []api.Roster
-	for _, roster := range *sleeperRosters {
-		if rosterHasPlayer(roster, playerID) {
-			owners = append(owners, roster)
+	for _, r := range rosters {
+		if rosterHasPlayer(r, playerID) {
+			owners = append(owners, r)
 		}
 	}
-	if len(owners) == 0 {
-		return commands.Reply{Text: fmt.Sprintf("%s is currently unrostered.", name)}, nil
+	switch len(owners) {
+	case 0:
+		return say("%s is a free agent.", name), nil
+	case 1:
+		n := sl.names(ctx, league, rosters, users, nil)
+		return say("%s is on %s.", name, n.TeamAndWho(owners[0].RosterID)), nil
 	}
-	if len(owners) > 1 {
-		return commands.Reply{Text: fmt.Sprintf("Sleeper lists %s on multiple rosters, so ownership is unclear.", name)}, nil
-	}
-
-	sleeperUsers, err := sl.client.LeagueUsers(ctx, league.SleeperLeagueID)
-	if err != nil {
-		log.Print(err)
-		return commands.Reply{Text: "Unable to get league members from Sleeper."}, err
-	}
-	var users []api.LeagueUser
-	if sleeperUsers != nil {
-		users = *sleeperUsers
-	}
-
-	owner := owners[0]
-	teamName := getMatchupTeamName(owner.RosterID, *sleeperRosters, users)
-	for _, user := range users {
-		if owner.OwnerID != "" && user.UserID == owner.OwnerID {
-			displayName := formatRosterEntry("", user.DisplayName)
-			if displayName != "" && !strings.EqualFold(displayName, teamName) {
-				return commands.Reply{Text: fmt.Sprintf("%s belongs to %s / %s.", name, displayName, teamName)}, nil
-			}
-			break
-		}
-	}
-	return commands.Reply{Text: fmt.Sprintf("%s is rostered on %s.", name, teamName)}, nil
+	return say("Sleeper lists %s on more than one team, so it's unclear who has him.", name), nil
 }
 
 func findPlayers(search string, players map[string]api.Player) []string {
-
 	search = strings.ToLower(strings.Join(strings.Fields(search), " "))
 	if search == "" {
 		return nil
@@ -150,7 +107,6 @@ func findPlayers(search string, players map[string]api.Player) []string {
 }
 
 func rosterHasPlayer(roster api.Roster, playerID string) bool {
-
 	for _, players := range [][]string{roster.Players, roster.Starters, roster.Reserve, roster.Taxi} {
 		for _, id := range players {
 			if id == playerID {

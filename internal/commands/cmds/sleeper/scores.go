@@ -3,111 +3,52 @@ package sleeper
 import (
 	"context"
 	"fmt"
-	"log"
-	"strconv"
 	"strings"
 
 	"github.com/lsariol/lys/internal/commands"
 	api "github.com/lsariol/lys/internal/features/sleeper"
 )
 
+// scores is "!ff scores": every matchup this week.
 func scores(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply, error) {
-
-	if len(e.Args) < 1 || len(e.Args) > 2 {
-		return commands.Reply{Text: "Usage: !sleeper scores [page]"}, nil
-	}
-
-	page := 1
-	if len(e.Args) == 2 {
-		requestedPage, err := strconv.Atoi(e.Args[1])
-		if err != nil || requestedPage < 1 {
-			return commands.Reply{Text: "Usage: !sleeper scores [page]. Page must be a positive number."}, nil
-		}
-		page = requestedPage
-	}
-
 	league, err := getLeague(ctx, e.Connection.CommunityID, sl)
 	if err != nil {
-		log.Print(err)
-		return commands.Reply{Text: "Internal error getting league scores."}, err
+		return broken(), err
 	}
 	if league == nil {
-		return commands.Reply{Text: "This channel is not associated with any league."}, nil
+		return noLeague(e), nil
 	}
-
 	state, err := sl.client.NFLState(ctx)
 	if err != nil {
-		log.Print(err)
-		return commands.Reply{Text: "Unable to get the current week from Sleeper."}, err
+		return unreachable(), err
 	}
-
 	week, message := getCurrentWeek(*league, *state)
 	if message != "" {
-		return commands.Reply{Text: message}, nil
+		return say("%s", message), nil
 	}
-
-	sleeperMatchups, err := sl.client.Matchups(ctx, league.SleeperLeagueID, week)
+	matchups, err := sl.client.Matchups(ctx, league.SleeperLeagueID, week)
 	if err != nil {
-		log.Print(err)
-		return commands.Reply{Text: "Unable to get matchup scores from Sleeper."}, err
+		return unreachable(), err
 	}
-	if sleeperMatchups == nil || len(*sleeperMatchups) == 0 {
-		return commands.Reply{Text: fmt.Sprintf("No matchup scores are available for Week %d yet.", week)}, nil
+	if len(*matchups) == 0 {
+		return say("No scores for week %d yet.", week), nil
 	}
-
-	groups := groupMatchups(*sleeperMatchups)
-	const pageSize = 3
-	totalPages := (len(groups) + pageSize - 1) / pageSize
-	if page > totalPages {
-		return commands.Reply{Text: fmt.Sprintf("Scores has %d page(s).", totalPages)}, nil
-	}
-
-	sleeperRosters, err := sl.client.Rosters(ctx, league.SleeperLeagueID)
+	rosters, users, err := sl.leagueData(ctx, league)
 	if err != nil {
-		log.Print(err)
-		return commands.Reply{Text: "Unable to get league rosters from Sleeper."}, err
+		return unreachable(), err
 	}
-
-	sleeperUsers, err := sl.client.LeagueUsers(ctx, league.SleeperLeagueID)
-	if err != nil {
-		log.Print(err)
-		return commands.Reply{Text: "Unable to get league members from Sleeper."}, err
-	}
-
-	var rosters []api.Roster
-	if sleeperRosters != nil {
-		rosters = *sleeperRosters
-	}
-	var users []api.LeagueUser
-	if sleeperUsers != nil {
-		users = *sleeperUsers
-	}
-
-	start := (page - 1) * pageSize
-	end := start + pageSize
-	if end > len(groups) {
-		end = len(groups)
-	}
+	n := sl.names(ctx, league, rosters, users, nil)
 
 	var entries []string
-	for _, group := range groups[start:end] {
-		first := group[0]
-		firstName := getMatchupTeamName(first.RosterID, rosters, users)
-
-		switch len(group) {
+	for _, g := range api.GroupMatchups(*matchups) {
+		switch len(g) {
 		case 1:
-			entries = append(entries, fmt.Sprintf("%s %.2f (no opponent listed)",
-				firstName, getMatchupPoints(first)))
+			entries = append(entries, fmt.Sprintf("%s %.2f (no opponent)", n.Who(g[0].RosterID), api.Points(g[0])))
 		case 2:
-			second := group[1]
-			secondName := getMatchupTeamName(second.RosterID, rosters, users)
-			entries = append(entries, fmt.Sprintf("%s %.2f vs %s %.2f",
-				firstName, getMatchupPoints(first), secondName, getMatchupPoints(second)))
+			entries = append(entries, fmt.Sprintf("%s %.2f vs %s %.2f", n.Who(g[0].RosterID), api.Points(g[0]), n.Who(g[1].RosterID), api.Points(g[1])))
 		default:
-			return commands.Reply{Text: "Sleeper returned an unsupported matchup with more than two teams."}, nil
+			return unreachable(), fmt.Errorf("Sleeper: week %d has a matchup of %d teams", week, len(g))
 		}
 	}
-
-	return commands.Reply{Text: fmt.Sprintf("Week %d scores (%d/%d): %s",
-		week, page, totalPages, strings.Join(entries, " | "))}, nil
+	return say("Week %d scores: %s", week, strings.Join(entries, " · ")), nil
 }

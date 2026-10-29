@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lsariol/lys/internal/commands"
 	api "github.com/lsariol/lys/internal/features/sleeper"
 )
 
@@ -26,26 +25,6 @@ func TestCurrentWeek(t *testing.T) {
 		if week != tc.want || (message != "") != (tc.want == 0) {
 			t.Errorf("state %+v: got week %d, message %q", tc.state, week, message)
 		}
-	}
-}
-
-func TestGroupMatchups(t *testing.T) {
-	id := 7
-	matchups := []api.Matchup{
-		{RosterID: 4},
-		{RosterID: 3, MatchupID: &id},
-		{RosterID: 2},
-		{RosterID: 1, MatchupID: &id},
-	}
-	groups := groupMatchups(matchups)
-	if len(groups) != 3 || len(groups[0]) != 2 || groups[0][0].RosterID != 1 || groups[0][1].RosterID != 3 {
-		t.Fatalf("unexpected groups: %+v", groups)
-	}
-	if groups[1][0].RosterID != 2 || groups[2][0].RosterID != 4 || matchups[0].RosterID != 4 {
-		t.Fatal("unpaired teams were combined or original order changed")
-	}
-	if len(groupMatchups(nil)) != 0 {
-		t.Fatal("empty matchups should produce no groups")
 	}
 }
 
@@ -78,18 +57,9 @@ func TestMatchupAPI(t *testing.T) {
 			t.Fatalf("body %s: error %v", tc.body, err)
 		}
 		if err == nil && len(*matchups) == 2 {
-			if getMatchupPoints((*matchups)[0]) != 0 || getMatchupPoints((*matchups)[1]) != 4.25 || (*matchups)[0].MatchupID != nil {
+			if api.Points((*matchups)[0]) != 0 || api.Points((*matchups)[1]) != 4.25 || (*matchups)[0].MatchupID != nil {
 				t.Fatal("null fields or zero score override handled incorrectly")
 			}
-		}
-	}
-}
-
-func TestScoresInvalidArguments(t *testing.T) {
-	for _, args := range [][]string{nil, {"scores", "0"}, {"scores", "-1"}, {"scores", "abc"}, {"scores", "99999999999999999999999999"}, {"scores", "1", "extra"}} {
-		response, err := scores(context.Background(), commands.Request{Args: args}, nil)
-		if err != nil || !strings.HasPrefix(response.Text, "Usage:") {
-			t.Errorf("args %v: response %q, error %v", args, response.Text, err)
 		}
 	}
 }

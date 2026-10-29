@@ -5,76 +5,51 @@ import (
 	"fmt"
 	"log"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/lsariol/lys/internal/commands"
 	api "github.com/lsariol/lys/internal/features/sleeper"
 )
 
+// playoffs is "!ff playoffs": this playoff round's games, or the champion.
 func playoffs(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply, error) {
-
-	if len(e.Args) < 1 || len(e.Args) > 2 {
-		return commands.Reply{Text: "Usage: !sleeper playoffs [page]"}, nil
-	}
-	page := 1
-	if len(e.Args) == 2 {
-		requestedPage, err := strconv.Atoi(e.Args[1])
-		if err != nil || requestedPage < 1 {
-			return commands.Reply{Text: "Usage: !sleeper playoffs [page]. Page must be a positive number."}, nil
-		}
-		page = requestedPage
-	}
-
 	league, err := getLeague(ctx, e.Connection.CommunityID, sl)
 	if err != nil {
-		log.Print(err)
-		return commands.Reply{Text: "Internal error getting league information."}, err
+		return broken(), err
 	}
 	if league == nil {
-		return commands.Reply{Text: "This channel is not associated with any league."}, nil
+		return noLeague(e), nil
 	}
-
 	sleeperLeague, err := sl.client.League(ctx, league.SleeperLeagueID)
 	if err != nil {
-		log.Print(err)
-		return commands.Reply{Text: "Unable to get playoff settings from Sleeper."}, err
-	}
-	if sleeperLeague == nil || sleeperLeague.LeagueID == "" || sleeperLeague.Season == "" {
-		return commands.Reply{Text: "Sleeper did not return valid league settings."}, nil
+		return unreachable(), err
 	}
 	settings := sleeperLeague.Settings
 	if settings.PlayoffWeekStart < 1 || settings.PlayoffTeams < 2 {
-		return commands.Reply{Text: "Playoffs are not configured for this league."}, nil
+		return say("This league has no playoffs set up."), nil
 	}
 	if settings.PlayoffRoundType == nil || *settings.PlayoffRoundType != 0 {
-		return commands.Reply{Text: "This playoff round format is not supported yet. Automatic timing currently supports standard one-week rounds."}, nil
+		return say("Only one-week playoff rounds are supported so far."), nil
 	}
 
 	sleeperBracket, err := sl.client.PlayoffBracket(ctx, league.SleeperLeagueID)
 	if err != nil {
-		log.Print(err)
-		return commands.Reply{Text: "Unable to get the playoff bracket from Sleeper."}, err
+		return unreachable(), err
 	}
-	var bracket []api.PlayoffMatchup
-	if sleeperBracket != nil {
-		bracket = *sleeperBracket
-	}
+	bracket := *sleeperBracket
 	championship := getChampionship(bracket)
 
 	var state api.NFLState
 	if championship == nil || championship.Winner == nil || *championship.Winner <= 0 {
 		nflState, err := sl.client.NFLState(ctx)
 		if err != nil {
-			log.Print(err)
-			return commands.Reply{Text: "Unable to get the current week from Sleeper."}, err
+			return unreachable(), err
 		}
 		state = *nflState
 	}
-
 	round, week, message := getPlayoffRound(*sleeperLeague, state, bracket)
 	if message != "" {
-		return commands.Reply{Text: message}, nil
+		return say("%s", message), nil
 	}
 	var games []api.PlayoffMatchup
 	for _, game := range bracket {
@@ -84,70 +59,43 @@ func playoffs(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Re
 	}
 	sort.Slice(games, func(i, j int) bool { return games[i].MatchID < games[j].MatchID })
 	if len(games) == 0 {
-		return commands.Reply{Text: "The current playoff round is not available yet."}, nil
-	}
-	const pageSize = 3
-	totalPages := (len(games) + pageSize - 1) / pageSize
-	if page > totalPages {
-		return commands.Reply{Text: fmt.Sprintf("Playoffs has %d page(s).", totalPages)}, nil
+		return say("This playoff round isn't set yet."), nil
 	}
 
-	sleeperRosters, err := sl.client.Rosters(ctx, league.SleeperLeagueID)
+	rosters, users, err := sl.leagueData(ctx, league)
 	if err != nil {
-		log.Print(err)
-		return commands.Reply{Text: "Unable to get league rosters from Sleeper."}, err
+		return unreachable(), err
 	}
-	sleeperUsers, err := sl.client.LeagueUsers(ctx, league.SleeperLeagueID)
-	if err != nil {
-		log.Print(err)
-		return commands.Reply{Text: "Unable to get league members from Sleeper."}, err
-	}
-	var rosters []api.Roster
-	if sleeperRosters != nil {
-		rosters = *sleeperRosters
-	}
-	var users []api.LeagueUser
-	if sleeperUsers != nil {
-		users = *sleeperUsers
-	}
-
+	n := sl.names(ctx, league, rosters, users, nil)
 	var matchups []api.Matchup
-	sleeperMatchups, err := sl.client.Matchups(ctx, league.SleeperLeagueID, week)
-	if err != nil {
-		log.Print(err)
-	} else if sleeperMatchups != nil {
-		matchups = *sleeperMatchups
+	if m, err := sl.client.Matchups(ctx, league.SleeperLeagueID, week); err != nil {
+		log.Printf("[Sleeper] %v", err)
+	} else {
+		matchups = *m
 	}
 
-	start := (page - 1) * pageSize
-	end := start + pageSize
-	if end > len(games) {
-		end = len(games)
-	}
 	var entries []string
-	for _, game := range games[start:end] {
+	for _, game := range games {
 		first := resolvePlayoffTeam(game.Team1, game.Team1From, bracket)
 		second := resolvePlayoffTeam(game.Team2, game.Team2From, bracket)
 		label := ""
 		if championship != nil && game.MatchID == championship.MatchID {
 			label = "Championship: "
 		} else if game.Place != nil {
-			label = fmt.Sprintf("Place %d: ", *game.Place)
+			label = fmt.Sprintf("For %s place: ", api.Ordinal(*game.Place))
 		}
-		entry := label + formatPlayoffTeam(first, rosters, users, matchups) + " vs " +
-			formatPlayoffTeam(second, rosters, users, matchups)
+		entry := label + formatPlayoffTeam(first, n, matchups) + " vs " + formatPlayoffTeam(second, n, matchups)
 		if game.Winner != nil && *game.Winner > 0 {
-			entry += " | Winner: " + getMatchupTeamName(*game.Winner, rosters, users)
+			entry += ", won by " + n.Who(*game.Winner)
 		}
 		entries = append(entries, entry)
 	}
 
-	heading := fmt.Sprintf("Playoffs - Round %d, Week %d (%d/%d)", round, week, page, totalPages)
+	heading := fmt.Sprintf("Playoffs, round %d (week %d)", round, week)
 	if championship != nil && championship.Winner != nil && *championship.Winner > 0 {
-		heading = fmt.Sprintf("Champion: %s | Week %d (%d/%d)",
-			getMatchupTeamName(*championship.Winner, rosters, users), week, page, totalPages)
+		heading = fmt.Sprintf("Champion: %s · Week %d", n.Who(*championship.Winner), week)
 	}
-	return commands.Reply{Text: heading + ": " + strings.Join(entries, " | ")}, nil
+	return say("%s: %s", heading, strings.Join(entries, " · ")), nil
 }
 
 func getChampionship(bracket []api.PlayoffMatchup) *api.PlayoffMatchup {
@@ -221,16 +169,14 @@ func resolvePlayoffTeam(team *int, source *api.PlayoffSource, bracket []api.Play
 	return nil
 }
 
-func formatPlayoffTeam(team *int, rosters []api.Roster, users []api.LeagueUser, matchups []api.Matchup) string {
-
+func formatPlayoffTeam(team *int, n api.Names, matchups []api.Matchup) string {
 	if team == nil || *team <= 0 {
 		return "TBD"
 	}
-	name := getMatchupTeamName(*team, rosters, users)
-	for _, matchup := range matchups {
-		if matchup.RosterID == *team {
-			return fmt.Sprintf("%s %.2f", name, getMatchupPoints(matchup))
+	for _, m := range matchups {
+		if m.RosterID == *team {
+			return fmt.Sprintf("%s %.2f", n.Who(*team), api.Points(m))
 		}
 	}
-	return name + " (score unavailable)"
+	return n.Who(*team)
 }

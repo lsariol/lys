@@ -1,11 +1,8 @@
 package sleeper
 
 import (
-	"context"
-	"strings"
 	"testing"
 
-	"github.com/lsariol/lys/internal/commands"
 	api "github.com/lsariol/lys/internal/features/sleeper"
 )
 
@@ -46,23 +43,14 @@ func TestPlayoffParticipantsAndScores(t *testing.T) {
 	if got := resolvePlayoffTeam(nil, &api.PlayoffSource{Loser: &matchID}, bracket); got == nil || *got != loser {
 		t.Fatal("loser reference not resolved")
 	}
-	if got := formatPlayoffTeam(nil, nil, nil, nil); got != "TBD" {
+	if got := formatPlayoffTeam(nil, api.Names{}, nil); got != "TBD" {
 		t.Fatal(got)
 	}
-	if got := formatPlayoffTeam(&winner, nil, nil, nil); got != "Team 4 (score unavailable)" {
+	if got := formatPlayoffTeam(&winner, api.Names{Mentions: map[int]string{4: "lu"}}, nil); got != "@lu" {
 		t.Fatal(got)
 	}
 	zero := 0.0
-	if got := formatPlayoffTeam(&winner, nil, nil, []api.Matchup{{RosterID: winner, Points: 100, CustomPoints: &zero}}); got != "Team 4 0.00" {
+	if got := formatPlayoffTeam(&winner, api.Names{}, []api.Matchup{{RosterID: winner, Points: 100, CustomPoints: &zero}}); got != "Team 4 0.00" {
 		t.Fatal(got)
-	}
-}
-
-func TestPlayoffsInvalidArguments(t *testing.T) {
-	for _, args := range [][]string{nil, {"playoffs", "0"}, {"playoffs", "-1"}, {"playoffs", "abc"}, {"playoffs", "1", "extra"}} {
-		response, err := playoffs(context.Background(), commands.Request{Args: args}, nil)
-		if err != nil || !strings.HasPrefix(response.Text, "Usage:") {
-			t.Errorf("args %v: %q, %v", args, response.Text, err)
-		}
 	}
 }
