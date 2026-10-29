@@ -40,7 +40,11 @@ The commands (decided 2026-10-29). The streamer can always do anything an editor
 - **A name** adds the most popular emote with **exactly** that name (7TV search, `exactMatch`, sorted by all-time top), skipping NSFW, unlisted and deleted emotes. Lu chose this over refusing ambiguous names, so the reply always names the emote it picked and links it: `Added KEKW (7tv.app/emotes/…) · 412/1000 slots`. A wrong pick is then obvious, and `!7tv undo` reverts it.
 - **A local name** after either form adds it under that name.
 
-**`!7tv undo`** reverts the channel's last change made through Lys, if it was within the last hour: it removes what was just added, re-adds what was just removed under its old name, reverts a rename, or switches back to the previous set. It's checked like the change it reverts (the sender needs that change's permission now), and it only reaches back one change. The last change per channel is kept in memory; a restart forgets it.
+**`!7tv undo`** reverts the channel's last change made through Lys, if it was within the last **30 minutes**: it removes what was just added, re-adds what was just removed under its old name, reverts a rename, or switches back to the previous set. It's checked like the change it reverts (the sender needs that change's permission now), and it only reaches back one change. The last change per channel is kept in memory; a restart forgets it. The reply says what was undone and who made the change:
+- `Undo add emote haha by @user`
+- `Undo remove emote haha by @user`
+- `Undo rename emote haha to hehe by @user`
+- `Undo set switch to Halloween by @user`
 
 **Search links:** some channels block links from anyone but moderators, so where the bot isn't a mod they may be removed. The reply also gives each emote's name and author, so it's useful without them.
 
@@ -225,7 +229,7 @@ internal/commands/cmds/seventv/
 14. A new session stored in Cove is used after the next 401, without a restart.
 15. `add <name>` picks the most popular emote with exactly that name, never an NSFW, unlisted or deleted one, and the reply names and links it.
 16. `add <link> <local name>` adds that exact emote under the local name; a link to anywhere but 7tv.app is refused, and never fetched.
-17. `undo` reverts each kind of change (add, remove, rename, set switch), only the channel's last one within the hour, and only for someone allowed to make that change.
+17. `undo` reverts each kind of change (add, remove, rename, set switch), only the channel's last one within 30 minutes, says what it undid and whose change it was, and only for someone allowed to make that change.
 18. `editors`, `sets`, `search`, `emote` and `status` work for everyone and change nothing.
 
 ## 8. What is *not* required
