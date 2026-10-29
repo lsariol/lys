@@ -3,6 +3,7 @@ package sleeper
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"os"
@@ -18,46 +19,99 @@ func (f transport) RoundTrip(req *http.Request) (*http.Response, error) { return
 func TestPlayerCatalogLoadingAndRefreshFailure(t *testing.T) {
 	started := make(chan struct{})
 	release := make(chan struct{})
-	done := make(chan error, 1)
+	requests := 0
 	c := New(&http.Client{Transport: transport(func(req *http.Request) (*http.Response, error) {
+		requests++
 		close(started)
 		<-release
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"1":{"full_name":"Player One"}}`)), Header: make(http.Header)}, nil
 	})})
-	go func() {
-		_, err := c.Players(context.Background())
-		done <- err
-	}()
+
+	// Two commands without a catalog yet: both wait for the one download.
+	done := make(chan error, 2)
+	for range 2 {
+		go func() {
+			players, err := c.Players(context.Background())
+			if err == nil && players["1"].FullName != "Player One" {
+				err = errors.New("wrong catalog")
+			}
+			done <- err
+		}()
+	}
 	<-started
-	_, loadingErr := c.Players(context.Background())
 	close(release)
-	if err := <-done; err != nil {
-		t.Fatal(err)
+	for range 2 {
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
 	}
-	if loadingErr == nil {
-		t.Fatal("concurrent cold-cache request should report loading")
+	if requests != 1 {
+		t.Fatalf("%d downloads, want 1", requests)
 	}
-	players, err := c.Players(context.Background())
-	if err != nil || players["1"].FullName != "Player One" {
-		t.Fatalf("cached catalog unavailable: %v", err)
-	}
+
+	// A refresh that fails keeps the day-old catalog, and isn't retried at once.
 	c.catalog.Lock()
 	c.catalog.updatedAt = time.Now().Add(-25 * time.Hour)
 	c.catalog.Unlock()
-	calls := 0
+	failed := make(chan struct{}, 4)
 	c.http = &http.Client{Transport: transport(func(req *http.Request) (*http.Response, error) {
-		calls++
+		failed <- struct{}{}
 		return &http.Response{StatusCode: 503, Body: io.NopCloser(strings.NewReader("unavailable")), Header: make(http.Header)}, nil
 	})}
-	for i := 0; i < 2; i++ {
-		players, err = c.Players(context.Background())
-		if err != nil || players["1"].FullName != "Player One" {
-			t.Fatal("failed refresh discarded previous catalog")
+	players, err := c.Players(context.Background())
+	if err != nil || players["1"].FullName != "Player One" {
+		t.Fatal("a failed refresh discarded the previous catalog")
+	}
+	<-failed
+	waitIdle(t, c)
+	players, err = c.Players(context.Background())
+	if err != nil || players["1"].FullName != "Player One" {
+		t.Fatal("a failed refresh discarded the previous catalog")
+	}
+	waitIdle(t, c)
+	if n := len(failed); n != 0 {
+		t.Fatalf("retried %d times within the 5 minutes", n)
+	}
+}
+
+// A command's short time limit doesn't stop the download; the next use gets it.
+func TestPlayerCatalogOutlivesTheCommand(t *testing.T) {
+	release := make(chan struct{})
+	c := New(&http.Client{Timeout: 10 * time.Millisecond, Transport: transport(func(req *http.Request) (*http.Response, error) {
+		select {
+		case <-release:
+		case <-req.Context().Done():
+			return nil, req.Context().Err()
 		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"1":{"full_name":"Player One"}}`)), Header: make(http.Header)}, nil
+	})})
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	if _, err := c.Players(ctx); err == nil {
+		t.Fatal("a command whose time ran out got a catalog")
 	}
-	if calls != 1 {
-		t.Fatalf("retry cooldown failed: %d requests", calls)
+	time.Sleep(30 * time.Millisecond) // past the shared client's 10 ms limit
+	close(release)
+	waitIdle(t, c)
+	players, err := c.Players(context.Background())
+	if err != nil || players["1"].FullName != "Player One" {
+		t.Fatalf("the download didn't finish on its own: %v", err)
 	}
+}
+
+// waitIdle waits until no catalog download is running.
+func waitIdle(t *testing.T, c *Client) {
+	t.Helper()
+	for range 200 {
+		c.catalog.Lock()
+		loading := c.catalog.loading
+		c.catalog.Unlock()
+		if loading == nil {
+			return
+		}
+		<-loading
+	}
+	t.Fatal("the catalog download never ended")
 }
 
 func TestGames(t *testing.T) {

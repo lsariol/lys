@@ -442,3 +442,33 @@ func TestConcurrency(t *testing.T) {
 		t.Fatalf("the cap wasn't released: %q", got)
 	}
 }
+
+// stallingIdentities never answers until it's given up on.
+type stallingIdentities struct{}
+
+func (stallingIdentities) Resolve(ctx context.Context, platform string, u core.User) (core.Identity, error) {
+	<-ctx.Done()
+	return core.Identity{}, ctx.Err()
+}
+
+func TestSlowIdentityLookupGivesUp(t *testing.T) {
+	reg := commands.NewRegistry()
+	if err := reg.Register(echo()); err != nil {
+		t.Fatal(err)
+	}
+	r := New(reg, fakeConfig{}, stallingIdentities{}, 1)
+	r.resolveIn = 20 * time.Millisecond
+	a := newFakeAdapter()
+	r.Add(a)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error)
+	go func() { done <- r.Run(ctx) }()
+	defer func() {
+		cancel()
+		<-done
+	}()
+
+	if got := a.say(t, "1", "!echo hi", wait); got != "echo:hi:!" {
+		t.Fatalf("got %q: a stalled lookup held up the command", got)
+	}
+}

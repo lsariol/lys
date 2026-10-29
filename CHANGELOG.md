@@ -12,6 +12,10 @@
 - Faster chat where the bot is a moderator, VIP or broadcaster: messages there go out 0.3 seconds apart instead of 1.5. Lys learns the bot's role from the badges on its own messages and remembers it across restarts.
 - One limit for all of the bot's messages across channels, a little under Twitch's (20 per 30 seconds, 100 where the bot is privileged), so busy channels together never get the bot ignored for an hour. When messages have to wait, replies go first, then announcements and reminders, then autoposts. Helix's own rate limit is logged once a minute while Lys sends.
 
+### Fixed
+- The Sleeper player catalog (about 15 MB, downloaded after each start and then daily) downloads in the background with 2 minutes to finish, instead of within the command that first needed it. Before, a download slower than 10 seconds failed that `!ff roster` or `!ff whohas`, and the next try waited 5 minutes. Commands now wait for the download, and get the day-old catalog while it's refreshed.
+- Looking up who sent a command gives up after 5 seconds, and the command runs without it, so a slow database can't hold up a worker.
+
 ### Changed
 - `!oneup stats <puzzle number>` and stats by name use their own indexes instead of reading every game.
 - Built on pgx 5.11 and goose 3.29.

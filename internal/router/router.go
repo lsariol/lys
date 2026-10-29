@@ -51,6 +51,10 @@ const (
 // panicReply is sent when a command panics.
 const panicReply = "Something went wrong running that command."
 
+// resolveTimeout limits looking up who sent a command, which happens before
+// the command's own time limit starts.
+const resolveTimeout = 5 * time.Second
+
 // busyReply is sent when a command is at its Concurrency, or every worker is busy.
 const busyReply = "Busy, try again in a moment."
 
@@ -60,6 +64,7 @@ type Router struct {
 	config     core.ChannelConfig
 	identities core.Identities
 	workers    int
+	resolveIn  time.Duration // resolveTimeout; shorter in tests
 
 	in        chan core.Message
 	jobs      chan job
@@ -82,6 +87,7 @@ func New(registry *commands.Registry, config core.ChannelConfig, identities core
 		config:     config,
 		identities: identities,
 		workers:    max(workers, 1),
+		resolveIn:  resolveTimeout,
 		in:         make(chan core.Message, inboxSize),
 		jobs:       make(chan job, jobsSize),
 		limits:     newLimits(time.Now),
@@ -273,7 +279,9 @@ func (r *Router) admit(ctx context.Context, m core.Message) {
 func (r *Router) execute(ctx context.Context, j job) {
 	defer r.limits.release(j.cmd.Spec())
 	m := j.req.Message
-	id, err := r.identities.Resolve(ctx, m.Platform, m.User)
+	rctx, cancel := context.WithTimeout(ctx, r.resolveIn)
+	id, err := r.identities.Resolve(rctx, m.Platform, m.User)
+	cancel()
 	if err != nil {
 		log.Printf("[Router] %v; running %q without an identity", err, j.req.Command)
 	}

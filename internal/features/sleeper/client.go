@@ -30,11 +30,15 @@ func New(http *http.Client) *Client { return &Client{http: http} }
 
 // get decodes the JSON answer for path into v.
 func (c *Client) get(ctx context.Context, path string, v any) error {
+	return getWith(ctx, c.http, path, v)
+}
+
+func getWith(ctx context.Context, hc *http.Client, path string, v any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+path, nil)
 	if err != nil {
 		return err
 	}
-	resp, err := c.http.Do(req)
+	resp, err := hc.Do(req)
 	if err != nil {
 		return fmt.Errorf("Sleeper: %s: %w", path, err)
 	}
@@ -115,17 +119,24 @@ func (c *Client) Transactions(ctx context.Context, leagueID string, week int) ([
 	return txs, nil
 }
 
+// catalogTimeout limits one download of the player catalog. It runs on its
+// own, so a command's shorter time limit doesn't cut it off.
+const catalogTimeout = 2 * time.Minute
+
 // catalog is the player catalog, downloaded at most once a day.
 type catalog struct {
 	sync.Mutex
 	players   map[string]Player
 	updatedAt time.Time
 	retryAt   time.Time
-	loading   bool
+	loading   chan struct{} // closed when the download in progress ends; nil when none is
+	err       error         // why the last download failed
 }
 
 // Players is every NFL player by ID. The catalog is 15 MB, so it's kept for a
-// day; when a download fails, the last one is used and it's retried in 5 minutes.
+// day and downloaded in the background. Until there is one, Players waits for
+// the download (or ctx); a day-old one is returned while it's refreshed. A
+// failed download is retried in 5 minutes.
 func (c *Client) Players(ctx context.Context) (map[string]Player, error) {
 	pc := &c.catalog
 	pc.Lock()
@@ -134,37 +145,62 @@ func (c *Client) Players(ctx context.Context) (map[string]Player, error) {
 		pc.Unlock()
 		return players, nil
 	}
-	if pc.loading || time.Now().Before(pc.retryAt) {
-		players := pc.players
-		pc.Unlock()
-		if len(players) > 0 {
-			return players, nil
-		}
-		return nil, errors.New("Sleeper: the player catalog is loading or temporarily unavailable")
+	if pc.loading == nil && !time.Now().Before(pc.retryAt) {
+		pc.loading = make(chan struct{})
+		go c.download(context.WithoutCancel(ctx), pc.loading)
 	}
-	pc.loading = true
+	players, loading, lastErr := pc.players, pc.loading, pc.err
 	pc.Unlock()
+	if len(players) > 0 {
+		return players, nil
+	}
+	if loading == nil {
+		return nil, lastErr
+	}
 
+	select {
+	case <-ctx.Done():
+		return nil, errors.New("Sleeper: the player catalog is still downloading; try again in a moment")
+	case <-loading:
+	}
+	pc.Lock()
+	defer pc.Unlock()
+	if len(pc.players) == 0 {
+		return nil, pc.err
+	}
+	return pc.players, nil
+}
+
+// download fetches the player catalog within catalogTimeout, then closes done.
+func (c *Client) download(ctx context.Context, done chan struct{}) {
+	ctx, cancel := context.WithTimeout(ctx, catalogTimeout)
+	defer cancel()
+	hc := *c.http
+	hc.Timeout = 0 // ctx limits it instead of the shared client's shorter limit
 	var players map[string]Player
-	err := c.get(ctx, "/players/nfl", &players)
+	err := getWith(ctx, &hc, "/players/nfl", &players)
 	if err == nil && len(players) == 0 {
 		err = errors.New("Sleeper: the player catalog is empty")
 	}
 
+	pc := &c.catalog
 	pc.Lock()
 	defer pc.Unlock()
-	pc.loading = false
+	defer close(done)
+	pc.loading = nil
 	if err != nil {
+		pc.err = err
 		pc.retryAt = time.Now().Add(5 * time.Minute)
 		if len(pc.players) > 0 {
 			log.Printf("[Sleeper] %v; using the catalog from %s", err, pc.updatedAt.Format("2006-01-02 15:04"))
-			return pc.players, nil
+		} else {
+			log.Printf("[Sleeper] %v; trying again in 5 minutes", err)
 		}
-		return nil, err
+		return
 	}
 	// Replace the map; callers only read published catalogs.
 	pc.players = players
 	pc.updatedAt = time.Now()
 	pc.retryAt = time.Time{}
-	return players, nil
+	pc.err = nil
 }
