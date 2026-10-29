@@ -21,7 +21,7 @@ const botOwnerID = "42217464"
 // Allowed reports whether the sender may use something with this access.
 func (req Request) Allowed(a Access) bool {
 	roles := req.User.Roles
-	owner := roles.Has(core.RoleBroadcaster) || req.User.ID == req.Channel.ID
+	owner := roles.Has(core.RoleBroadcaster) || (req.User.ID != "" && req.User.ID == req.Channel.ID)
 	switch a {
 	case Everyone:
 		return true
