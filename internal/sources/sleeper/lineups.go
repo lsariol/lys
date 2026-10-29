@@ -2,6 +2,7 @@ package sleeper
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"time"
@@ -16,6 +17,7 @@ import (
 // lineups: 1 day and 1 hour before the week's first game, and 1 hour before
 // Sunday's first game when that's a different one. Sleeper locks each player
 // at their own game's kickoff, so these are the two times most lineups lock.
+// Reminders are queued for the sender (sender.go), like every announcement.
 type Lineups struct {
 	client *api.Client
 	db     *pgxpool.Pool
@@ -38,9 +40,9 @@ const lateBy = 30 * time.Minute
 // regularWeeks is the length of the NFL regular season.
 const regularWeeks = 18
 
-func (l *Lineups) Run(ctx context.Context, pub sources.Publisher) error {
+func (l *Lineups) Run(ctx context.Context, _ sources.Publisher) error {
 	for {
-		next, err := l.tick(ctx, pub)
+		next, err := l.tick(ctx)
 		if err != nil {
 			log.Printf("[Sleeper] lineup reminders: %v", err)
 		}
@@ -65,8 +67,8 @@ type reminder struct {
 	text string
 }
 
-// tick sends the reminders that are due and returns when the next one is.
-func (l *Lineups) tick(ctx context.Context, pub sources.Publisher) (time.Time, error) {
+// tick queues the reminders that are due and returns when the next one is.
+func (l *Lineups) tick(ctx context.Context) (time.Time, error) {
 	state, err := l.client.NFLState(ctx)
 	if err != nil {
 		return time.Time{}, err
@@ -107,36 +109,25 @@ func (l *Lineups) tick(ctx context.Context, pub sources.Publisher) (time.Time, e
 	}
 
 	rows, err := l.db.Query(ctx, `
-		SELECT sleeper_league_id, community_id FROM lys.sleeper_leagues
+		SELECT sleeper_league_id FROM lys.sleeper_leagues
 		WHERE enabled AND community_id IS NOT NULL AND COALESCE((notifications->>'lineups')::boolean, true)`)
 	if err != nil {
 		return next, fmt.Errorf("database: read Sleeper leagues: %w", err)
 	}
-	type league struct {
-		id        string
-		community int64
-	}
-	leagues, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (league, error) {
-		var lg league
-		err := r.Scan(&lg.id, &lg.community)
-		return lg, err
-	})
+	leagues, err := pgx.CollectRows(rows, pgx.RowTo[string])
 	if err != nil {
 		return next, fmt.Errorf("database: read Sleeper leagues: %w", err)
 	}
 
 	for _, r := range due {
-		for _, lg := range leagues {
-			ev := event{league: lg.id, kind: "lineup_reminder", id: r.id}
-			recorded, err := record(ctx, l.db, ev, []byte(`{}`), r.at)
-			if err != nil {
+		data, err := json.Marshal(queuedText{Text: r.text})
+		if err != nil {
+			return next, err
+		}
+		for _, league := range leagues {
+			ev := event{league: league, kind: "lineup_reminder", id: r.id}
+			if _, err := record(ctx, l.db, ev, data, r.at, true); err != nil {
 				return next, err
-			}
-			if !recorded {
-				continue
-			}
-			if err := announce(ctx, l.db, ev, lg.community, r.text, pub); err != nil {
-				log.Printf("[Sleeper] lineup reminders: league %s: %v", lg.id, err)
 			}
 		}
 	}

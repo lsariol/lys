@@ -306,9 +306,11 @@ table sleeper_events owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdDx
   column occurred_at timestamp with time zone not null
   column published_at timestamp with time zone
   column created_at timestamp with time zone not null default now()
+  column send_after timestamp with time zone
   constraint sleeper_events_pkey PRIMARY KEY (id)
   constraint sleeper_events_sleeper_league_id_event_type_external_event__key UNIQUE (sleeper_league_id, event_type, external_event_id)
   index CREATE UNIQUE INDEX sleeper_events_pkey ON lys.sleeper_events USING btree (id)
+  index CREATE INDEX sleeper_events_queue_idx ON lys.sleeper_events USING btree (sleeper_league_id, send_after) WHERE ((published_at IS NULL) AND (send_after IS NOT NULL))
   index CREATE UNIQUE INDEX sleeper_events_sleeper_league_id_event_type_external_event__key ON lys.sleeper_events USING btree (sleeper_league_id, event_type, external_event_id)
 table sleeper_leagues owner=lys_owner acl=lys_app=arwd/lys_owner lys_owner=arwdDxt/lys_owner lys_reader=r/lys_owner
   column id uuid not null default gen_random_uuid()

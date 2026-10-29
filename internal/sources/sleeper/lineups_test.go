@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lsariol/lys/internal/database"
 	api "github.com/lsariol/lys/internal/features/sleeper"
@@ -115,23 +116,29 @@ func TestLineups(t *testing.T) {
 	league("LineupsOff", "lu-off", "lu-ch-off", false)
 
 	l := NewLineups(api.New(espn(t, "regular")), pool)
+	// tick runs a check at the time, and returns the reminders it queued.
+	seen := 0
 	tick := func(at time.Time) ([]string, time.Time) {
 		t.Helper()
 		l.now = func() time.Time { return at }
-		out := &outbox{}
-		next, err := l.tick(ctx, out)
+		next, err := l.tick(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
-		var texts []string
-		for _, o := range out.sent {
-			if o.Channel.ID == "lu-ch-off" {
-				t.Fatalf("a league with lineup reminders off got one: %q", o.Text)
-			}
-			if o.Channel.ID == "lu-ch-on" {
-				texts = append(texts, o.Text)
-			}
+		var off int
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM lys.sleeper_events WHERE sleeper_league_id = 'lu-off'`).Scan(&off); err != nil || off != 0 {
+			t.Fatalf("a league with lineup reminders off got %d, %v", off, err)
 		}
+		rows, err := pool.Query(ctx, `SELECT event_data->>'text' FROM lys.sleeper_events
+			WHERE sleeper_league_id = 'lu-on' AND event_type = 'lineup_reminder' AND send_after IS NOT NULL ORDER BY created_at, occurred_at`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		texts, err := pgx.CollectRows(rows, pgx.RowTo[string])
+		if err != nil {
+			t.Fatal(err)
+		}
+		texts, seen = texts[seen:], len(texts)
 		return texts, next
 	}
 
@@ -156,14 +163,13 @@ func TestLineups(t *testing.T) {
 		t.Fatalf("next after Sunday: %v", next)
 	}
 
-	var published int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM lys.sleeper_events WHERE sleeper_league_id = 'lu-on' AND event_type = 'lineup_reminder' AND published_at IS NOT NULL`).Scan(&published); err != nil || published != 2 {
-		t.Fatalf("recorded reminders: %d, %v", published, err)
+	if seen != 2 {
+		t.Fatalf("queued %d reminders, want 2", seen)
 	}
 
 	// Out of season, nothing is asked of ESPN and nothing is sent.
 	off := NewLineups(api.New(espn(t, "off")), pool)
-	if next, err := off.tick(ctx, &outbox{}); err != nil || !next.IsZero() {
+	if next, err := off.tick(ctx); err != nil || !next.IsZero() {
 		t.Fatalf("off season: next %v, %v", next, err)
 	}
 }

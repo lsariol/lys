@@ -15,8 +15,8 @@ import (
 	"github.com/lsariol/lys/internal/sources"
 )
 
-// Poller is the source that announces each league's trades and waiver claims
-// in its community's channels.
+// Poller is the source that checks each league's trades, waiver claims and
+// free-agent moves, and queues the new ones for the sender (sender.go).
 type Poller struct {
 	client *api.Client
 	db     *pgxpool.Pool
@@ -31,11 +31,11 @@ func New(client *api.Client, db *pgxpool.Pool) *Poller {
 
 func (p *Poller) Name() string { return "sleeper" }
 
-func (p *Poller) Run(ctx context.Context, pub sources.Publisher) error {
+func (p *Poller) Run(ctx context.Context, _ sources.Publisher) error {
 	t := time.NewTicker(p.every)
 	defer t.Stop()
 	for {
-		if err := p.poll(ctx, pub); err != nil {
+		if err := p.poll(ctx); err != nil {
 			log.Printf("[Sleeper] %v", err)
 		}
 		select {
@@ -46,20 +46,28 @@ func (p *Poller) Run(ctx context.Context, pub sources.Publisher) error {
 	}
 }
 
+// catchUp is how far before a league's last check a new move may have
+// happened and still be announced: Sleeper can list a move a little after it
+// happened. Anything older is recorded quietly, such as the moves already
+// there when a kind of move is first tracked.
+const catchUp = time.Hour
+
+// moveKinds are the transactions that are announced, with their alert's name.
+var moveKinds = map[string]string{"trade": "trades", "waiver": "waivers", "free_agent": "freeagents"}
+
 // polledLeague is a league to check, with its alert settings.
 type polledLeague struct {
-	id          uuid.UUID
-	sleeperID   string
-	communityID int64
-	firstPoll   bool // nothing recorded yet: record what exists without announcing it
-	trades      bool
-	waivers     bool
+	id         uuid.UUID
+	sleeperID  string
+	lastPolled *time.Time // nil before its first check, which only records what exists
+	alerts     map[string]bool
 }
 
-func (p *Poller) poll(ctx context.Context, pub sources.Publisher) error {
+func (p *Poller) poll(ctx context.Context) error {
 	rows, err := p.db.Query(ctx, `
-		SELECT id, sleeper_league_id, community_id, last_polled_at IS NULL,
-		       COALESCE((notifications->>'trades')::boolean, true), COALESCE((notifications->>'waivers')::boolean, true)
+		SELECT id, sleeper_league_id, last_polled_at,
+		       COALESCE((notifications->>'trades')::boolean, true), COALESCE((notifications->>'waivers')::boolean, true),
+		       COALESCE((notifications->>'freeagents')::boolean, true)
 		FROM lys.sleeper_leagues
 		WHERE enabled AND community_id IS NOT NULL`)
 	if err != nil {
@@ -67,7 +75,9 @@ func (p *Poller) poll(ctx context.Context, pub sources.Publisher) error {
 	}
 	leagues, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (polledLeague, error) {
 		var l polledLeague
-		err := r.Scan(&l.id, &l.sleeperID, &l.communityID, &l.firstPoll, &l.trades, &l.waivers)
+		var trades, waivers, freeAgents bool
+		err := r.Scan(&l.id, &l.sleeperID, &l.lastPolled, &trades, &waivers, &freeAgents)
+		l.alerts = map[string]bool{"trades": trades, "waivers": waivers, "freeagents": freeAgents}
 		return l, err
 	})
 	if err != nil {
@@ -89,14 +99,14 @@ func (p *Poller) poll(ctx context.Context, pub sources.Publisher) error {
 	}
 
 	for _, l := range leagues {
-		if err := p.pollLeague(ctx, l, weeks, week, pub); err != nil {
+		if err := p.pollLeague(ctx, l, weeks, week); err != nil {
 			log.Printf("[Sleeper] league %s: %v", l.sleeperID, err)
 		}
 	}
 	return nil
 }
 
-func (p *Poller) pollLeague(ctx context.Context, l polledLeague, weeks []int, week int, pub sources.Publisher) error {
+func (p *Poller) pollLeague(ctx context.Context, l polledLeague, weeks []int, week int) error {
 	var txs []api.Transaction
 	for _, w := range weeks {
 		got, err := p.client.Transactions(ctx, l.sleeperID, w)
@@ -107,10 +117,10 @@ func (p *Poller) pollLeague(ctx context.Context, l polledLeague, weeks []int, we
 	}
 	sort.Slice(txs, func(i, j int) bool { return txs[i].StatusUpdated < txs[j].StatusUpdated })
 
-	var names *transactionNames
 	var latest int64
 	for _, tx := range txs {
-		if tx.Status != "complete" || (tx.Type != "trade" && tx.Type != "waiver") {
+		alert, ok := moveKinds[tx.Type]
+		if tx.Status != "complete" || !ok {
 			continue
 		}
 		latest = max(latest, tx.StatusUpdated)
@@ -119,25 +129,10 @@ func (p *Poller) pollLeague(ctx context.Context, l polledLeague, weeks []int, we
 		if err != nil {
 			return err
 		}
+		at := time.UnixMilli(tx.StatusUpdated)
+		queue := l.lastPolled != nil && l.alerts[alert] && at.After(l.lastPolled.Add(-catchUp))
 		ev := event{league: l.sleeperID, kind: tx.Type, id: tx.TransactionID}
-		recorded, err := record(ctx, p.db, ev, data, time.UnixMilli(tx.StatusUpdated))
-		if err != nil {
-			return err
-		}
-		wanted := recorded && !l.firstPoll && ((tx.Type == "trade" && l.trades) || (tx.Type == "waiver" && l.waivers))
-		if !wanted {
-			continue
-		}
-
-		if names == nil {
-			n := p.names(ctx, l.sleeperID)
-			names = &n
-		}
-		text, ok := describeTransaction(tx, *names)
-		if !ok {
-			continue
-		}
-		if err := announce(ctx, p.db, ev, l.communityID, text, pub); err != nil {
+		if _, err := record(ctx, p.db, ev, data, at, queue); err != nil {
 			return err
 		}
 	}
@@ -152,35 +147,4 @@ func (p *Poller) pollLeague(ctx context.Context, l polledLeague, weeks []int, we
 		return fmt.Errorf("database: record the Sleeper poll: %w", err)
 	}
 	return nil
-}
-
-// names loads the league's teams and the player catalog for messages; what
-// can't be loaded falls back to IDs.
-func (p *Poller) names(ctx context.Context, sleeperID string) transactionNames {
-	rosters, err := p.client.Rosters(ctx, sleeperID)
-	if err != nil {
-		log.Printf("[Sleeper] league %s rosters: %v", sleeperID, err)
-	}
-	users, err := p.client.LeagueUsers(ctx, sleeperID)
-	if err != nil {
-		log.Printf("[Sleeper] league %s users: %v", sleeperID, err)
-	}
-	catalog, err := p.client.Players(ctx)
-	if err != nil {
-		log.Printf("[Sleeper] players: %v", err)
-	}
-
-	return transactionNames{
-		team: func(rosterID int) string {
-			if rosters != nil && users != nil {
-				for _, r := range *rosters {
-					if r.RosterID == rosterID {
-						return api.TeamName(r, *users)
-					}
-				}
-			}
-			return fmt.Sprintf("Team %d", rosterID)
-		},
-		player: func(playerID string) string { return api.PlayerName(playerID, catalog) },
-	}
 }
