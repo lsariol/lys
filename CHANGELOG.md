@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.1.0 (unreleased)
+## v0.1.0 (2026-10-29)
 
 ### Added
 - Lineup reminders for linked Sleeper leagues, in the league's channels during the NFL regular season: 1 day and 1 hour before the week's first game, and 1 hour before Sunday's first game. Kickoff times come from ESPN's schedule, shown in Eastern time. A reminder that's more than 30 minutes late (after a restart, say) isn't sent. `!ff alerts lineups off` turns them off.

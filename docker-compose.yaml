@@ -1,4 +1,6 @@
 name: lys
+x-lighthouse:
+  deploy: releases # deploy version tags, not every commit
 
 services:
   lys:
