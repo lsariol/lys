@@ -20,12 +20,11 @@ func New(http *http.Client) *RandomDog { return &RandomDog{http: http} }
 
 func (*RandomDog) Spec() commands.Spec {
 	return commands.Spec{
-		Name:         "randomdog",
-		Description:  "Gives you a random dog picture,gif or video from random.dog/woof.json",
-		Usage:        "!randomdog",
-		Timeout:      20 * time.Second,
-		UserCooldown: 3 * time.Second,
-		Concurrency:  12,
+		Name:        "randomdog",
+		Description: "Gives you a random dog picture,gif or video from random.dog/woof.json",
+		Usage:       "!randomdog",
+		Timeout:     20 * time.Second,
+		Concurrency: 16,
 	}
 }
 

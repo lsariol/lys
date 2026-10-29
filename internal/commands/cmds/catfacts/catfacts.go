@@ -20,12 +20,11 @@ func New(http *http.Client) *CatFact { return &CatFact{http: http} }
 
 func (*CatFact) Spec() commands.Spec {
 	return commands.Spec{
-		Name:         "catfact",
-		Description:  "Gives you a random catfact fetched from https://catfact.ninja",
-		Usage:        "!catfact",
-		Timeout:      20 * time.Second,
-		UserCooldown: 3 * time.Second,
-		Concurrency:  12,
+		Name:        "catfact",
+		Description: "Gives you a random catfact fetched from https://catfact.ninja",
+		Usage:       "!catfact",
+		Timeout:     20 * time.Second,
+		Concurrency: 16,
 	}
 }
 
