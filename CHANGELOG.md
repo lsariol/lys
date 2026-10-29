@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.2.0 (unreleased)
+## v0.2.0 (2026-10-29)
 
 Sleeper: free-agent moves, a weekly recap, and a cleanup of every `!ff` command.
 
