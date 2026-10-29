@@ -55,6 +55,15 @@ func getWith(ctx context.Context, hc *http.Client, path string, v any) error {
 	return nil
 }
 
+// Drafts is the league's drafts, newest first as Sleeper lists them.
+func (c *Client) Drafts(ctx context.Context, leagueID string) ([]Draft, error) {
+	var drafts []Draft
+	if err := c.get(ctx, "/league/"+leagueID+"/drafts", &drafts); err != nil {
+		return nil, err
+	}
+	return drafts, nil
+}
+
 // NFLState is the current NFL season and week.
 func (c *Client) NFLState(ctx context.Context) (*NFLState, error) {
 	var state NFLState

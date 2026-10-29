@@ -23,6 +23,9 @@ type Matchup struct {
 	CustomPoints *float64 `json:"custom_points"`
 	Starters     []string `json:"starters"`
 	Players      []string `json:"players"`
+
+	StartersPoints []float64          `json:"starters_points"` // in the order of Starters
+	PlayersPoints  map[string]float64 `json:"players_points"`  // by player ID
 }
 
 type League struct {
@@ -132,4 +135,13 @@ type BudgetPayment struct {
 	Sender   int `json:"sender"`
 	Receiver int `json:"receiver"`
 	Amount   int `json:"amount"`
+}
+
+// Draft is one of a league's drafts.
+type Draft struct {
+	DraftID    string `json:"draft_id"`
+	Season     string `json:"season"`
+	Status     string `json:"status"`      // pre_draft, drafting, paused, complete
+	StartTime  *int64 `json:"start_time"`  // Unix milliseconds; unset until it's scheduled
+	LastPicked *int64 `json:"last_picked"` // Unix milliseconds
 }
