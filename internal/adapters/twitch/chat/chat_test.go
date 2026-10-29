@@ -2,6 +2,7 @@ package chat
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strconv"
@@ -22,6 +23,7 @@ type fakeHelix struct {
 	statuses []int
 	sends    int
 	tokens   int
+	texts    []string // the messages sent, in order
 }
 
 func (f *fakeHelix) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -39,6 +41,12 @@ func (f *fakeHelix) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	f.sends++
+	var sent struct {
+		Message string `json:"message"`
+	}
+	if err := json.NewDecoder(req.Body).Decode(&sent); err == nil {
+		f.texts = append(f.texts, sent.Message)
+	}
 	status := http.StatusOK
 	if len(f.statuses) > 0 {
 		status, f.statuses = f.statuses[0], f.statuses[1:]
@@ -80,5 +88,38 @@ func TestDeliver(t *testing.T) {
 				t.Fatalf("pause %s, err %v, sends %d", pause, err, helix.sends)
 			}
 		})
+	}
+}
+
+func TestDrainSplitsLongMessages(t *testing.T) {
+	helix := &fakeHelix{}
+	client := &http.Client{Transport: helix}
+	cfg := &config.TwitchConfig{ClientID: "id", BotAccountID: "bot"}
+	c := New(client, cfg, auth.New(nil, cfg, client), nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	long := strings.Repeat("word ", 200) // 1000 characters
+	if err := c.Send(ctx, core.Outbound{Channel: core.Channel{ID: "bot"}, Text: long}); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Send(ctx, core.Outbound{Channel: core.Channel{ID: "bot"}, Text: "next"}); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		helix.mu.Lock()
+		texts := append([]string(nil), helix.texts...)
+		helix.mu.Unlock()
+		if len(texts) == 4 {
+			if strings.Join(texts[:3], " ") != strings.TrimSpace(long) || texts[3] != "next" {
+				t.Fatalf("sent %q", texts)
+			}
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("sent %d messages, want 4: %q", len(texts), texts)
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }

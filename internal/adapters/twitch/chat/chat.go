@@ -137,7 +137,8 @@ const pauseFor = 10 * time.Minute
 const maxRateLimitWait = time.Minute
 
 // drain sends one channel's messages in order, paced for the bot's role there
-// and within the account's limit.
+// and within the account's limit. A message too long for Twitch goes out in
+// parts, one after another.
 func (c *ChatClient) drain(ctx context.Context, q <-chan core.Outbound) {
 	var pausedUntil time.Time
 	dropped := 0
@@ -149,36 +150,40 @@ func (c *ChatClient) drain(ctx context.Context, q <-chan core.Outbound) {
 		case out = <-q:
 		}
 
-		if time.Now().Before(pausedUntil) {
-			dropped++
-			continue
-		}
-		if dropped > 0 {
-			log.Printf("[Chat] %q: dropped %d messages while paused", out.Channel.ID, dropped)
-			dropped = 0
-		}
+		for _, part := range split(out.Text) {
+			if time.Now().Before(pausedUntil) {
+				dropped++
+				break
+			}
+			if dropped > 0 {
+				log.Printf("[Chat] %q: dropped %d messages while paused", out.Channel.ID, dropped)
+				dropped = 0
+			}
 
-		privileged := c.isPrivileged(out.Channel.ID)
-		if err := c.limit.wait(ctx, privileged, out.Priority); err != nil {
-			return
-		}
-		pause, err := c.deliver(ctx, out, true)
-		if err != nil {
-			log.Printf("[Chat] %v", err)
-		}
-		if pause > 0 {
-			pausedUntil = time.Now().Add(pause)
-			log.Printf("! [Chat] pausing %q for %s", out.Channel.ID, pause)
-		}
+			privileged := c.isPrivileged(out.Channel.ID)
+			if err := c.limit.wait(ctx, privileged, out.Priority); err != nil {
+				return
+			}
+			msg := out
+			msg.Text = part
+			pause, err := c.deliver(ctx, msg, true)
+			if err != nil {
+				log.Printf("[Chat] %v", err)
+			}
+			if pause > 0 {
+				pausedUntil = time.Now().Add(pause)
+				log.Printf("! [Chat] pausing %q for %s", out.Channel.ID, pause)
+			}
 
-		gap := unprivilegedGap
-		if privileged {
-			gap = privilegedGap
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(gap):
+			gap := unprivilegedGap
+			if privileged {
+				gap = privilegedGap
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(gap):
+			}
 		}
 	}
 }
