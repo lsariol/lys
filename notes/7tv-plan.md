@@ -20,12 +20,31 @@ A streamer maintains their editors in **7TV**. When a Twitch user issues a `!7tv
 
 ### User experience
 
-- `!7tv add <7tv-emote-url-or-id> [alias]` — add an existing 7TV emote to the streamer's **currently active** set.
-- `!7tv remove <alias>` — remove an emote from that set.
-- `!7tv rename <old-alias> <new-alias>` — change the alias in that set.
-- `!7tv sets` — list the streamer's available normal emote sets (names/IDs).
-- `!7tv set <name-or-id>` — switch the streamer's **active** emote set.
-- `!7tv status` — show current set and whether the integration is operational.
+The commands (decided 2026-10-29). The streamer can always do anything an editor can.
+
+| Command | Who | What it does |
+|---|---|---|
+| `!7tv add <name or link> [local name]` | Editors with Manage emote sets | Adds an emote to the **currently active** set; with a local name, under that name |
+| `!7tv remove <name>` | Editors with Manage emote sets | Removes one emote from the active set, by its name there |
+| `!7tv rename <name> <new name>` | Editors with Manage emote sets | Changes its name in the active set (not the emote's own name) |
+| `!7tv undo` | Whoever could make that change | Undoes the channel's last change (below) |
+| `!7tv sets` | Everyone | The streamer's normal sets, the active one marked |
+| `!7tv set <name>` | Editors with Manage profile | Switches the active set |
+| `!7tv search <term>` | Everyone | The 3 or 4 most used emotes with that name, with links |
+| `!7tv editors` | Everyone | The channel's accepted 7TV editors and what each may do |
+| `!7tv emote <name>` | Everyone | What an emote in this channel's set is: its own name, author and link |
+| `!7tv status` | Everyone | The active set, slots used (412/1000), and whether Lys has the permissions it needs |
+
+**`add` by name or by link:**
+- **A link** (`https://7tv.app/emotes/<ID>`) or a bare 7TV ID adds that exact emote. The ID is read from the link locally; Lys never fetches the link.
+- **A name** adds the most popular emote with **exactly** that name (7TV search, `exactMatch`, sorted by all-time top), skipping NSFW, unlisted and deleted emotes. Lu chose this over refusing ambiguous names, so the reply always names the emote it picked and links it: `Added KEKW (7tv.app/emotes/…) · 412/1000 slots`. A wrong pick is then obvious, and `!7tv undo` reverts it.
+- **A local name** after either form adds it under that name.
+
+**`!7tv undo`** reverts the channel's last change made through Lys, if it was within the last hour: it removes what was just added, re-adds what was just removed under its old name, reverts a rename, or switches back to the previous set. It's checked like the change it reverts (the sender needs that change's permission now), and it only reaches back one change. The last change per channel is kept in memory; a restart forgets it.
+
+**Search links:** some channels block links from anyone but moderators, so where the bot isn't a mod they may be removed. The reply also gives each emote's name and author, so it's useful without them.
+
+**Not in v1:** creating sets (with the never-delete rule they'd pile up, and 7TV limits sets per account; it belongs on 7TV's website, where they can also be deleted), deleting anything, bulk changes, emote flags (zero-width and the like), and managing editors.
 
 **Do not add a `!7tv connect` step for each editor.** Users use their normal Twitch chat identities; Lys resolves the linked 7TV accounts. Linking a user's Twitch identity to their own 7TV account remains a 7TV-side requirement if it is not already linked.
 
@@ -101,6 +120,7 @@ Check GraphQL errors, read back if ambiguous, reply in chat
 
 - Streamer/sender lookup: `users.userByConnection(platform: TWITCH, platformId: ...)`.
 - Streamer roster: `User.editors { editorId state permissions { emoteSet { manage } user { manageProfile } } ... }`.
+- **One request does a command's reading:** `userByConnection` for the streamer, with `style { activeEmoteSetId }`, `emoteSets { id name }` (for `!7tv sets`) and `editors { ... editor { connections { platform platformId } } }`.
 - Active set: `User.style.activeEmoteSetId` and `activeEmoteSet`.
 - Set operations: `emoteSets.emoteSet(id: ...).addEmote(...)`, `.removeEmote(...)`, `.updateEmoteAlias(...)`.
 - Active-set switch: `users.user(id: ...).activeEmoteSet(emoteSetId: ...)`.
@@ -121,12 +141,18 @@ Check GraphQL errors, read back if ambiguous, reply in chat
 - **Ask 7TV first** whether a bot may use its own website session, and for a long-lived session for Lys's account (they can already create one, see §4): `opensource@7tv.app` (their README's contact), and their Discord, `discord.gg/7TV`, linked from 7tv.app. Without a yes, the fallback is the operator logging in as LysLink once a month, which isn't hands-off.
 - **Cove key:** `LYS_SEVENTV_TOKEN`, entered in `cove shell`.
 - **Rotation without a redeploy:** Lys reads the key again from Cove after a 401 (at most every few minutes), so a new session takes effect on its own.
-- **Expiry warnings:** Lys reads the expiry from the token's claims (never logging the token) and warns a week ahead in the logs and in `lys 7tv status` (`Needs attention: 7TV session expires 2026-11-28 10:00.`).
+- **Expiry warnings:** the session is a JWT whose `exp` claim is its expiry (Fumobot's script reads it the same way). Lys reads it (never logging the token) and warns a week ahead in the logs and in `lys 7tv status` (`Needs attention: 7TV session expires 2026-11-28 10:00.`).
 - Redact tokens from logs; on expiry, only this feature stops, with errors that start `7TV:` and say how to fix it.
 
 Relevant source:
 - https://github.com/SevenTV/SevenTV/blob/main/apps/api/src/http/v4/rest/auth.rs
 - https://github.com/SevenTV/SevenTV/blob/main/apps/api/src/http/middleware/session.rs
+
+**The API isn't a published contract.** v4 is the API 7TV's own website uses, so it can change without notice. Lys makes a break obvious: a `7TV:` error naming the operation and what came back, not a vague failure. `lys 7tv check` runs the read-only lookups (`users.me`, a test channel's streamer, set and editors) and says what failed; run it after 7TV changes something, or when errors start.
+
+**Not used: automated website logins.** Fumobot renews its token every 5 minutes by logging into 7TV automatically. It stores the bot's Twitch website cookies (as powerful as the account's password), presents itself as the Chrome browser at the network level to pass bot protection, and scrapes the login pages. Lys doesn't do this; the long-lived session from 7TV is the route.
+
+The ready-made GraphQL for each operation is in `notes/7tv-api-reference.md`; where it and this plan differ, this plan wins.
 
 ## 5. How it fits Lys
 
