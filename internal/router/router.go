@@ -295,10 +295,13 @@ func (r *Router) execute(ctx context.Context, j job) {
 	}
 }
 
-// reply answers a message in its channel; an empty reply sends nothing.
+// reply answers a message in its channel, Text then More; an empty reply
+// sends nothing.
 func (r *Router) reply(ctx context.Context, m core.Message, reply commands.Reply) {
-	if err := r.Publish(ctx, core.Outbound{Platform: m.Platform, Channel: m.Channel, Text: reply.Text, Priority: core.PriorityReply}); err != nil {
-		log.Printf("[Router] %v", err)
+	for _, text := range append([]string{reply.Text}, reply.More...) {
+		if err := r.Publish(ctx, core.Outbound{Platform: m.Platform, Channel: m.Channel, Text: text, Priority: core.PriorityReply}); err != nil {
+			log.Printf("[Router] %v", err)
+		}
 	}
 }
 

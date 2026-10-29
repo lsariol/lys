@@ -59,4 +59,5 @@ type Request struct {
 // Reply is a command's answer; an empty Text sends nothing.
 type Reply struct {
 	Text string
+	More []string // further messages, sent after Text in order
 }
