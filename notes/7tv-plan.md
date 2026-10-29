@@ -223,6 +223,10 @@ internal/commands/cmds/seventv/
 12. No GraphQL document in Lys's 7TV code contains a delete operation (a test).
 13. Two adds to one set at the same moment don't add the same emote twice.
 14. A new session stored in Cove is used after the next 401, without a restart.
+15. `add <name>` picks the most popular emote with exactly that name, never an NSFW, unlisted or deleted one, and the reply names and links it.
+16. `add <link> <local name>` adds that exact emote under the local name; a link to anywhere but 7tv.app is refused, and never fetched.
+17. `undo` reverts each kind of change (add, remove, rename, set switch), only the channel's last one within the hour, and only for someone allowed to make that change.
+18. `editors`, `sets`, `search`, `emote` and `status` work for everyone and change nothing.
 
 ## 8. What is *not* required
 
