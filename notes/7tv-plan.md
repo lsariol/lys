@@ -3,7 +3,7 @@
 **Corrected implementation handoff — October 29, 2026**  
 **Repository:** https://github.com/lsariol/lys  
 **Supersedes:** the earlier handoff that authorized Twitch moderators and excluded switching sets.  
-**Status:** planned for Lys v0.3.0; not started. Reviewed and extended 2026-10-29.
+**Status:** planned for Lys v0.3.0; built on `feat/7tv` 2026-10-29 (phases 1–4), tested against a fake 7TV and, read-only, the real one. Reviewed and extended 2026-10-29.
 
 **Decisions (Lu, 2026-10-29):**
 - Fully hands-off for the operator: Lys accepts its own editor invites (§2C), and onboarding runs through the lys.mobasity.com website.
@@ -139,6 +139,14 @@ Check GraphQL errors, read back if ambiguous, reply in chat
 - 7TV active-set mutation permission check: https://github.com/SevenTV/SevenTV/blob/main/apps/api/src/http/v4/gql/mutations/user/operation.rs
 - 7TV set permission checks: https://github.com/SevenTV/SevenTV/blob/main/apps/api/src/http/v4/gql/mutations/emote_set/operation.rs
 - 7TV editor permission UI: https://github.com/SevenTV/SevenTV/blob/main/apps/website/src/components/dialogs/editor-permissions-dialog.svelte
+
+**Verified live on 2026-10-29** (dev session, account `lyslink_dev`):
+- The session works for `users.me`; its JWT `exp` is 30 days after `iat`, so it is an ordinary website login.
+- A set's emotes come back in one request with `perPage: 1000`.
+- `exactMatch` search ignores case (`kekw` finds `KEKW`); Lys prefers a same-case match, then the most used.
+- A bad session gets HTTP 401 `{"error":"invalid session"}`; a write without one gets a GraphQL error with `extensions.code` `LOGIN_REQUIRED`. Other codes: `LACKING_PRIVILEGES`, `BAD_REQUEST`, `RATE_LIMIT_EXCEEDED`.
+- `removeEmote` without an alias removes the emote under **every** name in the set, so Lys always sends the alias.
+- 7TV takes a lock per set for each change (`transaction_with_mutex`), and refuses a name already in the set ("this emote has a conflicting name"); Lys also refuses an emote already in the set under another name.
 
 **Authentication caveat:** 7TV's current website login creates a 7TV-specific session with a 30-day expiry. Research did **not** establish an officially supported permanent third-party bot OAuth + refresh flow. Do not scrape another user's credentials or request tokens via chat.
 
