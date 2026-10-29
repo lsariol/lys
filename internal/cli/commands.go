@@ -102,6 +102,24 @@ func init() {
 			Run: runBotAuthorize,
 		},
 		{
+			Names:   []string{"7tv status"},
+			Group:   "7TV",
+			Summary: "Show Lys's 7TV account, when its session expires, and the channels it edits",
+			Usage:   []string{"7tv status"},
+			Run:     runSevenTVStatus,
+		},
+		{
+			Names:   []string{"7tv check"},
+			Group:   "7TV",
+			Summary: "Run 7TV's read-only lookups and say which fail, such as after 7TV changes its API",
+			Usage:   []string{"7tv check [<channel>]"},
+			Examples: []Example{
+				{"7tv check", "Checks the session, Lys's account and invites, then the first channel Lys edits."},
+				{"7tv check shylaughhaha", "Checks that channel's 7TV account, sets and editors; a Twitch ID works too."},
+			},
+			Run: runSevenTVCheck,
+		},
+		{
 			Names:   []string{"migrate status", "migrate"},
 			Group:   "Database",
 			Summary: "List the database migrations and when each was applied",

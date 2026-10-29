@@ -247,7 +247,7 @@ func (env *Env) read(prompt string) (string, error) {
 }
 
 // groups lists the help groups in the order help shows them.
-var groups = []string{"Channels", "Bot", "Database", "Help"}
+var groups = []string{"Channels", "Bot", "7TV", "Database", "Help"}
 
 // completeCommands offers command names that start with what's typed.
 func completeCommands(env *Env, args []string) []string {

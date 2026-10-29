@@ -25,6 +25,7 @@ var guides = []guide{
 			`Add the channel: lys channel add <login>.`,
 			`The broadcaster lets the bot speak: either they make the bot a moderator (/mod <bot>), or they authorize Lys's Twitch app with the channel:bot scope. Without one of these, Twitch refuses the bot's replies.`,
 			`Check: lys channel list shows it as active, docker logs lys says "joined", and !ping in the channel gets an answer.`,
+			`Optional, for !7tv: the broadcaster adds the bot's account (LysLink) as an editor at https://7tv.app/settings/editors, with Manage emote sets, and Manage profile if they want !7tv set to switch sets. Lys accepts the invite within 5 minutes; lys 7tv status then lists the channel under "Editor in".`,
 		},
 	},
 }
