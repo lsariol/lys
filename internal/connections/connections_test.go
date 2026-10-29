@@ -30,7 +30,7 @@ func open(t *testing.T) *pgxpool.Pool {
 	for _, q := range []string{
 		`DELETE FROM lys.communities WHERE id IN (SELECT community_id FROM lys.platform_connections WHERE external_id LIKE 'conntest-%')`,
 		`DELETE FROM lys.bot_accounts WHERE external_id LIKE 'conntest-%'`,
-		`DELETE FROM lys.twitch_channels WHERE user_id LIKE 'conntest-%'`, // left by older releases' tests (until v0.1.1)
+		`DELETE FROM lys.twitch_channels WHERE user_id LIKE 'conntest-%'`, // left by older releases' tests (until the old tables are dropped)
 	} {
 		if _, err := pool.Exec(ctx, q); err != nil {
 			t.Fatal(err)

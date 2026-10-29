@@ -55,7 +55,7 @@ func TestPGStore(t *testing.T) {
 		t.Fatalf("watching: %v, %v", watching, err)
 	}
 
-	// The old table gets the same subscription, which v0.0.0's startup sync reads (until v0.1.1).
+	// The old table gets the same subscription, which v0.0.0's startup sync reads (until the old tables are dropped).
 	var oldChannels []string
 	if err := pool.QueryRow(ctx, `SELECT alert_channels FROM lys.letterboxd_feed_subscriptions WHERE user_id = 'lbte-u1'`).Scan(&oldChannels); err != nil || len(oldChannels) != 1 || oldChannels[0] != "twitch:lbte-ch" {
 		t.Fatalf("old row: %v, %v", oldChannels, err)

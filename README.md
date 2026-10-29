@@ -18,7 +18,7 @@ adapters ──messages──▶ router ──▶ commands
 | `internal/adapters/twitch` | Twitch: EventSub for chat in, Helix for chat out (paced per channel and for the whole account), the bot's tokens |
 | `internal/router` | Takes every message, checks who may use a command, its cooldowns and caps, and runs it on a worker |
 | `internal/commands` | The command contract (`Spec`, `Request`, `Reply`, access tiers); the commands themselves in `cmds/` |
-| `internal/sources` | What posts without being asked: `letterboxd`, `sleeper` (moves and lineup reminders), `inlet` (`POST /notifications`) |
+| `internal/sources` | What posts without being asked: `letterboxd`, `sleeper` (moves, lineup reminders and weekly recaps, sent from one queue per league), `inlet` (`POST /notifications`) |
 | `internal/features` | Code a command and a source share, such as the Sleeper client |
 | `internal/scheduler` | Jobs that run at a time: reminders, autoposts |
 | `internal/connections`, `identity`, `botaccounts` | Channels, communities, the people in chat, the bot account |

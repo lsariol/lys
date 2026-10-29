@@ -30,7 +30,7 @@ type Store interface {
 	RemoveSubscription(ctx context.Context, platformUserID int64, userID string) (lbUsername string, found bool, err error)
 }
 
-// PGStore is the Store in lys.feed_subscriptions. Until v0.1.1 drops it, it
+// PGStore is the Store in lys.feed_subscriptions. Until the old tables are dropped, it
 // also keeps letterboxd_feed_subscriptions current, in the same transaction:
 // v0.0.0's startup sync takes that table as the list of feeds, so without it a
 // rollback to v0.0.0 would undo every subscription change since.

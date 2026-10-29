@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.2.0 (unreleased)
+
+Sleeper: free-agent moves, a weekly recap, and a cleanup of every `!ff` command.
+
+### Added
+- Free-agent moves are announced in the league's channels, like trades and waiver claims. Each team's moves since the last check go out as one message: "🏈 @lu picked up Jaylen Warren and Rashid Shaheed, dropped Zach Ertz", or "🏈 @lu made 7 free agent moves" when the list won't fit in one message. `!ff alerts freeagents off` turns them off.
+- A weekly recap at 10 AM Eastern on the Tuesday after each week's last game: the results, the highlights (top score, closest game, biggest blowout, best player, most points left on a bench) and the top 3 in the standings, as three messages. Recaps run through the fantasy playoffs, without standings there. A recap more than a day late (Lys was down, say) is skipped. `!ff alerts recap off` turns them off, and `!ff recap [week]` shows one any time.
+- `!ff help` lists the subcommands, and so do `!help ff`, a bare `!ff` and a word `!ff` doesn't know.
+- `!ff unlink @user` for moderators and the channel's owner, to remove a team link someone else made.
+- `!ff matchup [@user] [week]` shows past weeks too.
+
+### Changed
+- People who linked their team show by their @name in every Sleeper message, and teams nobody linked by team name.
+- Every Sleeper announcement waits in one queue per league and goes out 90 seconds after the last: trades, waiver claims, free-agent moves, lineup reminders and recaps. Waiver claims, which Sleeper processes all at once, are grouped per team like free-agent moves ("🏈 Waivers: @lu claimed Rashid Shaheed ($12), dropped Zach Ertz"). The queue is kept in the database, so a restart or deploy loses and repeats nothing. A queued move more than 12 hours old, or a lineup reminder more than 30 minutes late, isn't posted.
+- A bare `!ff` links the channel's own league instead of a fixed one.
+- `!ff trades [@user]` shows the league's last 3 real trades (or one team's), instead of made-up ones.
+- `!ff draft` shows the league's real draft time and status from Sleeper, instead of a fixed date.
+- `!ff standings`, `scores`, `roster` and `playoffs` show everything at once, without page numbers; a long answer takes two messages.
+- `!ff link <Sleeper name>` links your team, and `!ff unlink` removes your link (`!ff link user <name>` and `!ff unlink user` still work). Linking a team someone else has already linked says who, and how a moderator can undo it; linking a second team asks you to unlink the first.
+- Usage messages show the channel's prefix and `ff`, every Sleeper reply starts with 🏈, and the error messages are plain: "Couldn't reach Sleeper, try again in a moment."
+- A sender whose ID is empty is never taken for the channel's owner.
+
 ## v0.1.0 (2026-10-29)
 
 ### Added
