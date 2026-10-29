@@ -25,7 +25,7 @@ func (*RandomDog) Spec() commands.Spec {
 		Usage:        "!randomdog",
 		Timeout:      20 * time.Second,
 		UserCooldown: 3 * time.Second,
-		Concurrency:  6,
+		Concurrency:  12,
 	}
 }
 

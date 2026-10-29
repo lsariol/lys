@@ -49,7 +49,7 @@ import (
 )
 
 // workers is how many commands may run at once.
-const workers = 8
+const workers = 32
 
 func main() {
 	args := os.Args[1:]

@@ -25,7 +25,7 @@ func (*CatFact) Spec() commands.Spec {
 		Usage:        "!catfact",
 		Timeout:      20 * time.Second,
 		UserCooldown: 3 * time.Second,
-		Concurrency:  6,
+		Concurrency:  12,
 	}
 }
 
