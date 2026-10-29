@@ -134,6 +134,9 @@ func TestPrefixAndAliases(t *testing.T) {
 		"!echo a b":     "echo:a,b:!",
 		"  !E a  ":      "echo:a:!",
 		"! echo spaced": "echo:spaced:!",
+		// Chatterino and 7TV add U+E0000 to repeat a message past Twitch's duplicate filter.
+		"!echo a \U000E0000": "echo:a:!",
+		"!echo a\U000E0000":  "echo:a:!",
 	} {
 		if got := a.say(t, "1", text, wait); got != want {
 			t.Errorf("%q: got %q, want %q", text, got, want)

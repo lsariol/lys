@@ -320,7 +320,8 @@ func (r *Router) match(m core.Message) (commands.Command, commands.Request, bool
 	conn, _ := r.config.Connection(m.Platform, m.Channel.ID)
 	req := commands.Request{Message: m, Prefix: prefix, Connection: conn}
 
-	text := strings.TrimSpace(m.Text)
+	// Chat clients add U+E0000 to repeat a message past Twitch's duplicate filter.
+	text := strings.TrimSpace(strings.ReplaceAll(m.Text, "\U000E0000", ""))
 	if strings.HasPrefix(text, prefix) {
 		fields := strings.Fields(text[len(prefix):])
 		if len(fields) == 0 {
