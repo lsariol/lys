@@ -24,8 +24,8 @@ func (*CatFact) Spec() commands.Spec {
 		Description:  "Gives you a random catfact fetched from https://catfact.ninja",
 		Usage:        "!catfact",
 		Timeout:      20 * time.Second,
-		UserCooldown: 10 * time.Second,
-		Concurrency:  2,
+		UserCooldown: 3 * time.Second,
+		Concurrency:  6,
 	}
 }
 

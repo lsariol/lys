@@ -25,7 +25,7 @@ func (*Sleeper) Spec() commands.Spec {
 		Description: "Fantasy Football ran through Sleeper.",
 		Usage:       "!sleeper",
 		Timeout:     10 * time.Second,
-		Concurrency: 4,
+		Concurrency: 10,
 	}
 }
 

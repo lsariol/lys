@@ -28,7 +28,7 @@ func (*Letterboxd) Spec() commands.Spec {
 		Description: "Link your Letterboxd account so the channel sees your new reviews.",
 		Usage:       "!letterboxd watch <username or url> | !letterboxd unwatch",
 		Timeout:     10 * time.Second,
-		Concurrency: 4,
+		Concurrency: 10,
 	}
 }
 

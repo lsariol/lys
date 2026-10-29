@@ -24,8 +24,8 @@ func (*RandomDog) Spec() commands.Spec {
 		Description:  "Gives you a random dog picture,gif or video from random.dog/woof.json",
 		Usage:        "!randomdog",
 		Timeout:      20 * time.Second,
-		UserCooldown: 10 * time.Second,
-		Concurrency:  2,
+		UserCooldown: 3 * time.Second,
+		Concurrency:  6,
 	}
 }
 
