@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.4.0 (2026-10-30)
+
+### Added
+- `!randomcat` links a random cat from cataas.com, a picture or a gif at random: "Here's a random cat. https://cataas.com/cat/…". When cataas.com can't be reached it says so: "Couldn't reach cataas.com, try again in a moment."
+
 ## v0.3.0 (2026-10-29)
 
 7TV: the channel's 7TV editors manage its emotes from chat.
