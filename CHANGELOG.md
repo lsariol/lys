@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.3.0 (2026-10-29)
+
+7TV: the channel's 7TV editors manage its emotes from chat.
+
+### Added
+- `!7tv` manages the channel's active 7TV emote set from chat: `add <name or link> [name]`, `remove <emote>`, `rename <emote> <new name>`, `undo`, `sets`, `set <set>`, `search <name>`, `editors`, `emote <name>` and `status`. Only the streamer and the editors they accepted on 7TV can make changes, each with the permission 7TV gives them (emotes, or switching sets); Twitch roles don't count.
+- A streamer turns it on by adding LysLink as an editor on 7TV with Manage emote sets, plus Manage profile for `!7tv set`. Lys accepts the invite within 5 minutes, only from channels it's in.
+- `!7tv undo` reverses the channel's last change within 30 minutes, if nothing has changed it since: "Undo add emote haha by @user".
+- An add looks the emote up by its 7TV link or ID, or by name (the most-used match), and refuses an emote that's private, deleted, already in the set or named like one there, or a set that's full. Replies show the emote's link and the slots used: "Added KEKW (7tv.app/emotes/…) · 272/600 slots".
+- Each change is logged as one `[7TV]` line: who, the channel, the set, the emote, and whether it worked.
+- `lys 7tv status` shows Lys's 7TV account, when its session expires, the channels it edits and the invites left pending; `lys 7tv check [<channel>]` tries each 7TV lookup and says which fail. Lys logs a warning a week before the session expires, and reads a new one from Cove (`LYS_SEVENTV_TOKEN`) without a restart.
+
+### Fixed
+- A command repeated from Chatterino or 7TV's extension, which add an invisible character to get past Twitch's duplicate filter, now runs like the original instead of reading the character as an extra word.
+
 ## v0.2.0 (2026-10-29)
 
 Sleeper: free-agent moves, a weekly recap, and a cleanup of every `!ff` command.
