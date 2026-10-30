@@ -27,6 +27,7 @@ import (
 	"github.com/lsariol/lys/internal/commands/cmds/letterboxd"
 	"github.com/lsariol/lys/internal/commands/cmds/oneuppuzzle"
 	"github.com/lsariol/lys/internal/commands/cmds/ping"
+	"github.com/lsariol/lys/internal/commands/cmds/randomcat"
 	"github.com/lsariol/lys/internal/commands/cmds/randomdog"
 	"github.com/lsariol/lys/internal/commands/cmds/remind"
 	"github.com/lsariol/lys/internal/commands/cmds/request"
@@ -140,6 +141,7 @@ func run(ctx context.Context, cfg *config.Config, cove *coveclient.Client, db *d
 		letterboxd.New(letterboxd.NewStore(db.Pool), httpClient),
 		oneuppuzzle.New(db.Pool),
 		ping.New(httpClient),
+		randomcat.New(httpClient),
 		randomdog.New(httpClient),
 		remind.New(jobs),
 		request.New(request.NewStore(db.Pool)),
