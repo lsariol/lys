@@ -40,31 +40,31 @@ func (c *AuthClient) RefreshUserAccessToken(ctx context.Context) error {
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenURL, strings.NewReader(data.Encode()))
 	if err != nil {
-		return fmt.Errorf("Twitch: refresh user token: new request: %w", err)
+		return fmt.Errorf("Twitch: user token refresh: build the request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
-		return fmt.Errorf("Twitch: refresh user token: %w", err)
+		return fmt.Errorf("Twitch: user token refresh: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		var fail RefreshFail
 		if err := json.NewDecoder(resp.Body).Decode(&fail); err != nil {
-			return fmt.Errorf("Twitch: refresh user token: status %d", resp.StatusCode)
+			return fmt.Errorf("Twitch: user token refresh: status %d", resp.StatusCode)
 		}
-		return fmt.Errorf("Twitch: refresh user token: status %d: %s (if the refresh token is invalid, re-authorize the bot account and store its tokens in Cove)", resp.StatusCode, fail.Message)
+		return fmt.Errorf("Twitch: user token refresh: status %d: %s (if the refresh token is invalid, re-authorize the bot account and store its tokens in Cove)", resp.StatusCode, fail.Message)
 	}
 
 	var success RefreshSuccess
 	if err := json.NewDecoder(resp.Body).Decode(&success); err != nil {
-		return fmt.Errorf("Twitch: refresh user token: decode response: %w", err)
+		return fmt.Errorf("Twitch: user token refresh: decode response: %w", err)
 	}
 	if success.AccessToken == "" || success.RefreshToken == "" {
-		return fmt.Errorf("Twitch: refresh user token: response is missing a token")
+		return fmt.Errorf("Twitch: user token refresh: the response has no token")
 	}
 
 	c.Tokens.SetUserAccessTokens(success.AccessToken, success.RefreshToken)

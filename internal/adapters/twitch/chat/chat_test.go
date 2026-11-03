@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -81,7 +82,7 @@ func TestDeliver(t *testing.T) {
 			helix := &fakeHelix{statuses: tc.statuses}
 			client := &http.Client{Transport: helix}
 			cfg := &config.TwitchConfig{ClientID: "id", BotAccountID: "bot"}
-			c := New(client, cfg, auth.New(nil, cfg, client), nil)
+			c := New(client, cfg, auth.New(nil, cfg, client), nil, slog.New(slog.DiscardHandler))
 
 			pause, err := c.deliver(context.Background(), core.Outbound{Channel: core.Channel{ID: "1"}, Text: "hi"}, true)
 			if (pause > 0) != tc.wantPause || (err != nil) != tc.wantErr || helix.sends != tc.wantSends {
@@ -95,7 +96,7 @@ func TestDrainSplitsLongMessages(t *testing.T) {
 	helix := &fakeHelix{}
 	client := &http.Client{Transport: helix}
 	cfg := &config.TwitchConfig{ClientID: "id", BotAccountID: "bot"}
-	c := New(client, cfg, auth.New(nil, cfg, client), nil)
+	c := New(client, cfg, auth.New(nil, cfg, client), nil, slog.New(slog.DiscardHandler))
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

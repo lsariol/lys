@@ -41,7 +41,7 @@ func TestMigrations(t *testing.T) {
 	}
 
 	for i := range 2 {
-		if err := Migrate(ctx, migratorURL); err != nil {
+		if _, err := Migrate(ctx, migratorURL); err != nil {
 			t.Fatalf("migrate (run %d): %v", i+1, err)
 		}
 	}
@@ -80,7 +80,7 @@ func TestBaselineTriggers(t *testing.T) {
 		t.Skip("LYS_TEST_MIGRATOR_DATABASE_URL and LYS_TEST_DATABASE_URL aren't set (see scripts/test-db.sh)")
 	}
 	ctx := context.Background()
-	if err := Migrate(ctx, migratorURL); err != nil {
+	if _, err := Migrate(ctx, migratorURL); err != nil {
 		t.Fatal(err)
 	}
 	pool, err := pgxpool.New(ctx, appURL)

@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"sync"
 
@@ -22,7 +21,7 @@ const joinAtOnce = 8
 // current websocket session.
 func (c *EventSubClient) JoinAllChannels(ctx context.Context) error {
 	if err := c.Auth.EnsureUserToken(ctx); err != nil {
-		return fmt.Errorf("refresh user access token: %w", err)
+		return fmt.Errorf("user access token refresh: %w", err)
 	}
 
 	c.mu.Lock()
@@ -60,20 +59,20 @@ func (c *EventSubClient) Sync(ctx context.Context) error {
 		return nil
 	}
 	if err := c.Auth.EnsureUserToken(ctx); err != nil {
-		return fmt.Errorf("refresh user access token: %w", err)
+		return fmt.Errorf("user access token refresh: %w", err)
 	}
 
 	for _, ch := range leaving {
 		if ch.SubscriptionID != "" {
 			if err := c.unsubscribe(ctx, ch.SubscriptionID); err != nil {
-				log.Printf("[EventSub] leave %q (%s): %v", ch.Username, ch.UserID, err)
+				c.log.Warn("leaving a channel failed", "channel", ch.Username, "channel_id", ch.UserID, "err", err)
 				continue
 			}
 		}
 		c.mu.Lock()
 		delete(c.Channels, ch.UserID)
 		c.mu.Unlock()
-		log.Printf("[EventSub] left %s", ch.Username)
+		c.log.Info("left channel", "channel", ch.Username, "channel_id", ch.UserID)
 	}
 	c.join(ctx, join)
 	return nil
@@ -98,13 +97,13 @@ func (c *EventSubClient) join(ctx context.Context, channels []core.Channel) {
 				}
 			}
 			if err != nil {
-				log.Printf("[EventSub] join %q (%s): %v", ch.Name, ch.ID, err)
+				c.log.Warn("joining a channel failed", "channel", ch.Name, "channel_id", ch.ID, "err", err)
 				return
 			}
 			c.mu.Lock()
 			c.Channels[ch.ID] = Channel{UserID: ch.ID, Username: ch.Name, SubscriptionID: sub}
 			c.mu.Unlock()
-			log.Printf("[EventSub] joined %s", ch.Name)
+			c.log.Info("joined channel", "channel", ch.Name, "channel_id", ch.ID)
 		}()
 	}
 	wg.Wait()

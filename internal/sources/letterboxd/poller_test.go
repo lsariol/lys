@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lsariol/lys/internal/core"
 	"github.com/lsariol/lys/internal/database"
+	"github.com/lsariol/lys/internal/logtest"
 )
 
 type recorder []core.Outbound
@@ -28,7 +29,7 @@ func TestPoller(t *testing.T) {
 		t.Skip("LYS_TEST_MIGRATOR_DATABASE_URL and LYS_TEST_DATABASE_URL aren't set (see scripts/test-db.sh)")
 	}
 	ctx := context.Background()
-	if err := database.Migrate(ctx, migratorURL); err != nil {
+	if _, err := database.Migrate(ctx, migratorURL); err != nil {
 		t.Fatal(err)
 	}
 	pool, err := pgxpool.New(ctx, appURL)
@@ -90,7 +91,7 @@ func TestPoller(t *testing.T) {
 	}
 	exec(`INSERT INTO lys.feed_subscriptions (kind, feed_url, feed_name, connection_id, platform_user_id) VALUES ('letterboxd', $1, 'pltest', $2, $3)`, feedURL, conn2, user)
 
-	p := New(pool, srv.Client())
+	p := New(pool, srv.Client(), logtest.Discard)
 	p.notifyGap = 0
 	pub := &recorder{}
 	poll := func() {

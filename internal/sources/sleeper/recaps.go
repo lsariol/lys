@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -24,12 +24,13 @@ type Recaps struct {
 	db     *pgxpool.Pool
 	now    func() time.Time
 	every  time.Duration
+	log    *slog.Logger
 }
 
 var _ sources.Source = (*Recaps)(nil)
 
-func NewRecaps(client *api.Client, db *pgxpool.Pool) *Recaps {
-	return &Recaps{client: client, db: db, now: time.Now, every: time.Minute}
+func NewRecaps(client *api.Client, db *pgxpool.Pool, log *slog.Logger) *Recaps {
+	return &Recaps{client: client, db: db, now: time.Now, every: time.Minute, log: log.With("component", "sleeper")}
 }
 
 func (r *Recaps) Name() string { return "sleeper recaps" }
@@ -42,7 +43,7 @@ func (r *Recaps) Run(ctx context.Context, _ sources.Publisher) error {
 	defer t.Stop()
 	for {
 		if err := r.tick(ctx); err != nil {
-			log.Printf("[Sleeper] recaps: %v", err)
+			r.log.Error("recaps failed", "err", err)
 		}
 		select {
 		case <-ctx.Done():
@@ -70,7 +71,7 @@ func (r *Recaps) tick(ctx context.Context) error {
 		}
 		games, err := r.client.Games(ctx, state.Season, week)
 		if err != nil {
-			log.Printf("[Sleeper] recaps: %v", err)
+			r.log.Warn("the week's games not loaded; no recap for it yet", "season", state.Season, "week", week, "err", err)
 			continue
 		}
 		if len(games) == 0 {
@@ -110,7 +111,7 @@ func (r *Recaps) queue(ctx context.Context, season string, week int, due time.Ti
 			if _, err := record(ctx, r.db, event{league, "recap", id + "-1"}, []byte(`{"skipped": "late"}`), due, false); err != nil {
 				return err
 			}
-			log.Printf("! [Sleeper] league %s: skipped the week %d recap: due %s, over %s ago", league, week, due.Format("2006-01-02 15:04"), recapLate)
+			r.log.Warn("skipped a late recap", "league", league, "week", week, "due", due, "late_after_h", int(recapLate.Hours()))
 			continue
 		}
 
@@ -124,7 +125,7 @@ func (r *Recaps) queue(ctx context.Context, season string, week int, due time.Ti
 			}
 			continue
 		case err != nil:
-			log.Printf("[Sleeper] league %s: week %d recap: %v", league, week, err)
+			r.log.Warn("building a recap failed", "league", league, "week", week, "err", err)
 			continue
 		}
 		if err := r.store(ctx, league, id, due, texts); err != nil {

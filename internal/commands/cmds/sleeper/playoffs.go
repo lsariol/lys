@@ -3,7 +3,6 @@ package sleeper
 import (
 	"context"
 	"fmt"
-	"log"
 	"sort"
 	"strings"
 
@@ -69,7 +68,7 @@ func playoffs(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Re
 	n := sl.names(ctx, league, rosters, users, nil)
 	var matchups []api.Matchup
 	if m, err := sl.client.Matchups(ctx, league.SleeperLeagueID, week); err != nil {
-		log.Printf("[Sleeper] %v", err)
+		sl.log.Warn("playoff matchups not loaded; showing no scores", "league", league.SleeperLeagueID, "week", week, "err", err)
 	} else {
 		matchups = *m
 	}

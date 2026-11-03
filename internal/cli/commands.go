@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"text/tabwriter"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -461,7 +462,14 @@ func runMigrateUp(ctx context.Context, env *Env, in Input) error {
 	if err != nil {
 		return err
 	}
-	return database.Migrate(ctx, u)
+	applied, err := database.Migrate(ctx, u)
+	for _, m := range applied {
+		env.Success("Applied %q in %s.", m.File, m.Duration.Round(time.Millisecond))
+	}
+	if err == nil && len(applied) == 0 {
+		env.Success("The database is up to date.")
+	}
+	return err
 }
 
 func plural(n int, one, many string) string {

@@ -6,7 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -33,21 +33,23 @@ type TwitchClient struct {
 	Auth     *auth.AuthClient
 	Config   *config.TwitchConfig
 	Bots     BotAccounts
+	log      *slog.Logger
 }
 
 // New returns the Twitch adapter. It joins the channels that channels lists for
 // "twitch", revokes the ones Twitch says it may no longer be in, and keeps the
 // bot's role in each in roles.
-func New(http *http.Client, cfg *config.TwitchConfig, cove *coveclient.Client, channels eventsub.Channels, bots BotAccounts, roles chat.Roles) *TwitchClient {
+func New(http *http.Client, cfg *config.TwitchConfig, cove *coveclient.Client, channels eventsub.Channels, bots BotAccounts, roles chat.Roles, log *slog.Logger) *TwitchClient {
 
 	auth := auth.New(cove, cfg, http)
 
 	return &TwitchClient{
-		Chat:     chat.New(http, cfg, auth, roles),
-		EventSub: eventsub.New(http, cfg, auth, channels),
+		Chat:     chat.New(http, cfg, auth, roles, log),
+		EventSub: eventsub.New(http, cfg, auth, channels, log),
 		Auth:     auth,
 		Config:   cfg,
 		Bots:     bots,
+		log:      log.With("component", "twitch"),
 	}
 }
 
@@ -101,6 +103,6 @@ func (c *TwitchClient) Send(ctx context.Context, out core.Outbound) error {
 // Shutdown closes the EventSub connection.
 func (c *TwitchClient) Shutdown(ctx context.Context) {
 	if err := c.EventSub.Shutdown(ctx); err != nil {
-		log.Printf("[Twitch] EventSub shutdown: %v", err)
+		c.log.Warn("EventSub shutdown failed", "err", err)
 	}
 }

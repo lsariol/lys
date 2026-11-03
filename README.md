@@ -47,6 +47,7 @@ A type with `Name()` and `Run(ctx, pub)` that publishes `core.Outbound` messages
 ## On the server
 
 - **The CLI:** `docker exec -it lys /lys shell` (`alias lys='docker exec -it lys /lys shell'`), or one command at a time: `docker exec lys /lys channel list`. `lys help` shows the commands and guides, such as `lys help new-channel`.
-- **Logs:** `docker logs -f lys 2>&1` (Lys logs on stderr).
+- **Logs:** one JSON record per line on stderr, through `blackboxlog`, so Blackbox collects them: search with `blackbox` on the server, or follow them with `docker logs -f lys 2>&1`. Each record has a `component` (`router`, `twitch`, `sleeper`, `seventv`, …). Each command use is one `command` record: the command, channel, outcome (`ok`, `error`, `timeout`, `refused`, `cooling`, `busy`), `duration_ms` and `reply_ms`, never its arguments. `LOG_LEVEL` (`debug`, `info`, `warn`, `error`) and `LOG_FORMAT` (`json`, `text`) change the defaults; a local run with `APP_ENV=dev` writes text.
+- **Chat logging (`LOG_CHAT`):** off by default, so Lys logs commands but not chat. `LOG_CHAT: "true"` in the compose file's `environment` logs every chat message as well (channel, user and text), from the next deploy until it's removed. It's a plain setting, not a Cove secret.
 - **Releasing:** a `## vX.Y.Z (date)` section in `CHANGELOG.md`, `main` fast-forwarded and pushed, then the `vX.Y.Z` tag. Lighthouse deploys the tag and publishes its GitHub Release.
 - **A release with a migration** is rehearsed first on a copy of prod: `sh scripts/rehearse/rehearse.sh up <lys_db dump>`.

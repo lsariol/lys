@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"log"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -30,27 +30,33 @@ const (
 // lys schema so everything Lys owns stays in one place.
 const migrationsTable = "lys.goose_db_version"
 
-// Migrate applies all pending migrations. connString must log in as the
-// migrator role (lys_migrator), which acts as lys_owner.
-func Migrate(ctx context.Context, connString string) error {
+// Applied is one migration Migrate ran.
+type Applied struct {
+	File     string
+	Duration time.Duration
+}
+
+// Migrate applies all pending migrations and returns the ones it ran, also
+// when one fails. connString must log in as the migrator role (lys_migrator),
+// which acts as lys_owner.
+func Migrate(ctx context.Context, connString string) ([]Applied, error) {
 	provider, db, err := newMigrationProvider(ctx, connString)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer db.Close()
 
 	results, err := provider.Up(ctx)
+	var applied []Applied
 	for _, r := range results {
-		log.Printf("migration: %s", r)
+		if r.Error == nil {
+			applied = append(applied, Applied{File: r.Source.Path, Duration: r.Duration})
+		}
 	}
 	if err != nil {
-		return fmt.Errorf("apply migrations: %w", err)
+		return applied, fmt.Errorf("database: apply migrations: %w", err)
 	}
-
-	if len(results) == 0 {
-		log.Println("migration: database is up to date")
-	}
-	return nil
+	return applied, nil
 }
 
 // PrintMigrationStatus writes each migration and whether it has been applied.

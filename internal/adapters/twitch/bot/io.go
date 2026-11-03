@@ -2,8 +2,6 @@ package bot
 
 import (
 	"context"
-	"fmt"
-	"log"
 	"time"
 
 	"github.com/lsariol/lys/internal/adapters/twitch/eventsub"
@@ -29,12 +27,14 @@ func (c *TwitchClient) ingestLoop(ctx context.Context, events <-chan eventsub.Ev
 
 		case <-report.C:
 			if dropped > 0 {
-				log.Printf("[Twitch] the router had no room: dropped %d chat messages in the last minute", dropped)
+				c.log.Warn("router full: dropped chat messages", "dropped", dropped, "period_s", int(dropReportEvery.Seconds()))
 				dropped = 0
 			}
 
 		case msg := <-events:
-			logMessage(msg)
+			if c.Config.LogChat {
+				c.logMessage(msg)
+			}
 			if ev := msg.Payload.Event; ev.ChatterUserID == c.Config.BotAccountID {
 				c.Chat.SetRoles(ev.BroadcasterUserID, roles(ev.Badges)) // its badges say whether it may send faster
 				continue
@@ -85,11 +85,9 @@ func roles(badges []eventsub.ChatBadge) core.Roles {
 	return r
 }
 
-func logMessage(e eventsub.EventSubMessage) {
-	fmt.Printf("[%s] %-10.10s: @%-10.10s - %s\n",
-		time.Now().Format("2006-01-02 15:04:05.00"),
-		e.Payload.Event.BroadcasterUserName,
-		e.Payload.Event.ChatterUserName,
-		e.Payload.Event.Message.Text,
-	)
+// logMessage logs a chat message; only with LOG_CHAT=true, since chat is
+// most of what Lys would log otherwise.
+func (c *TwitchClient) logMessage(e eventsub.EventSubMessage) {
+	ev := e.Payload.Event
+	c.log.Info("chat message", "channel", ev.BroadcasterUserName, "user", ev.ChatterUserName, "text", ev.Message.Text)
 }

@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/lsariol/coveclient"
 )
@@ -20,10 +22,13 @@ type TwitchConfig struct {
 	BotAccountID    string
 	AccessTokenKey  string
 	RefreshTokenKey string
+
+	LogChat bool // LOG_CHAT=true: log every chat message, not only commands
 }
 
 func NewTwitchConfig() *TwitchConfig {
-	return &TwitchConfig{AccessTokenKey: DefaultAccessTokenKey, RefreshTokenKey: DefaultRefreshTokenKey}
+	return &TwitchConfig{AccessTokenKey: DefaultAccessTokenKey, RefreshTokenKey: DefaultRefreshTokenKey,
+		LogChat: strings.EqualFold(os.Getenv("LOG_CHAT"), "true")}
 }
 
 func (c *Config) InitializeTwitchConfig(cove *coveclient.Client) error {
@@ -35,7 +40,7 @@ func (c *Config) InitializeTwitchConfig(cove *coveclient.Client) error {
 
 	clientSecret, err := cove.GetSecret("LYS_TWITCH_CLIENT_SECRET")
 	if err != nil {
-		return fmt.Errorf("get secret LYS_TWITCH_CLIENT_SECRET: %w", err)
+		return fmt.Errorf("get secret LYS_TWITCH_CLIENT_SECRET from Cove: %w", err)
 	}
 
 	c.Twitch.ClientID = clientID

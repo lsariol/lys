@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/lsariol/lys/internal/logtest"
 )
 
 func TestWatch(t *testing.T) {
@@ -14,7 +16,7 @@ func TestWatch(t *testing.T) {
 	changes := make(chan string, 10)
 	watcher := New(pool)
 	done := make(chan error)
-	go func() { done <- watcher.Watch(ctx, time.Hour, func(p string) { changes <- p }) }()
+	go func() { done <- watcher.Watch(ctx, logtest.Discard, time.Hour, func(p string) { changes <- p }) }()
 
 	// Another store, as a CLI in another process would use.
 	s := New(pool)

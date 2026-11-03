@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/google/uuid"
@@ -48,8 +47,7 @@ func addLeagueLink(league *api.League, communityID int64, ctx context.Context, s
 
 	_, err := sl.db.Exec(ctx, query, league.LeagueID, league.Name, league.Season, communityID)
 	if err != nil {
-		log.Println(err)
-		return err, false
+		return fmt.Errorf("database: link the Sleeper league: %w", err), false
 	}
 	return nil, true
 }

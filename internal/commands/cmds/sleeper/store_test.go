@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lsariol/lys/internal/database"
 	api "github.com/lsariol/lys/internal/features/sleeper"
+	"github.com/lsariol/lys/internal/logtest"
 )
 
 // TestStore needs a Postgres set up by scripts/test-db.sh.
@@ -17,7 +18,7 @@ func TestStore(t *testing.T) {
 		t.Skip("LYS_TEST_MIGRATOR_DATABASE_URL and LYS_TEST_DATABASE_URL aren't set (see scripts/test-db.sh)")
 	}
 	ctx := context.Background()
-	if err := database.Migrate(ctx, migratorURL); err != nil {
+	if _, err := database.Migrate(ctx, migratorURL); err != nil {
 		t.Fatal(err)
 	}
 	pool, err := pgxpool.New(ctx, appURL)
@@ -25,7 +26,7 @@ func TestStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
-	sl := &Sleeper{db: pool}
+	sl := &Sleeper{db: pool, log: logtest.Discard}
 
 	for _, q := range []string{
 		`DELETE FROM lys.sleeper_leagues WHERE sleeper_league_id = 'slte-league'`,

@@ -21,7 +21,7 @@ func TestChannelCommands(t *testing.T) {
 		t.Skip("LYS_TEST_MIGRATOR_DATABASE_URL and LYS_TEST_DATABASE_URL aren't set (see scripts/test-db.sh)")
 	}
 	ctx := context.Background()
-	if err := database.Migrate(ctx, migratorURL); err != nil {
+	if _, err := database.Migrate(ctx, migratorURL); err != nil {
 		t.Fatal(err)
 	}
 	db := database.NewDatabase(&config.DatabaseConfig{ConnectionString: appURL})

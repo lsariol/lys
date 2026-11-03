@@ -2,6 +2,7 @@ package sleeper
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -14,9 +15,12 @@ import (
 type Sleeper struct {
 	client *api.Client
 	db     *pgxpool.Pool
+	log    *slog.Logger
 }
 
-func New(client *api.Client, db *pgxpool.Pool) *Sleeper { return &Sleeper{client: client, db: db} }
+func New(client *api.Client, db *pgxpool.Pool, log *slog.Logger) *Sleeper {
+	return &Sleeper{client: client, db: db, log: log.With("component", "sleeper")}
+}
 
 // subcommands is what !ff does, for !ff help, !help ff and unknown words.
 const subcommands = "team, matchup, scores, standings, roster, whohas, trades, recap, highscore, playoffs, draft, link, unlink, alerts"

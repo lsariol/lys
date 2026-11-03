@@ -3,7 +3,7 @@ package connections
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -24,7 +24,8 @@ func notify(ctx context.Context, tx pgx.Tx, platform string) error {
 // Watch calls changed with the platform whenever a connection changes, in this
 // process or another (the CLI), and with "" every resync as a safety net and
 // after a lost listener reconnects. It returns when ctx ends.
-func (s *Store) Watch(ctx context.Context, resync time.Duration, changed func(platform string)) error {
+func (s *Store) Watch(ctx context.Context, log *slog.Logger, resync time.Duration, changed func(platform string)) error {
+	log = log.With("component", "connections")
 	go func() {
 		t := time.NewTicker(resync)
 		defer t.Stop()
@@ -44,7 +45,7 @@ func (s *Store) Watch(ctx context.Context, resync time.Duration, changed func(pl
 			return ctx.Err()
 		}
 		wait := backoff.Delay(attempt, time.Second, time.Minute)
-		log.Printf("[Connections] listening for channel changes: %v; listening again in %s", err, wait.Round(time.Second))
+		log.Warn("listening for channel changes failed; listening again", "retry_in_s", int(wait.Seconds()), "err", err)
 		select {
 		case <-ctx.Done():
 			return ctx.Err()

@@ -15,6 +15,8 @@ github.com/jackc/puddle/v2 v2.2.3 h1:f8HoREISb3l5eO9coPgK7U3hKLhWGokOFVcThl5jrao
 github.com/jackc/puddle/v2 v2.2.3/go.mod h1:vriiEXHvEE654aYKXXjOvZM39qJ0q+azkZFrfEOc3H4=
 github.com/joho/godotenv v1.5.1 h1:7eLL/+HRGLY0ldzfGMeQkb7vMd0as4CfYvUVzLqw0N0=
 github.com/joho/godotenv v1.5.1/go.mod h1:f4LDr5Voq0i2e/R5DDNOoa2zzDfwtkZa6DnEwAbqwq4=
+github.com/lsariol/blackboxlog v0.0.0 h1:YbTNVIWMwWEhjl5R8sZX4PHgzDQNx6ax0MlEbV7YF9s=
+github.com/lsariol/blackboxlog v0.0.0/go.mod h1:nUjjMF6R2lDTUGGVRYCWQMAhhY+B+YsiDFk113waqTs=
 github.com/lsariol/coveclient v1.0.0 h1:0ri24sL597oMc3VHJQrA6m7+MGuvHK6eQJWLAbhqqLw=
 github.com/lsariol/coveclient v1.0.0/go.mod h1:3Yg4K8pBWD4mjjJpb0nCL9EEWuQJiWr8D3CRRUoboXY=
 github.com/mattn/go-isatty v0.0.24 h1:tGZZoVgT/KiqK1c8ocVLeDS8BSWMRd47J3Lbz7vsReI=

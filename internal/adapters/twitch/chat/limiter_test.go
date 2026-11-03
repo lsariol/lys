@@ -8,6 +8,7 @@ import (
 
 	"github.com/lsariol/lys/internal/config"
 	"github.com/lsariol/lys/internal/core"
+	"github.com/lsariol/lys/internal/logtest"
 )
 
 // testLimiter allows 4 messages per window, 2 of them where the bot isn't privileged.
@@ -116,7 +117,7 @@ func TestLimiterCancel(t *testing.T) {
 }
 
 func TestRoles(t *testing.T) {
-	c := &ChatClient{Config: nil, privileged: map[string]bool{}}
+	c := &ChatClient{Config: nil, privileged: map[string]bool{}, log: logtest.Discard}
 	c.Config = testConfig()
 	if c.isPrivileged("1") {
 		t.Fatal("privileged before the bot spoke")

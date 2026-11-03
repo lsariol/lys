@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lsariol/lys/internal/database"
 	api "github.com/lsariol/lys/internal/features/sleeper"
+	"github.com/lsariol/lys/internal/logtest"
 )
 
 var (
@@ -87,7 +88,7 @@ func TestLineups(t *testing.T) {
 		t.Skip("LYS_TEST_MIGRATOR_DATABASE_URL and LYS_TEST_DATABASE_URL aren't set (see scripts/test-db.sh)")
 	}
 	ctx := context.Background()
-	if err := database.Migrate(ctx, migratorURL); err != nil {
+	if _, err := database.Migrate(ctx, migratorURL); err != nil {
 		t.Fatal(err)
 	}
 	pool, err := pgxpool.New(ctx, appURL)
@@ -115,7 +116,7 @@ func TestLineups(t *testing.T) {
 	league("LineupsOn", "lu-on", "lu-ch-on", true)
 	league("LineupsOff", "lu-off", "lu-ch-off", false)
 
-	l := NewLineups(api.New(espn(t, "regular")), pool)
+	l := NewLineups(api.New(espn(t, "regular"), logtest.Discard), pool, logtest.Discard)
 	// tick runs a check at the time, and returns the reminders it queued.
 	seen := 0
 	tick := func(at time.Time) ([]string, time.Time) {
@@ -168,7 +169,7 @@ func TestLineups(t *testing.T) {
 	}
 
 	// Out of season, nothing is asked of ESPN and nothing is sent.
-	off := NewLineups(api.New(espn(t, "off")), pool)
+	off := NewLineups(api.New(espn(t, "off"), logtest.Discard), pool, logtest.Discard)
 	if next, err := off.tick(ctx); err != nil || !next.IsZero() {
 		t.Fatalf("off season: next %v, %v", next, err)
 	}

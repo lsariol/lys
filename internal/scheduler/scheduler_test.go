@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lsariol/lys/internal/core"
 	"github.com/lsariol/lys/internal/database"
+	"github.com/lsariol/lys/internal/logtest"
 	"github.com/lsariol/lys/internal/sources"
 )
 
@@ -45,7 +46,7 @@ func open(t *testing.T) (*Store, *pgxpool.Pool, int64, int64) {
 		t.Skip("LYS_TEST_MIGRATOR_DATABASE_URL and LYS_TEST_DATABASE_URL aren't set (see scripts/test-db.sh)")
 	}
 	ctx := context.Background()
-	if err := database.Migrate(ctx, migratorURL); err != nil {
+	if _, err := database.Migrate(ctx, migratorURL); err != nil {
 		t.Fatal(err)
 	}
 	pool, err := pgxpool.New(ctx, appURL)
@@ -94,7 +95,7 @@ func TestScheduler(t *testing.T) {
 	s := New(store, map[string]Handler{
 		"message": SendMessage,
 		"fails":   func(context.Context, Job, sources.Publisher) error { return errors.New("broken") },
-	})
+	}, logtest.Discard)
 	s.runDue(ctx, pub)
 
 	got := map[string]int{}

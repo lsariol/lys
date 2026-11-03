@@ -113,7 +113,7 @@ func (s *SevenTV) add(ctx context.Context, e commands.Request) (commands.Reply, 
 	if unknown(err) && s.landed(ctx, set.ID, func(c *api.Contents) bool { in, ok := c.Has(emote.ID); return ok && in.Alias == alias }) {
 		err = nil
 	}
-	logChange(e, ch, action, err)
+	s.logChange(e, ch, action, err)
 	if err != nil {
 		return failed(err), err
 	}
@@ -152,7 +152,7 @@ func (s *SevenTV) remove(ctx context.Context, e commands.Request) (commands.Repl
 	if unknown(err) && s.landed(ctx, set.ID, func(c *api.Contents) bool { return !c.Taken(in.Alias) }) {
 		err = nil
 	}
-	logChange(e, ch, action, err)
+	s.logChange(e, ch, action, err)
 	if err != nil {
 		return failed(err), err
 	}
@@ -194,7 +194,7 @@ func (s *SevenTV) rename(ctx context.Context, e commands.Request) (commands.Repl
 	if unknown(err) && s.landed(ctx, set.ID, func(c *api.Contents) bool { got, ok := c.Find(to); return ok && got.Emote.ID == in.Emote.ID }) {
 		err = nil
 	}
-	logChange(e, ch, action, err)
+	s.logChange(e, ch, action, err)
 	if err != nil {
 		return failed(err), err
 	}
@@ -260,7 +260,7 @@ func (s *SevenTV) switchTo(ctx context.Context, e commands.Request, ch *api.Chan
 	if undo {
 		action = "undo: " + action
 	}
-	logChange(e, ch, action, err)
+	s.logChange(e, ch, action, err)
 	if err != nil {
 		return failed(err), err
 	}

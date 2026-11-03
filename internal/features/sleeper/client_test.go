@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/lsariol/lys/internal/logtest"
 )
 
 type transport func(*http.Request) (*http.Response, error)
@@ -25,7 +27,7 @@ func TestPlayerCatalogLoadingAndRefreshFailure(t *testing.T) {
 		close(started)
 		<-release
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"1":{"full_name":"Player One"}}`)), Header: make(http.Header)}, nil
-	})})
+	})}, logtest.Discard)
 
 	// Two commands without a catalog yet: both wait for the one download.
 	done := make(chan error, 2)
@@ -84,7 +86,7 @@ func TestPlayerCatalogOutlivesTheCommand(t *testing.T) {
 			return nil, req.Context().Err()
 		}
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"1":{"full_name":"Player One"}}`)), Header: make(http.Header)}, nil
-	})})
+	})}, logtest.Discard)
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
 	if _, err := c.Players(ctx); err == nil {
@@ -126,7 +128,7 @@ func TestGames(t *testing.T) {
 			t.Errorf("unexpected request %s", req.URL)
 		}
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewReader(fixture)), Header: make(http.Header)}, nil
-	})})
+	})}, logtest.Discard)
 
 	games, err := c.Games(context.Background(), "2026", 9)
 	if err != nil {
@@ -154,13 +156,13 @@ func TestGames(t *testing.T) {
 	// A different week in the answer, or one without teams, is an error, never a guess.
 	if _, err := New(&http.Client{Transport: transport(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewReader(fixture)), Header: make(http.Header)}, nil
-	})}).Games(context.Background(), "2026", 10); err == nil {
+	})}, logtest.Discard).Games(context.Background(), "2026", 10); err == nil {
 		t.Fatal("week 9's games were accepted for week 10")
 	}
 	for _, body := range []string{`{"week":{"number":9},"events":[]}`, `{"week":{"number":9},"events":[{"date":"soon"}]}`, `{"week":{"number":9},"events":[{"date":"2026-11-06T01:15Z","competitions":[{"competitors":[]}]}]}`} {
 		_, err := New(&http.Client{Transport: transport(func(req *http.Request) (*http.Response, error) {
 			return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
-		})}).Games(context.Background(), "2026", 9)
+		})}, logtest.Discard).Games(context.Background(), "2026", 9)
 		if err == nil {
 			t.Errorf("accepted %s", body)
 		}

@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -26,12 +26,13 @@ type Sender struct {
 	now    func() time.Time
 	every  time.Duration
 	gap    time.Duration
+	log    *slog.Logger
 }
 
 var _ sources.Source = (*Sender)(nil)
 
-func NewSender(client *api.Client, db *pgxpool.Pool) *Sender {
-	return &Sender{client: client, db: db, now: time.Now, every: 5 * time.Second, gap: 90 * time.Second}
+func NewSender(client *api.Client, db *pgxpool.Pool, log *slog.Logger) *Sender {
+	return &Sender{client: client, db: db, now: time.Now, every: 5 * time.Second, gap: 90 * time.Second, log: log.With("component", "sleeper")}
 }
 
 func (s *Sender) Name() string { return "sleeper announcements" }
@@ -53,7 +54,7 @@ func (s *Sender) Run(ctx context.Context, pub sources.Publisher) error {
 	defer t.Stop()
 	for {
 		if err := s.send(ctx, pub); err != nil {
-			log.Printf("[Sleeper] announcements: %v", err)
+			s.log.Error("sending announcements failed", "err", err)
 		}
 		select {
 		case <-ctx.Done():
@@ -110,7 +111,7 @@ func (s *Sender) send(ctx context.Context, pub sources.Publisher) error {
 			continue
 		}
 		if err := s.post(ctx, q, now, pub); err != nil {
-			log.Printf("[Sleeper] league %s: %v", q.league, err)
+			s.log.Warn("posting a league's announcement failed", "league", q.league, "kind", q.kind, "err", err)
 		}
 	}
 	return nil
@@ -145,7 +146,7 @@ func (s *Sender) post(ctx context.Context, q queued, now time.Time, pub sources.
 	sent := false
 	for _, c := range chs {
 		if err := pub.Publish(ctx, core.Outbound{Platform: c.platform, Channel: c.Channel, Text: text}); err != nil {
-			log.Printf("[Sleeper] announce %s in %q: %v", q.kind, c.Name, err)
+			s.log.Warn("announcement not sent", "league", q.league, "kind", q.kind, "channel", c.Name, "err", err)
 			continue
 		}
 		sent = true
@@ -222,6 +223,6 @@ func (s *Sender) drop(ctx context.Context, q queued, why string, ids ...uuid.UUI
 	if _, err := s.db.Exec(ctx, `UPDATE lys.sleeper_events SET send_after = NULL WHERE id = ANY($1)`, ids); err != nil {
 		return fmt.Errorf("database: take Sleeper %s off the queue: %w", q.kind, err)
 	}
-	log.Printf("! [Sleeper] league %s: didn't post a queued %s: %s", q.league, q.kind, why)
+	s.log.Warn("dropped a queued announcement", "league", q.league, "kind", q.kind, "reason", why)
 	return nil
 }

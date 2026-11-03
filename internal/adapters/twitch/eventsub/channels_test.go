@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strconv"
@@ -74,7 +75,7 @@ func TestJoinInParallel(t *testing.T) {
 			return &http.Response{StatusCode: 403, Body: io.NopCloser(strings.NewReader(`{"message":"no"}`))}, nil
 		}
 		return &http.Response{StatusCode: 202, Body: io.NopCloser(strings.NewReader(`{"data":[{"id":"sub-` + id + `"}]}`))}, nil
-	})}, &config.TwitchConfig{BotAccountID: "bot"}, auth.New(nil, &config.TwitchConfig{}, nil), nil)
+	})}, &config.TwitchConfig{BotAccountID: "bot"}, auth.New(nil, &config.TwitchConfig{}, nil), nil, slog.New(slog.DiscardHandler))
 
 	var channels []core.Channel
 	for i := range 40 {

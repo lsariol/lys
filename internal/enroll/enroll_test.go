@@ -12,6 +12,7 @@ import (
 
 	"github.com/lsariol/lys/internal/connections"
 	"github.com/lsariol/lys/internal/core"
+	"github.com/lsariol/lys/internal/logtest"
 )
 
 type stubStore struct {
@@ -53,6 +54,26 @@ func (stubLookup) LookupChannel(ctx context.Context, id string) (core.ChannelInf
 	return core.ChannelInfo{}, fmt.Errorf("%w: %s", core.ErrNoSuchChannel, id)
 }
 
+// Neither the enrollment token nor a wrong one a caller sent is logged, also
+// when enrolling fails.
+func TestNoTokenInLogs(t *testing.T) {
+	log, buf := logtest.New()
+	a := New(&stubStore{fail: true}, "enroll-token-value", log, stubLookup{})
+	serve(t, a, http.MethodPost, "/channels", "Bearer wrong-token-value", `{"platform":"twitch","channel_id":"123"}`)
+	serve(t, a, http.MethodPost, "/channels", "Bearer enroll-token-value", `{"platform":"twitch","channel_id":"500"}`)
+	serve(t, a, http.MethodPost, "/channels", "Bearer enroll-token-value", `{"platform":"twitch","channel_id":"123"}`)
+	New(&stubStore{}, "", log, stubLookup{})
+
+	if len(buf.Records(t)) < 3 {
+		t.Fatalf("too little was logged to check: %s", buf)
+	}
+	for _, v := range []string{"enroll-token-value", "wrong-token-value"} {
+		if strings.Contains(buf.String(), v) {
+			t.Errorf("%q was logged: %s", v, buf)
+		}
+	}
+}
+
 func serve(t *testing.T, a *API, method, path, auth, body string) (int, map[string]any) {
 	t.Helper()
 	mux := http.NewServeMux()
@@ -72,7 +93,7 @@ func serve(t *testing.T, a *API, method, path, auth, body string) (int, map[stri
 
 func TestEnroll(t *testing.T) {
 	store := &stubStore{}
-	a := New(store, "secret", stubLookup{})
+	a := New(store, "secret", logtest.Discard, stubLookup{})
 	const body = `{"platform": "Twitch", "channel_id": "123", "name": "Ignored", "login": "ignored"}`
 
 	for name, tc := range map[string]struct {
@@ -118,7 +139,7 @@ func TestEnroll(t *testing.T) {
 
 func TestDisable(t *testing.T) {
 	store := &stubStore{}
-	a := New(store, "secret", stubLookup{})
+	a := New(store, "secret", logtest.Discard, stubLookup{})
 
 	if code, _ := serve(t, a, http.MethodDelete, "/channels/twitch/123", "", ""); code != http.StatusUnauthorized {
 		t.Fatalf("no token: %d", code)
@@ -132,7 +153,7 @@ func TestDisable(t *testing.T) {
 }
 
 func TestNoToken(t *testing.T) {
-	if code, _ := serve(t, New(&stubStore{}, "", stubLookup{}), http.MethodPost, "/channels", "Bearer ", `{}`); code != http.StatusUnauthorized {
+	if code, _ := serve(t, New(&stubStore{}, "", logtest.Discard, stubLookup{}), http.MethodPost, "/channels", "Bearer ", `{}`); code != http.StatusUnauthorized {
 		t.Fatalf("an API without a token accepted a request: %d", code)
 	}
 }

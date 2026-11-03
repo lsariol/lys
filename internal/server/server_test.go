@@ -5,6 +5,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/lsariol/lys/internal/logtest"
 )
 
 func TestHealth(t *testing.T) {
@@ -15,7 +17,7 @@ func TestHealth(t *testing.T) {
 		"connected":    {map[string]bool{"twitch": true}, http.StatusOK},
 		"disconnected": {map[string]bool{"twitch": false}, http.StatusServiceUnavailable},
 	} {
-		s := New(":0", "v1.2.3", func() map[string]bool { return tc.adapters }, nil)
+		s := New(":0", "v1.2.3", func() map[string]bool { return tc.adapters }, nil, logtest.Discard)
 		w := httptest.NewRecorder()
 		s.srv.Handler.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/health", nil))
 		if w.Code != tc.want {

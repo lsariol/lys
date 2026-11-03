@@ -7,7 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -23,10 +23,11 @@ type SevenTV struct {
 	locks  locks
 	undo   undoLog
 	now    func() time.Time
+	log    *slog.Logger
 }
 
-func New(client *api.Client) *SevenTV {
-	return &SevenTV{client: client, now: time.Now}
+func New(client *api.Client, log *slog.Logger) *SevenTV {
+	return &SevenTV{client: client, now: time.Now, log: log.With("component", "seventv")}
 }
 
 // subcommands is what !7tv does, for !7tv help and unknown words.
@@ -177,13 +178,14 @@ func (s *SevenTV) authorize(ctx context.Context, e commands.Request, ch *api.Cha
 }
 
 // logChange records one change, done or not, for the central logs.
-func logChange(e commands.Request, ch *api.Channel, action string, err error) {
-	result := "done"
+func (s *SevenTV) logChange(e commands.Request, ch *api.Channel, action string, err error) {
+	attrs := []any{"action", action, "channel", e.Channel.Name, "channel_id", e.Channel.ID, "seventv_id", ch.ID,
+		"user", e.User.Name, "user_id", e.User.ID}
 	if err != nil {
-		result = "failed: " + err.Error()
+		s.log.Warn("7TV change failed", append(attrs, "outcome", "error", "err", err)...)
+		return
 	}
-	log.Printf("[7TV] %s in %q (Twitch %s, 7TV %s) by %q (Twitch %s): %s",
-		action, e.Channel.Name, e.Channel.ID, ch.ID, e.User.Name, e.User.ID, result)
+	s.log.Info("7TV change", append(attrs, "outcome", "ok")...)
 }
 
 // locks makes changes to one set, or to one account's active set, take turns.

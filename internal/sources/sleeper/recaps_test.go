@@ -12,6 +12,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	api "github.com/lsariol/lys/internal/features/sleeper"
+	"github.com/lsariol/lys/internal/logtest"
 )
 
 // recapFakes answers as week 9 of 2026: ESPN's saved week 9 schedule, and for
@@ -76,7 +77,7 @@ func TestRecaps(t *testing.T) {
 	league("rc-on", true)
 	league("rc-off", false)
 
-	client := api.New(recapFakes(t))
+	client := api.New(recapFakes(t), logtest.Discard)
 	games, err := client.Games(ctx, "2026", 9)
 	if err != nil {
 		t.Fatal(err)
@@ -86,7 +87,7 @@ func TestRecaps(t *testing.T) {
 		t.Fatalf("due %s", due.In(api.Eastern))
 	}
 
-	r := NewRecaps(client, pool)
+	r := NewRecaps(client, pool, logtest.Discard)
 	recaps := func(id string, at time.Time) []string {
 		t.Helper()
 		r.now = func() time.Time { return at }

@@ -12,6 +12,7 @@ import (
 	"github.com/lsariol/lys/internal/core"
 	api "github.com/lsariol/lys/internal/features/seventv"
 	"github.com/lsariol/lys/internal/features/seventv/seventvtest"
+	"github.com/lsariol/lys/internal/logtest"
 )
 
 // Twitch IDs in the tests.
@@ -64,7 +65,7 @@ func setup(t *testing.T) *fixture {
 		Editors: []api.Editor{{ID: "lys", State: api.Accepted, ManageSets: true, ManageProfile: true}},
 	}
 	fx := &fixture{fake: f, now: time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)}
-	fx.cmd = New(f.Client())
+	fx.cmd = New(f.Client(), logtest.Discard)
 	fx.cmd.now = func() time.Time { return fx.now }
 	return fx
 }

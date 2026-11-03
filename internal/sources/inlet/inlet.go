@@ -6,7 +6,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -30,14 +30,15 @@ type notification struct {
 type Inlet struct {
 	token string
 	inbox chan notification
+	log   *slog.Logger
 }
 
 var _ sources.Source = (*Inlet)(nil)
 
 // New returns an inlet that accepts requests carrying "Authorization: Bearer
 // <token>". With an empty token it refuses every request.
-func New(token string) *Inlet {
-	return &Inlet{token: token, inbox: make(chan notification, 256)}
+func New(token string, log *slog.Logger) *Inlet {
+	return &Inlet{token: token, inbox: make(chan notification, 256), log: log.With("component", "inlet")}
 }
 
 func (in *Inlet) Name() string { return "inlet" }
@@ -65,7 +66,7 @@ func (in *Inlet) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	select {
 	case in.inbox <- n:
 	default:
-		log.Printf("[Inlet] inbox full, dropping notification %q", n.GUID)
+		in.log.Warn("inbox full: dropped a notification", "guid", n.GUID, "dropped", 1)
 		http.Error(w, "server busy", http.StatusServiceUnavailable)
 		return
 	}
@@ -85,16 +86,16 @@ func (in *Inlet) authorized(r *http.Request) bool {
 // Run publishes each notification to every channel it names.
 func (in *Inlet) Run(ctx context.Context, pub sources.Publisher) error {
 	if in.token == "" {
-		log.Println("! [Inlet] SHARED_LYS_NOTIFICATION_TOKEN is empty: refusing every notification")
+		in.log.Warn("SHARED_LYS_NOTIFICATION_TOKEN is empty: refusing every notification")
 	}
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case n := <-in.inbox:
-			for _, out := range outbounds(n) {
+			for _, out := range in.outbounds(n) {
 				if err := pub.Publish(ctx, out); err != nil {
-					log.Printf("[Inlet] notification %q: %v", n.GUID, err)
+					in.log.Warn("notification not sent", "guid", n.GUID, "channel_id", out.Channel.ID, "err", err)
 				}
 			}
 		}
@@ -103,12 +104,12 @@ func (in *Inlet) Run(ctx context.Context, pub sources.Publisher) error {
 
 // outbounds turns a notification into one message per alert channel,
 // skipping (and logging) malformed entries.
-func outbounds(n notification) []core.Outbound {
+func (in *Inlet) outbounds(n notification) []core.Outbound {
 	out := make([]core.Outbound, 0, len(n.AlertChannels))
 	for _, ch := range n.AlertChannels {
 		parts := strings.SplitN(ch, ":", 3)
 		if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
-			log.Printf("[Inlet] skipping malformed alert channel %q (want platform:channelID)", ch)
+			in.log.Warn("skipping a malformed alert channel: want platform:channelID", "guid", n.GUID, "alert_channel", ch)
 			continue
 		}
 		o := core.Outbound{Platform: parts[0], Channel: core.Channel{ID: parts[1]}, Text: n.Message}

@@ -13,6 +13,7 @@ import (
 	"github.com/lsariol/lys/internal/core"
 	"github.com/lsariol/lys/internal/database"
 	api "github.com/lsariol/lys/internal/features/sleeper"
+	"github.com/lsariol/lys/internal/logtest"
 )
 
 // fakeLeague answers the Sleeper calls of a three-team league, "tt-league".
@@ -38,7 +39,7 @@ func TestTradesAndLinks(t *testing.T) {
 		t.Skip("LYS_TEST_MIGRATOR_DATABASE_URL and LYS_TEST_DATABASE_URL aren't set (see scripts/test-db.sh)")
 	}
 	ctx := context.Background()
-	if err := database.Migrate(ctx, migratorURL); err != nil {
+	if _, err := database.Migrate(ctx, migratorURL); err != nil {
 		t.Fatal(err)
 	}
 	pool, err := pgxpool.New(ctx, appURL)
@@ -73,7 +74,7 @@ func TestTradesAndLinks(t *testing.T) {
 		('tt-league', 'trade', 't2', '{"type": "trade", "roster_ids": [2, 3], "adds": {"33": 2}}', '2026-10-02 12:00-04'),
 		('tt-league', 'waiver', 'w1', '{"type": "waiver", "roster_ids": [1], "adds": {"33": 1}}', '2026-10-03 12:00-04')`)
 
-	sl := New(api.New(&http.Client{Transport: fakeLeague{}}), pool)
+	sl := New(api.New(&http.Client{Transport: fakeLeague{}}, logtest.Discard), pool, logtest.Discard)
 	run := func(user string, platformUser int64, args ...string) commands.Reply {
 		t.Helper()
 		e := commands.Request{Args: args, Prefix: "!", Connection: core.Connection{CommunityID: community}}

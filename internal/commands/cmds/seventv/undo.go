@@ -181,7 +181,7 @@ func (s *SevenTV) undoLast(ctx context.Context, e commands.Request) (commands.Re
 	if unknown(err) && s.landed(ctx, last.setID, check) {
 		err = nil
 	}
-	logChange(e, ch, action, err)
+	s.logChange(e, ch, action, err)
 	if err != nil {
 		return failed(err), err
 	}

@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"sort"
 	"time"
 
@@ -21,12 +21,13 @@ type Poller struct {
 	client *api.Client
 	db     *pgxpool.Pool
 	every  time.Duration
+	log    *slog.Logger
 }
 
 var _ sources.Source = (*Poller)(nil)
 
-func New(client *api.Client, db *pgxpool.Pool) *Poller {
-	return &Poller{client: client, db: db, every: 10 * time.Minute}
+func New(client *api.Client, db *pgxpool.Pool, log *slog.Logger) *Poller {
+	return &Poller{client: client, db: db, every: 10 * time.Minute, log: log.With("component", "sleeper")}
 }
 
 func (p *Poller) Name() string { return "sleeper" }
@@ -36,7 +37,7 @@ func (p *Poller) Run(ctx context.Context, _ sources.Publisher) error {
 	defer t.Stop()
 	for {
 		if err := p.poll(ctx); err != nil {
-			log.Printf("[Sleeper] %v", err)
+			p.log.Error("polling the leagues failed", "err", err)
 		}
 		select {
 		case <-ctx.Done():
@@ -100,7 +101,7 @@ func (p *Poller) poll(ctx context.Context) error {
 
 	for _, l := range leagues {
 		if err := p.pollLeague(ctx, l, weeks, week); err != nil {
-			log.Printf("[Sleeper] league %s: %v", l.sleeperID, err)
+			p.log.Warn("polling a league failed", "league", l.sleeperID, "err", err)
 		}
 	}
 	return nil

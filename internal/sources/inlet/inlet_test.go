@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/lsariol/lys/internal/core"
+	"github.com/lsariol/lys/internal/logtest"
 )
 
 type recorder chan core.Outbound
@@ -28,8 +29,28 @@ func post(h http.Handler, auth, body string) int {
 	return w.Code
 }
 
+// Neither the inlet's token nor a wrong one a caller sent is logged.
+func TestNoTokenInLogs(t *testing.T) {
+	log, buf := logtest.New()
+	in := New("inlet-token-value", log)
+	post(in, "Bearer wrong-token-value", `{"message":"x","alert_channels":["twitch:1"]}`)
+	if got := post(in, "Bearer inlet-token-value", `{"message":"x","alert_channels":["malformed"],"guid":"g1"}`); got != http.StatusOK {
+		t.Fatalf("status %d", got)
+	}
+	in.outbounds(<-in.inbox)
+
+	if buf.String() == "" {
+		t.Fatal("nothing was logged, so nothing was checked")
+	}
+	for _, v := range []string{"inlet-token-value", "wrong-token-value"} {
+		if strings.Contains(buf.String(), v) {
+			t.Errorf("%q was logged: %s", v, buf)
+		}
+	}
+}
+
 func TestInlet(t *testing.T) {
-	in := New("secret")
+	in := New("secret", logtest.Discard)
 	pub := make(recorder, 4)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -74,7 +95,7 @@ func TestInlet(t *testing.T) {
 }
 
 func TestInletWithoutToken(t *testing.T) {
-	if got := post(New(""), "Bearer ", `{"message":"x","alert_channels":["twitch:1"]}`); got != http.StatusUnauthorized {
+	if got := post(New("", logtest.Discard), "Bearer ", `{"message":"x","alert_channels":["twitch:1"]}`); got != http.StatusUnauthorized {
 		t.Fatalf("an inlet without a token accepted a request: %d", got)
 	}
 }

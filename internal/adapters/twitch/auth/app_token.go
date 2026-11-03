@@ -19,29 +19,29 @@ func (c *AuthClient) RefreshAppAccessToken(ctx context.Context) error {
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenURL, strings.NewReader(vals.Encode()))
 	if err != nil {
-		return fmt.Errorf("Twitch: get app token: new request: %w", err)
+		return fmt.Errorf("Twitch: app token request: build it: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
-		return fmt.Errorf("Twitch: get app token: %w", err)
+		return fmt.Errorf("Twitch: app token request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Twitch: get app token: status %d (check LYS_TWITCH_CLIENT_ID and LYS_TWITCH_CLIENT_SECRET in Cove)", resp.StatusCode)
+		return fmt.Errorf("Twitch: app token request: status %d (check LYS_TWITCH_CLIENT_ID and LYS_TWITCH_CLIENT_SECRET in Cove)", resp.StatusCode)
 	}
 
 	var data struct {
 		AccessToken string `json:"access_token"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		return fmt.Errorf("Twitch: get app token: decode response: %w", err)
+		return fmt.Errorf("Twitch: app token request: decode the response: %w", err)
 	}
 	if data.AccessToken == "" {
-		return fmt.Errorf("Twitch: get app token: response is missing the token")
+		return fmt.Errorf("Twitch: app token request: the response has no token")
 	}
 
 	c.Tokens.SetAppAccessTokens(data.AccessToken)

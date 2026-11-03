@@ -6,7 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -65,6 +65,7 @@ type Router struct {
 	identities core.Identities
 	workers    int
 	resolveIn  time.Duration // resolveTimeout; shorter in tests
+	log        *slog.Logger
 
 	in        chan core.Message
 	jobs      chan job
@@ -81,13 +82,14 @@ type job struct {
 }
 
 // New returns a router that runs up to workers commands at once.
-func New(registry *commands.Registry, config core.ChannelConfig, identities core.Identities, workers int) *Router {
+func New(registry *commands.Registry, config core.ChannelConfig, identities core.Identities, workers int, log *slog.Logger) *Router {
 	return &Router{
 		registry:   registry,
 		config:     config,
 		identities: identities,
 		workers:    max(workers, 1),
 		resolveIn:  resolveTimeout,
+		log:        log.With("component", "router"),
 		in:         make(chan core.Message, inboxSize),
 		jobs:       make(chan job, jobsSize),
 		limits:     newLimits(time.Now),
@@ -179,7 +181,7 @@ func (r *Router) SyncChannels(ctx context.Context, platform string) {
 		}
 		if s, ok := a.(Syncer); ok {
 			if err := s.SyncChannels(ctx); err != nil {
-				log.Printf("[Router] sync %s channels: %v", p, err)
+				r.log.Warn("sync channels failed", "platform", p, "err", err)
 			}
 		}
 	}
@@ -226,7 +228,7 @@ func (r *Router) deliver(ctx context.Context, a Adapter, box <-chan core.Outboun
 			return
 		case out := <-box:
 			if err := a.Send(ctx, out); err != nil {
-				log.Printf("[Router] send to %s %q: %v", out.Platform, out.Channel.Name, err)
+				r.log.Warn("send failed", "platform", out.Platform, "channel", out.Channel.Name, "err", err)
 			}
 		}
 	}
@@ -248,34 +250,41 @@ func (r *Router) admit(ctx context.Context, m core.Message) {
 	what := req.Prefix + req.Command
 	if !req.Pattern {
 		access = spec.SubAccess(req.Args)
-		if _, ok := spec.Sub[strings.ToLower(first(req.Args))]; ok {
-			what += " " + strings.ToLower(req.Args[0])
+		if sub := subcommand(spec, req); sub != "" {
+			what += " " + sub
 		}
 	}
 	if !req.Allowed(access) {
+		var reply commands.Reply
 		if !req.Pattern {
-			r.reply(ctx, m, commands.Refuse(access, "use "+what))
+			reply = commands.Refuse(access, "use "+what)
 		}
+		r.record(spec, req, reply, result{outcome: outcomeRefused}, notRun)
+		r.reply(ctx, m, reply)
 		return
 	}
 
 	switch r.limits.take(spec, req) {
 	case cooling:
-		return // quietly, as chat expects of a command used too often
+		r.record(spec, req, commands.Reply{}, result{outcome: outcomeCooling}, notRun) // quietly, as chat expects of a command used too often
+		return
 	case busy:
-		r.reply(ctx, m, commands.Reply{Text: busyReply})
+		reply := commands.Reply{Text: busyReply}
+		r.record(spec, req, reply, result{outcome: outcomeBusy, limit: spec.Concurrency}, notRun)
+		r.reply(ctx, m, reply)
 		return
 	}
 	select {
 	case r.jobs <- job{cmd: cmd, req: req}:
 	default:
 		r.limits.release(spec)
-		log.Printf("[Router] every worker is busy; dropped %q in %q", req.Command, req.Channel.Name)
-		r.reply(ctx, m, commands.Reply{Text: busyReply})
+		reply := commands.Reply{Text: busyReply}
+		r.record(spec, req, reply, result{outcome: outcomeBusy, workers: r.workers}, notRun)
+		r.reply(ctx, m, reply)
 	}
 }
 
-// execute runs an admitted command and queues its reply.
+// execute runs an admitted command, records it and queues its reply.
 func (r *Router) execute(ctx context.Context, j job) {
 	defer r.limits.release(j.cmd.Spec())
 	m := j.req.Message
@@ -283,16 +292,14 @@ func (r *Router) execute(ctx context.Context, j job) {
 	id, err := r.identities.Resolve(rctx, m.Platform, m.User)
 	cancel()
 	if err != nil {
-		log.Printf("[Router] %v; running %q without an identity", err, j.req.Command)
+		r.log.Warn("sender lookup failed; running the command without an identity", "command", j.req.Command, "err", err)
 	}
 	j.req.Identity = id
 
 	start := time.Now()
-	r.reply(ctx, m, r.run(ctx, j.cmd, j.req))
-	if !m.Time.IsZero() {
-		log.Printf("[Router] %s in %q: replied %s after the message (ran %s)", j.req.Command, m.Channel.Name,
-			time.Since(m.Time).Round(time.Millisecond), time.Since(start).Round(time.Millisecond))
-	}
+	reply, res := r.run(ctx, j.cmd, j.req)
+	r.record(j.cmd.Spec(), j.req, reply, res, time.Since(start))
+	r.reply(ctx, m, reply)
 }
 
 // reply answers a message in its channel, Text then More; an empty reply
@@ -300,9 +307,80 @@ func (r *Router) execute(ctx context.Context, j job) {
 func (r *Router) reply(ctx context.Context, m core.Message, reply commands.Reply) {
 	for _, text := range append([]string{reply.Text}, reply.More...) {
 		if err := r.Publish(ctx, core.Outbound{Platform: m.Platform, Channel: m.Channel, Text: text, Priority: core.PriorityReply}); err != nil {
-			log.Printf("[Router] %v", err)
+			r.log.Warn("reply dropped", "channel", m.Channel.Name, "err", err)
 		}
 	}
+}
+
+// Outcomes of a command use, as its record gives them.
+const (
+	outcomeOK      = "ok"
+	outcomeError   = "error"
+	outcomeTimeout = "timeout"
+	outcomeRefused = "refused" // the sender may not use it
+	outcomeCooling = "cooling" // within a cooldown
+	outcomeBusy    = "busy"    // at its cap, or every worker busy
+)
+
+// notRun is the run time of a use that never ran.
+const notRun time.Duration = -1
+
+// result is how a command use went.
+type result struct {
+	outcome string
+	err     error
+	stack   string // set after a panic
+	limit   int    // the cap a busy command was at
+	workers int    // set when every worker was busy
+}
+
+// record logs one use of a command, without its arguments: they're chat
+// text. It runs just before the reply is queued.
+func (r *Router) record(spec commands.Spec, req commands.Request, reply commands.Reply, res result, ran time.Duration) {
+	level := slog.LevelInfo
+	switch {
+	case res.stack != "":
+		level = slog.LevelError
+	case res.outcome == outcomeError, res.outcome == outcomeTimeout, res.outcome == outcomeBusy:
+		level = slog.LevelWarn
+	}
+	attrs := []slog.Attr{slog.String("command", req.Command)}
+	if sub := subcommand(spec, req); sub != "" {
+		attrs = append(attrs, slog.String("subcommand", sub))
+	}
+	attrs = append(attrs, slog.String("channel", req.Channel.Name), slog.String("outcome", res.outcome))
+	if ran != notRun {
+		attrs = append(attrs, slog.Int64("duration_ms", ran.Milliseconds()))
+	}
+	if !req.Time.IsZero() && (strings.TrimSpace(reply.Text) != "" || len(reply.More) > 0) {
+		attrs = append(attrs, slog.Int64("reply_ms", time.Since(req.Time).Milliseconds()))
+	}
+	if res.limit > 0 {
+		attrs = append(attrs, slog.Int("limit", res.limit))
+	}
+	if res.workers > 0 {
+		attrs = append(attrs, slog.Int("workers", res.workers))
+	}
+	if res.err != nil {
+		attrs = append(attrs, slog.String("err", res.err.Error()))
+	}
+	if res.stack != "" {
+		attrs = append(attrs, slog.String("stack", res.stack))
+	}
+	r.log.LogAttrs(context.Background(), level, "command", attrs...)
+}
+
+// subcommand is the request's first argument when the command lists it as a
+// subcommand, lower-cased; else "".
+func subcommand(spec commands.Spec, req commands.Request) string {
+	if req.Pattern {
+		return ""
+	}
+	sub := strings.ToLower(first(req.Args))
+	if _, ok := spec.Sub[sub]; !ok {
+		return ""
+	}
+	return sub
 }
 
 func first(args []string) string {
@@ -346,9 +424,9 @@ func (r *Router) match(m core.Message) (commands.Command, commands.Request, bool
 	return cmd, req, true
 }
 
-// run calls the command with its timeout, logs any error, and turns a panic
-// into an error reply.
-func (r *Router) run(ctx context.Context, cmd commands.Command, req commands.Request) (reply commands.Reply) {
+// run calls the command with its timeout, and turns a panic into an error
+// reply.
+func (r *Router) run(ctx context.Context, cmd commands.Command, req commands.Request) (reply commands.Reply, res result) {
 	timeout := cmd.Spec().Timeout
 	if timeout <= 0 {
 		timeout = commands.DefaultTimeout
@@ -358,15 +436,17 @@ func (r *Router) run(ctx context.Context, cmd commands.Command, req commands.Req
 
 	defer func() {
 		if p := recover(); p != nil {
-			log.Printf("[Router] command %q in %q panicked: %v\n%s", req.Command, req.Channel.Name, p, debug.Stack())
 			reply = commands.Reply{Text: panicReply}
+			res = result{outcome: outcomeError, err: fmt.Errorf("panic: %v", p), stack: string(debug.Stack())}
 		}
 	}()
 
-	start := time.Now()
 	reply, err := cmd.Run(ctx, req)
-	if err != nil {
-		log.Printf("[Router] command %q in %q after %s: %v", req.Command, req.Channel.Name, time.Since(start).Round(time.Millisecond), err)
+	switch {
+	case err == nil:
+		return reply, result{outcome: outcomeOK}
+	case errors.Is(ctx.Err(), context.DeadlineExceeded):
+		return reply, result{outcome: outcomeTimeout, err: err}
 	}
-	return reply
+	return reply, result{outcome: outcomeError, err: err}
 }

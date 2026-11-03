@@ -7,6 +7,7 @@ import (
 	"context"
 	"log"
 	"os"
+	"time"
 
 	"github.com/lsariol/lys/internal/config"
 	"github.com/lsariol/lys/internal/database"
@@ -21,9 +22,14 @@ func main() {
 
 	for i := 1; i <= 2; i++ {
 		log.Printf("== migrate, run %d (run 2 should apply nothing)", i)
-		if err := database.Migrate(ctx, migrator); err != nil {
+		applied, err := database.Migrate(ctx, migrator)
+		for _, m := range applied {
+			log.Printf("applied %s in %s", m.File, m.Duration.Round(time.Millisecond))
+		}
+		if err != nil {
 			log.Fatalf("✗ %v", err)
 		}
+		log.Printf("%d applied", len(applied))
 	}
 	if err := database.PrintMigrationStatus(ctx, migrator, os.Stdout); err != nil {
 		log.Fatalf("✗ %v", err)

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/lsariol/blackboxlog"
 	"github.com/lsariol/coveclient"
 	"github.com/lsariol/lys/internal/activity"
 	twitchbot "github.com/lsariol/lys/internal/adapters/twitch/bot"
@@ -67,46 +68,60 @@ func main() {
 	if len(args) > 0 {
 		os.Exit(cli.Run(ctx, cli.NewEnv(cliServices()), args))
 	}
-	log.Printf("Lys %s", version())
+	log := blackboxlog.New(blackboxlog.Options{})
+	slog.SetDefault(log)
+	log.Info("Lys starting")
+	fail := func(err error) {
+		log.Error("startup failed", "err", err)
+		os.Exit(1)
+	}
 
 	cove, err := newCove()
 	if err != nil {
-		log.Fatalf("✗ %v", err)
+		fail(err)
 	}
 	cfg := config.New()
 	if err := cfg.Initialize(cove); err != nil {
-		log.Fatalf("✗ initialize config: %v", err)
+		fail(fmt.Errorf("initialize config: %w", err))
 	}
 
+	dblog := log.With("component", "database")
 	if migratorURL := cfg.Database.MigratorConnectionString; migratorURL != "" {
-		if err := database.Migrate(ctx, migratorURL); err != nil {
-			log.Fatalf("✗ %v", err)
+		applied, err := database.Migrate(ctx, migratorURL)
+		for _, m := range applied {
+			dblog.Info("migration applied", "file", m.File, "duration_ms", m.Duration.Milliseconds())
+		}
+		if err != nil {
+			fail(err)
+		}
+		if len(applied) == 0 {
+			dblog.Info("schema up to date")
 		}
 	} else {
-		log.Println("! LYS_DATABASE_MIGRATOR_URL isn't in Cove: skipping migrations")
+		dblog.Warn("LYS_DATABASE_MIGRATOR_URL isn't in Cove: skipping migrations")
 	}
 
 	db := database.NewDatabase(cfg.Database)
 	if err := db.Connect(ctx); err != nil {
-		log.Fatal(err)
+		fail(err)
 	}
 	defer db.Close()
 
 	if err := db.CheckSchemaVersion(ctx); err != nil {
-		log.Fatalf("✗ %v", err)
+		fail(err)
 	}
 
-	if err := run(ctx, cfg, cove, db, started); err != nil {
-		log.Printf("✗ %v", err)
+	if err := run(ctx, log, cfg, cove, db, started); err != nil {
+		log.Error("Lys stopped", "err", err)
 		db.Close()
 		os.Exit(1)
 	}
-	log.Println("shutting down")
+	log.Info("shutting down")
 }
 
 // run wires the router, its adapters and commands, the sources and the HTTP
 // server, and blocks until ctx is cancelled or an adapter fails for good.
-func run(ctx context.Context, cfg *config.Config, cove *coveclient.Client, db *database.Database, started time.Time) error {
+func run(ctx context.Context, log *slog.Logger, cfg *config.Config, cove *coveclient.Client, db *database.Database, started time.Time) error {
 
 	httpClient := &http.Client{
 		Transport: &http.Transport{
@@ -131,7 +146,7 @@ func run(ctx context.Context, cfg *config.Config, cove *coveclient.Client, db *d
 	jobs := scheduler.NewStore(db.Pool)
 
 	// Shared, so the player catalog is kept once and the 7TV session read once.
-	sleeperClient := sleeperapi.New(httpClient)
+	sleeperClient := sleeperapi.New(httpClient, log)
 	sevenClient := sevenapi.New(httpClient, sevenapi.Endpoint, sevenapi.FromCove(cove))
 	registry := commands.NewRegistry()
 	for _, c := range []commands.Command{
@@ -146,8 +161,8 @@ func run(ctx context.Context, cfg *config.Config, cove *coveclient.Client, db *d
 		remind.New(jobs),
 		request.New(request.NewStore(db.Pool)),
 		settings.New(channels),
-		sevencmd.New(sevenClient),
-		sleeper.New(sleeperClient, db.Pool),
+		sevencmd.New(sevenClient, log),
+		sleeper.New(sleeperClient, db.Pool, log),
 		autopost.New(jobs),
 		uptime.New(started),
 	} {
@@ -156,43 +171,44 @@ func run(ctx context.Context, cfg *config.Config, cove *coveclient.Client, db *d
 		}
 	}
 
-	r := router.New(registry, channels, identity.New(db.Pool), workers)
+	r := router.New(registry, channels, identity.New(db.Pool), workers, log)
 	chat := activity.New(autopost.MinMessages)
 	r.Observe(chat)
-	twitch := twitchbot.New(httpClient, cfg.Twitch, cove, conns, bots, conns)
+	twitch := twitchbot.New(httpClient, cfg.Twitch, cove, conns, bots, conns, log)
 	r.Add(twitch)
 
-	notifications := inlet.New(os.Getenv("SHARED_LYS_NOTIFICATION_TOKEN"))
+	notifications := inlet.New(os.Getenv("SHARED_LYS_NOTIFICATION_TOKEN"), log)
 
 	port := os.Getenv("NOTIFICATION_PORT")
 	if port == "" {
 		return errors.New("NOTIFICATION_PORT is not set: set it to the port the HTTP server listens on (2400 in the compose file)")
 	}
 	routes := map[string]http.Handler{"POST /notifications": notifications}
-	for pattern, h := range enroll.New(conns, os.Getenv("SHARED_LYS_ENROLLMENT_TOKEN"), twitch).Routes() {
+	for pattern, h := range enroll.New(conns, os.Getenv("SHARED_LYS_ENROLLMENT_TOKEN"), log, twitch).Routes() {
 		routes[pattern] = h
 	}
-	srv := server.New(":"+port, version(), r.Health, routes)
+	srv := server.New(":"+port, version(), r.Health, routes, log)
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	// Channel changes (from the CLI too) reach the settings cache and the adapters within seconds.
 	go func() {
-		err := conns.Watch(ctx, 5*time.Minute, func(platform string) {
+		connlog := log.With("component", "connections")
+		err := conns.Watch(ctx, log, 5*time.Minute, func(platform string) {
 			if err := channels.Load(ctx); err != nil {
-				log.Printf("✗ reload channel settings: %v", err)
+				connlog.Error("reloading channel settings failed", "err", err)
 			}
 			r.SyncChannels(ctx, platform)
 		})
 		if err != nil && !errors.Is(err, context.Canceled) {
-			log.Printf("✗ watch channel changes: %v", err)
+			connlog.Error("watching channel changes stopped: channel changes reach Lys only after a restart", "err", err)
 		}
 	}()
 
 	go func() {
 		if err := srv.Run(ctx); err != nil {
-			log.Printf("✗ server: %v", err)
+			log.Error("HTTP server stopped", "component", "server", "err", err)
 			cancel()
 		}
 	}()
@@ -200,13 +216,13 @@ func run(ctx context.Context, cfg *config.Config, cove *coveclient.Client, db *d
 	schedule := scheduler.New(jobs, map[string]scheduler.Handler{
 		remind.Kind:   scheduler.SendMessage,
 		autopost.Kind: autopost.Post(chat),
-	})
+	}, log)
 
-	for _, s := range []sources.Source{notifications, schedule, letterboxdfeeds.New(db.Pool, httpClient), sleeperfeed.New(sleeperClient, db.Pool), sleeperfeed.NewLineups(sleeperClient, db.Pool),
-		sleeperfeed.NewRecaps(sleeperClient, db.Pool), sleeperfeed.NewSender(sleeperClient, db.Pool), sevenfeed.NewInvites(sevenClient, conns)} {
+	for _, s := range []sources.Source{notifications, schedule, letterboxdfeeds.New(db.Pool, httpClient, log), sleeperfeed.New(sleeperClient, db.Pool, log), sleeperfeed.NewLineups(sleeperClient, db.Pool, log),
+		sleeperfeed.NewRecaps(sleeperClient, db.Pool, log), sleeperfeed.NewSender(sleeperClient, db.Pool, log), sevenfeed.NewInvites(sevenClient, conns, log)} {
 		go func() {
 			if err := s.Run(ctx, r); err != nil && !errors.Is(err, context.Canceled) {
-				log.Printf("✗ source %q: %v", s.Name(), err)
+				log.Error("source stopped", "source", s.Name(), "err", err)
 			}
 		}()
 	}

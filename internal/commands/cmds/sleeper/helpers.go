@@ -3,7 +3,6 @@ package sleeper
 import (
 	"context"
 	"fmt"
-	"log"
 	"sort"
 	"strings"
 
@@ -36,7 +35,7 @@ func broken() commands.Reply { return say("Something went wrong, try again in a 
 func (sl *Sleeper) names(ctx context.Context, league *SleeperLeague, rosters []api.Roster, users []api.LeagueUser, players map[string]api.Player) api.Names {
 	mentions, err := api.Mentions(ctx, sl.db, league.SleeperLeagueID)
 	if err != nil {
-		log.Printf("[Sleeper] %v", err)
+		sl.log.Warn("linked viewers not loaded; showing team names", "league", league.SleeperLeagueID, "err", err)
 	}
 	return api.NamesFrom(rosters, users, mentions, players)
 }

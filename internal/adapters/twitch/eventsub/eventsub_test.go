@@ -2,6 +2,7 @@ package eventsub
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"testing"
 
@@ -36,7 +37,7 @@ func revocation(status, channel string) EventSubMessage {
 
 func TestConsumeEvent(t *testing.T) {
 	channels := &fakeChannels{revoked: map[string]string{}}
-	c := New(nil, nil, nil, channels)
+	c := New(nil, nil, nil, channels, slog.New(slog.DiscardHandler))
 	c.Channels["1"] = Channel{UserID: "1", Username: "Banned"}
 	c.connected.Store(true)
 	ctx := context.Background()

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	api "github.com/lsariol/lys/internal/features/sleeper"
+	"github.com/lsariol/lys/internal/logtest"
 )
 
 func TestCurrentWeek(t *testing.T) {
@@ -51,7 +52,7 @@ func TestMatchupAPI(t *testing.T) {
 				t.Errorf("unexpected path %s", req.URL.Path)
 			}
 			return &http.Response{StatusCode: tc.status, Body: io.NopCloser(strings.NewReader(tc.body)), Header: make(http.Header)}, nil
-		})})}
+		})}, logtest.Discard)}
 		matchups, err := deps.client.Matchups(context.Background(), "test", 2)
 		if (err != nil) != tc.wantError {
 			t.Fatalf("body %s: error %v", tc.body, err)

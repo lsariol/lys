@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/lsariol/lys/internal/backoff"
@@ -20,6 +20,7 @@ type Scheduler struct {
 	store    *Store
 	handlers map[string]Handler
 	every    time.Duration
+	log      *slog.Logger
 }
 
 var _ sources.Source = (*Scheduler)(nil)
@@ -33,8 +34,8 @@ const (
 )
 
 // New returns a scheduler that checks for due jobs every few seconds.
-func New(store *Store, handlers map[string]Handler) *Scheduler {
-	return &Scheduler{store: store, handlers: handlers, every: 5 * time.Second}
+func New(store *Store, handlers map[string]Handler, log *slog.Logger) *Scheduler {
+	return &Scheduler{store: store, handlers: handlers, every: 5 * time.Second, log: log.With("component", "scheduler")}
 }
 
 func (s *Scheduler) Name() string { return "scheduler" }
@@ -57,7 +58,7 @@ func (s *Scheduler) runDue(ctx context.Context, pub sources.Publisher) {
 	for ctx.Err() == nil {
 		jobs, err := s.store.Claim(ctx, batch, lease)
 		if err != nil {
-			log.Printf("[Scheduler] %v", err)
+			s.log.Error("claiming due jobs failed", "err", err)
 			return
 		}
 		for _, j := range jobs {
@@ -81,9 +82,9 @@ func (s *Scheduler) run(ctx context.Context, j Job, pub sources.Publisher) {
 		if err := h(ctx, j, pub); err != nil {
 			if j.Attempts+1 < maxAttempts {
 				at := time.Now().Add(backoff.Delay(j.Attempts+1, retryBase, retryMax))
-				log.Printf("[Scheduler] %s job %d: %v; retrying at %s", j.Kind, j.ID, err, at.Format(time.TimeOnly))
+				s.log.Warn("job failed; retrying", "kind", j.Kind, "job_id", j.ID, "channel", j.Channel.Name, "attempt", j.Attempts+1, "retry_at", at, "err", err)
 				if err := s.store.Retry(ctx, j.ID, err.Error(), at); err != nil {
-					log.Printf("[Scheduler] %v", err)
+					s.log.Error("scheduling the retry failed", "kind", j.Kind, "job_id", j.ID, "err", err)
 				}
 				return
 			}
@@ -91,10 +92,10 @@ func (s *Scheduler) run(ctx context.Context, j Job, pub sources.Publisher) {
 		}
 	}
 	if failure != "" {
-		log.Printf("[Scheduler] %s job %d in %q: %s", j.Kind, j.ID, j.Channel.Name, failure)
+		s.log.Warn("job not run", "kind", j.Kind, "job_id", j.ID, "channel", j.Channel.Name, "reason", failure)
 	}
 	if err := s.store.Done(ctx, j.ID, failure); err != nil {
-		log.Printf("[Scheduler] %v", err)
+		s.log.Error("recording the job failed", "kind", j.Kind, "job_id", j.ID, "err", err)
 	}
 }
 

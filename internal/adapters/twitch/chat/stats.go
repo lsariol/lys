@@ -1,7 +1,7 @@
 package chat
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"sync"
@@ -18,6 +18,7 @@ type helixStats struct {
 	since         time.Time
 	sent, limited int
 	limit, lowest int
+	log           *slog.Logger
 }
 
 func (s *helixStats) record(h http.Header, status int) {
@@ -38,7 +39,8 @@ func (s *helixStats) record(h http.Header, status int) {
 		s.lowest = n
 	}
 	if now.Sub(s.since) >= statsEvery {
-		log.Printf("[Chat] sent %d in %s; Helix's bucket %d, lowest remaining %d, %d rate limited", s.sent, now.Sub(s.since).Round(time.Second), s.limit, s.lowest, s.limited)
+		s.log.Info("Helix send stats", "sent", s.sent, "period_s", int(now.Sub(s.since).Seconds()),
+			"bucket", s.limit, "lowest_remaining", s.lowest, "rate_limited", s.limited)
 		s.since, s.sent, s.limited, s.lowest = now, 0, 0, -1
 	}
 }

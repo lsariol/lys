@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -23,12 +23,13 @@ type Lineups struct {
 	db     *pgxpool.Pool
 	now    func() time.Time
 	every  time.Duration // the longest it waits, so new leagues and moved kickoffs are seen
+	log    *slog.Logger
 }
 
 var _ sources.Source = (*Lineups)(nil)
 
-func NewLineups(client *api.Client, db *pgxpool.Pool) *Lineups {
-	return &Lineups{client: client, db: db, now: time.Now, every: 10 * time.Minute}
+func NewLineups(client *api.Client, db *pgxpool.Pool, log *slog.Logger) *Lineups {
+	return &Lineups{client: client, db: db, now: time.Now, every: 10 * time.Minute, log: log.With("component", "sleeper")}
 }
 
 func (l *Lineups) Name() string { return "sleeper lineups" }
@@ -44,7 +45,7 @@ func (l *Lineups) Run(ctx context.Context, _ sources.Publisher) error {
 	for {
 		next, err := l.tick(ctx)
 		if err != nil {
-			log.Printf("[Sleeper] lineup reminders: %v", err)
+			l.log.Error("lineup reminders failed", "err", err)
 		}
 		wait := l.every
 		if !next.IsZero() {
@@ -92,7 +93,7 @@ func (l *Lineups) tick(ctx context.Context) (time.Time, error) {
 	for _, week := range weeks {
 		games, err := l.client.Games(ctx, state.Season, week)
 		if err != nil {
-			log.Printf("[Sleeper] lineup reminders: %v", err)
+			l.log.Warn("the week's games not loaded; no lineup reminders for it yet", "season", state.Season, "week", week, "err", err)
 			continue
 		}
 		for _, r := range reminders(state.Season, week, games) {

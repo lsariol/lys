@@ -8,7 +8,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -32,6 +32,8 @@ type Poller struct {
 
 	mu         sync.Mutex
 	validators map[string]validators // by feed URL, for conditional requests
+
+	log *slog.Logger
 }
 
 // fetchAtOnce is how many feeds may be fetched at the same time.
@@ -42,9 +44,9 @@ type validators struct{ etag, lastModified string }
 
 var _ sources.Source = (*Poller)(nil)
 
-func New(pool *pgxpool.Pool, http *http.Client) *Poller {
+func New(pool *pgxpool.Pool, http *http.Client, log *slog.Logger) *Poller {
 	return &Poller{pool: pool, http: http, window: 25 * time.Minute, minGap: 1250 * time.Millisecond, notifyGap: 3 * time.Second,
-		validators: make(map[string]validators)}
+		validators: make(map[string]validators), log: log.With("component", "letterboxd")}
 }
 
 func (p *Poller) Name() string { return "letterboxd" }
@@ -65,7 +67,7 @@ func (p *Poller) Run(ctx context.Context, pub sources.Publisher) error {
 	for {
 		subs, err := p.subscriptions(ctx)
 		if err != nil {
-			log.Printf("[Letterboxd] %v; trying again in %s", err, p.window)
+			p.log.Error("reading the subscriptions failed; trying again", "retry_in_s", int(p.window.Seconds()), "err", err)
 		}
 		if err != nil || len(subs) == 0 {
 			if !sleep(ctx, p.window) {
@@ -123,13 +125,13 @@ func group(subs []subscription) []feed {
 func (p *Poller) checkFeed(ctx context.Context, f feed, pub sources.Publisher) {
 	movies, v, err := p.fetch(ctx, f.url)
 	if err != nil {
-		log.Printf("[Letterboxd] %q: %v", f.subs[0].feedName, err)
+		p.log.Warn("fetching a feed failed", "feed", f.subs[0].feedName, "err", err)
 		return
 	}
 	ok := true
 	for _, s := range f.subs {
 		if err := p.announce(ctx, s, movies, pub); err != nil {
-			log.Printf("[Letterboxd] %q for %q: %v", s.feedName, s.channel.Name, err)
+			p.log.Warn("announcing a feed's entries failed", "feed", s.feedName, "channel", s.channel.Name, "err", err)
 			ok = false
 		}
 	}

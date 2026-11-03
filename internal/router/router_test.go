@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/lsariol/lys/internal/commands"
 	"github.com/lsariol/lys/internal/core"
+	"github.com/lsariol/lys/internal/logtest"
 )
 
 // fakeAdapter feeds messages into the router and records what it sends.
@@ -94,13 +96,20 @@ func (c cmd) Run(ctx context.Context, req commands.Request) (commands.Reply, err
 
 func start(t *testing.T, cmds ...commands.Command) *fakeAdapter {
 	t.Helper()
+	return startLogging(t, discard, cmds...)
+}
+
+var discard = logtest.Discard
+
+func startLogging(t *testing.T, log *slog.Logger, cmds ...commands.Command) *fakeAdapter {
+	t.Helper()
 	reg := commands.NewRegistry()
 	for _, c := range cmds {
 		if err := reg.Register(c); err != nil {
 			t.Fatal(err)
 		}
 	}
-	r := New(reg, fakeConfig{}, fakeIdentities{}, 4)
+	r := New(reg, fakeConfig{}, fakeIdentities{}, 4, log)
 	a := newFakeAdapter()
 	r.Add(a)
 
@@ -286,7 +295,7 @@ func TestIdentity(t *testing.T) {
 
 func TestPublish(t *testing.T) {
 	reg := commands.NewRegistry()
-	r := New(reg, fakeConfig{}, fakeIdentities{}, 1)
+	r := New(reg, fakeConfig{}, fakeIdentities{}, 1, discard)
 	r.Add(newFakeAdapter())
 
 	if err := r.Publish(context.Background(), core.Outbound{Platform: "nope", Text: "x"}); err == nil {
@@ -301,7 +310,7 @@ func TestPublish(t *testing.T) {
 }
 
 func TestAdapterErrorStopsRun(t *testing.T) {
-	r := New(commands.NewRegistry(), fakeConfig{}, fakeIdentities{}, 1)
+	r := New(commands.NewRegistry(), fakeConfig{}, fakeIdentities{}, 1, discard)
 	r.Add(failing{})
 	if err := r.Run(context.Background()); err == nil || !strings.Contains(err.Error(), "lost") {
 		t.Fatalf("Run: got %v, want the adapter's error", err)
@@ -324,7 +333,7 @@ func TestObserverSeesEveryMessage(t *testing.T) {
 	if err := reg.Register(echo()); err != nil {
 		t.Fatal(err)
 	}
-	r := New(reg, fakeConfig{}, fakeIdentities{}, 2)
+	r := New(reg, fakeConfig{}, fakeIdentities{}, 2, discard)
 	a := newFakeAdapter()
 	r.Add(a)
 	obs := seen{texts: make(chan string, 4)}
@@ -459,7 +468,7 @@ func TestSlowIdentityLookupGivesUp(t *testing.T) {
 	if err := reg.Register(echo()); err != nil {
 		t.Fatal(err)
 	}
-	r := New(reg, fakeConfig{}, stallingIdentities{}, 1)
+	r := New(reg, fakeConfig{}, stallingIdentities{}, 1, discard)
 	r.resolveIn = 20 * time.Millisecond
 	a := newFakeAdapter()
 	r.Add(a)
@@ -473,5 +482,71 @@ func TestSlowIdentityLookupGivesUp(t *testing.T) {
 
 	if got := a.say(t, "1", "!echo hi", wait); got != "echo:hi:!" {
 		t.Fatalf("got %q: a stalled lookup held up the command", got)
+	}
+}
+
+// Chat that calls no command writes nothing; each command use writes one
+// record, without its arguments.
+func TestCommandRecords(t *testing.T) {
+	boom := cmd{spec: commands.Spec{Name: "boom"}, run: func(context.Context, commands.Request) (commands.Reply, error) {
+		var args []string
+		_ = args[1]
+		return commands.Reply{}, nil
+	}}
+	fails := cmd{spec: commands.Spec{Name: "fails"}, run: func(context.Context, commands.Request) (commands.Reply, error) {
+		return commands.Reply{Text: "it failed"}, errors.New("Sleeper: status 503")
+	}}
+	slow := cmd{spec: commands.Spec{Name: "slow", Timeout: 20 * time.Millisecond}, run: func(ctx context.Context, _ commands.Request) (commands.Reply, error) {
+		<-ctx.Done()
+		return commands.Reply{Text: "timed out"}, ctx.Err()
+	}}
+	mods := cmd{spec: commands.Spec{Name: "mods", Access: commands.Moderator}, run: func(context.Context, commands.Request) (commands.Reply, error) {
+		return commands.Reply{Text: "hi mods"}, nil
+	}}
+	log, buf := logtest.New()
+	a := startLogging(t, log, echo(), boom, fails, slow, mods)
+
+	a.in <- core.Message{Platform: "fake", Channel: core.Channel{ID: "1", Name: "chan1"}, User: core.User{ID: "u1", Name: "viewer"}, Text: "just chatting, no command"}
+	for _, text := range []string{"!echo my private words", "!fails", "!boom", "!slow", "!mods"} {
+		f := a
+		f.in <- core.Message{Platform: "fake", Channel: core.Channel{ID: "1", Name: "chan1"}, User: core.User{ID: "u1", Name: "viewer"}, Text: text, Time: time.Now()}
+		select {
+		case <-f.sent:
+		case <-time.After(wait):
+			t.Fatalf("%q got no reply", text)
+		}
+	}
+
+	if strings.Contains(buf.String(), "private words") || strings.Contains(buf.String(), "just chatting") {
+		t.Errorf("chat text was logged:\n%s", buf)
+	}
+	want := []struct{ command, outcome, level string }{
+		{"echo", "ok", "INFO"},
+		{"fails", "error", "WARN"},
+		{"boom", "error", "ERROR"},
+		{"slow", "timeout", "WARN"},
+		{"mods", "refused", "INFO"},
+	}
+	recs := buf.Records(t)
+	if len(recs) != len(want) {
+		t.Fatalf("%d records, want %d:\n%s", len(recs), len(want), buf)
+	}
+	for i, w := range want {
+		r := recs[i]
+		if r["msg"] != "command" || r["component"] != "router" || r["command"] != w.command || r["outcome"] != w.outcome || r["level"] != w.level || r["channel"] != "chan1" {
+			t.Errorf("record %d: %v, want %s %s at %s", i, r, w.command, w.outcome, w.level)
+		}
+		if _, ok := r["reply_ms"]; !ok {
+			t.Errorf("record %d has no reply_ms: %v", i, r)
+		}
+		if _, ok := r["duration_ms"]; !ok && w.outcome != "refused" {
+			t.Errorf("record %d has no duration_ms: %v", i, r)
+		}
+	}
+	if recs[1]["err"] != "Sleeper: status 503" {
+		t.Errorf("the error isn't in the record: %v", recs[1])
+	}
+	if stack, _ := recs[2]["stack"].(string); !strings.Contains(stack, "goroutine") {
+		t.Errorf("the panic's record has no stack: %v", recs[2])
 	}
 }

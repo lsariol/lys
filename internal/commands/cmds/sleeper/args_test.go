@@ -6,12 +6,13 @@ import (
 	"testing"
 
 	"github.com/lsariol/lys/internal/commands"
+	"github.com/lsariol/lys/internal/logtest"
 )
 
 // Wrong arguments are answered before anything is looked up, so these run
 // without a database or Sleeper.
 func TestArguments(t *testing.T) {
-	sl := &Sleeper{}
+	sl := &Sleeper{log: logtest.Discard}
 	for _, args := range [][]string{
 		{"team", "@a", "@b"},
 		{"matchup", "@a", "0"},

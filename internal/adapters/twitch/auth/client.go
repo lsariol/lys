@@ -59,12 +59,12 @@ func (c *AuthClient) Initialize(ctx context.Context) error {
 	c.storedRefresh = refresh
 
 	if err := c.RefreshUserAccessToken(ctx); err != nil {
-		return fmt.Errorf("refresh user access token: %w", err)
+		return fmt.Errorf("user access token refresh: %w", err)
 	}
 
 	info, err := ValidateToken(c.Tokens.GetUserAccessToken(), c.HTTP)
 	if err != nil {
-		return fmt.Errorf("Twitch: validate user access token: %w", err)
+		return fmt.Errorf("Twitch: user access token validation: %w", err)
 	}
 	if info.UserId != c.Config.BotAccountID {
 		return fmt.Errorf("Twitch: the tokens in %s belong to %q (%s), not the bot account %s: store the bot account's tokens there", c.Config.AccessTokenKey, info.Login, info.UserId, c.Config.BotAccountID)
@@ -72,7 +72,7 @@ func (c *AuthClient) Initialize(ctx context.Context) error {
 	c.Bot = info
 
 	if err := c.RefreshAppAccessToken(ctx); err != nil {
-		return fmt.Errorf("refresh app access token: %w", err)
+		return fmt.Errorf("app access token refresh: %w", err)
 	}
 
 	return nil

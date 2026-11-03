@@ -15,6 +15,7 @@ import (
 	"github.com/lsariol/lys/internal/core"
 	"github.com/lsariol/lys/internal/database"
 	api "github.com/lsariol/lys/internal/features/sleeper"
+	"github.com/lsariol/lys/internal/logtest"
 )
 
 type outbox struct {
@@ -87,7 +88,7 @@ func testDB(t *testing.T) *pgxpool.Pool {
 		t.Skip("LYS_TEST_MIGRATOR_DATABASE_URL and LYS_TEST_DATABASE_URL aren't set (see scripts/test-db.sh)")
 	}
 	ctx := context.Background()
-	if err := database.Migrate(ctx, migratorURL); err != nil {
+	if _, err := database.Migrate(ctx, migratorURL); err != nil {
 		t.Fatal(err)
 	}
 	pool, err := pgxpool.New(ctx, appURL)
@@ -140,8 +141,8 @@ func TestPollerAndSender(t *testing.T) {
 	stale := move("fa0", "free_agent", now.Add(-3*time.Hour), 2, `{"44": 2}`, `{}`)
 
 	fake := &fakeSleeper{}
-	client := api.New(&http.Client{Transport: fake})
-	p := New(client, pool)
+	client := api.New(&http.Client{Transport: fake}, logtest.Discard)
+	p := New(client, pool, logtest.Discard)
 
 	// The first check records what's there without queueing it.
 	fake.set(oldTrade)
@@ -165,7 +166,7 @@ func TestPollerAndSender(t *testing.T) {
 	// of Alice's pickups as one message.
 	// Other tests' leagues share the database; only this league's queue is sent.
 	exec(`UPDATE lys.sleeper_events SET send_after = NULL WHERE sleeper_league_id <> 'pt-league' AND published_at IS NULL`)
-	s := NewSender(client, pool)
+	s := NewSender(client, pool, logtest.Discard)
 	pub := &outbox{}
 	start := time.Now().Add(time.Second) // after the queue's send_after times
 	step := func(after time.Duration) []string {

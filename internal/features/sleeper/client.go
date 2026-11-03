@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -24,9 +24,12 @@ type Client struct {
 	http     *http.Client
 	catalog  catalog
 	schedule schedule
+	log      *slog.Logger
 }
 
-func New(http *http.Client) *Client { return &Client{http: http} }
+func New(http *http.Client, log *slog.Logger) *Client {
+	return &Client{http: http, log: log.With("component", "sleeper")}
+}
 
 // get decodes the JSON answer for path into v.
 func (c *Client) get(ctx context.Context, path string, v any) error {
@@ -201,9 +204,9 @@ func (c *Client) download(ctx context.Context, done chan struct{}) {
 		pc.err = err
 		pc.retryAt = time.Now().Add(5 * time.Minute)
 		if len(pc.players) > 0 {
-			log.Printf("[Sleeper] %v; using the catalog from %s", err, pc.updatedAt.Format("2006-01-02 15:04"))
+			c.log.Warn("player catalog download failed; using the old catalog", "catalog_from", pc.updatedAt, "retry_in_s", 300, "err", err)
 		} else {
-			log.Printf("[Sleeper] %v; trying again in 5 minutes", err)
+			c.log.Error("player catalog download failed, so players show as IDs; trying again", "retry_in_s", 300, "err", err)
 		}
 		return
 	}

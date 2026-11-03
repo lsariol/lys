@@ -5,7 +5,7 @@ package chat
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -33,19 +33,23 @@ type ChatClient struct {
 	limit *limiter
 	roles Roles
 	stats helixStats
+	log   *slog.Logger
 
 	mu         sync.Mutex
 	queues     map[string]chan core.Outbound // by broadcaster ID
 	privileged map[string]bool               // by broadcaster ID
 }
 
-func New(http *http.Client, cfg *config.TwitchConfig, auth *auth.AuthClient, roles Roles) *ChatClient {
+func New(http *http.Client, cfg *config.TwitchConfig, auth *auth.AuthClient, roles Roles, log *slog.Logger) *ChatClient {
+	log = log.With("component", "chat")
 	return &ChatClient{
 		HTTP:       http,
 		Auth:       auth,
 		Config:     cfg,
 		limit:      newLimiter(),
 		roles:      roles,
+		stats:      helixStats{log: log},
+		log:        log,
 		queues:     make(map[string]chan core.Outbound),
 		privileged: make(map[string]bool),
 	}
@@ -78,10 +82,8 @@ func (c *ChatClient) SetRoles(channelID string, roles core.Roles) {
 	if known && was == privileged {
 		return
 	}
-	if privileged {
-		log.Printf("[Chat] the bot is a moderator, VIP or broadcaster in %q: sending faster there", channelID)
-	} else if known {
-		log.Printf("[Chat] the bot is no longer a moderator, VIP or broadcaster in %q", channelID)
+	if privileged || known {
+		c.log.Info("bot role changed", "channel_id", channelID, "privileged", privileged)
 	}
 	if c.roles == nil {
 		return
@@ -90,7 +92,7 @@ func (c *ChatClient) SetRoles(channelID string, roles core.Roles) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := c.roles.SetBotRole(ctx, channelID, privileged); err != nil {
-			log.Printf("[Chat] %v", err)
+			c.log.Warn("bot role not saved", "channel_id", channelID, "err", err)
 		}
 	}()
 }
@@ -156,7 +158,7 @@ func (c *ChatClient) drain(ctx context.Context, q <-chan core.Outbound) {
 				break
 			}
 			if dropped > 0 {
-				log.Printf("[Chat] %q: dropped %d messages while paused", out.Channel.ID, dropped)
+				c.log.Warn("dropped messages while paused", "channel_id", out.Channel.ID, "dropped", dropped)
 				dropped = 0
 			}
 
@@ -168,11 +170,11 @@ func (c *ChatClient) drain(ctx context.Context, q <-chan core.Outbound) {
 			msg.Text = part
 			pause, err := c.deliver(ctx, msg, true)
 			if err != nil {
-				log.Printf("[Chat] %v", err)
+				c.log.Warn("send failed", "channel_id", out.Channel.ID, "err", err)
 			}
 			if pause > 0 {
 				pausedUntil = time.Now().Add(pause)
-				log.Printf("! [Chat] pausing %q for %s", out.Channel.ID, pause)
+				c.log.Warn("channel paused", "channel_id", out.Channel.ID, "pause_s", int(pause.Seconds()))
 			}
 
 			gap := unprivilegedGap
@@ -209,10 +211,10 @@ func (c *ChatClient) deliver(ctx context.Context, out core.Outbound, retry bool)
 	switch helixErr.Status {
 	case http.StatusUnauthorized:
 		if !retry {
-			return pauseFor, fmt.Errorf("Twitch: send to %q: 401 with a fresh app token: %s (check the bot's user:write:chat and user:bot scopes, and that the channel granted channel:bot or made the bot a moderator)", out.Channel.ID, helixErr.Message)
+			return pauseFor, fmt.Errorf("Twitch: send to %q: 401 even with a fresh app token, %s (check the bot's user:write:chat and user:bot scopes, and that the channel granted channel:bot or made the bot a moderator)", out.Channel.ID, helixErr.Message)
 		}
 		if err := c.Auth.RefreshAppAccessToken(ctx); err != nil {
-			return 0, fmt.Errorf("refresh app access token: %w", err)
+			return 0, fmt.Errorf("app access token refresh: %w", err)
 		}
 		return c.deliver(ctx, out, false)
 	case http.StatusForbidden:

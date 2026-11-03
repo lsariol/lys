@@ -3,7 +3,6 @@ package sleeper
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -129,23 +128,23 @@ func Mentions(ctx context.Context, db *pgxpool.Pool, leagueID string) (map[int]s
 func (c *Client) LoadNames(ctx context.Context, db *pgxpool.Pool, leagueID string) Names {
 	var rosters []Roster
 	if r, err := c.Rosters(ctx, leagueID); err != nil {
-		log.Printf("[Sleeper] league %s rosters: %v", leagueID, err)
+		c.log.Warn("league rosters not loaded; showing IDs", "league", leagueID, "err", err)
 	} else {
 		rosters = *r
 	}
 	var users []LeagueUser
 	if u, err := c.LeagueUsers(ctx, leagueID); err != nil {
-		log.Printf("[Sleeper] league %s users: %v", leagueID, err)
+		c.log.Warn("league users not loaded; showing IDs", "league", leagueID, "err", err)
 	} else {
 		users = *u
 	}
 	mentions, err := Mentions(ctx, db, leagueID)
 	if err != nil {
-		log.Printf("[Sleeper] %v", err)
+		c.log.Warn("linked viewers not loaded; showing team names", "league", leagueID, "err", err)
 	}
 	players, err := c.Players(ctx)
 	if err != nil {
-		log.Printf("[Sleeper] players: %v", err)
+		c.log.Warn("player catalog not loaded; showing IDs", "league", leagueID, "err", err)
 	}
 	return NamesFrom(rosters, users, mentions, players)
 }

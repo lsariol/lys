@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 )
@@ -13,11 +13,13 @@ import (
 // Server serves /health from a health function, plus any extra routes.
 type Server struct {
 	srv *http.Server
+	log *slog.Logger
 }
 
 // New returns a server on addr. health reports each adapter's connection;
 // /health answers 503 while any is down, and always reports version.
-func New(addr, version string, health func() map[string]bool, routes map[string]http.Handler) *Server {
+func New(addr, version string, health func() map[string]bool, routes map[string]http.Handler, log *slog.Logger) *Server {
+	log = log.With("component", "server")
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		adapters := health()
@@ -39,12 +41,13 @@ func New(addr, version string, health func() map[string]bool, routes map[string]
 		mux.Handle(pattern, h)
 	}
 
-	return &Server{srv: &http.Server{
+	return &Server{log: log, srv: &http.Server{
 		Addr:         addr,
 		Handler:      mux,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,
+		ErrorLog:     slog.NewLogLogger(log.Handler(), slog.LevelWarn),
 	}}
 }
 
@@ -52,7 +55,7 @@ func New(addr, version string, health func() map[string]bool, routes map[string]
 func (s *Server) Run(ctx context.Context) error {
 	errs := make(chan error, 1)
 	go func() {
-		log.Printf("[Server] listening on %s", s.srv.Addr)
+		s.log.Info("listening", "addr", s.srv.Addr)
 		if err := s.srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errs <- err
 		}

@@ -10,7 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"strings"
@@ -36,15 +36,17 @@ type API struct {
 	store   Store
 	token   string
 	lookups map[string]core.ChannelLookup // by platform
+	log     *slog.Logger
 }
 
 // New returns the API for the platforms of lookups. With an empty token it
 // refuses every request.
-func New(store Store, token string, lookups ...core.ChannelLookup) *API {
+func New(store Store, token string, log *slog.Logger, lookups ...core.ChannelLookup) *API {
+	log = log.With("component", "enroll")
 	if token == "" {
-		log.Println("! [Enroll] SHARED_LYS_ENROLLMENT_TOKEN is empty: refusing every enrollment")
+		log.Warn("SHARED_LYS_ENROLLMENT_TOKEN is empty: refusing every enrollment")
 	}
-	a := &API{store: store, token: token, lookups: make(map[string]core.ChannelLookup)}
+	a := &API{store: store, token: token, lookups: make(map[string]core.ChannelLookup), log: log}
 	for _, l := range lookups {
 		a.lookups[l.Platform()] = l
 	}
@@ -101,7 +103,7 @@ func (a *API) enroll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		log.Printf("✗ [Enroll] check %s channel %s: %v", req.Platform, req.ChannelID, err)
+		a.log.Error("checking the channel failed", "platform", req.Platform, "channel_id", req.ChannelID, "err", err)
 		writeError(w, http.StatusBadGateway, fmt.Sprintf("couldn't check the channel with %s; try again", req.Platform))
 		return
 	}
@@ -110,11 +112,11 @@ func (a *API) enroll(w http.ResponseWriter, r *http.Request) {
 		Platform: req.Platform, ExternalID: info.ID, Name: info.Name, Login: info.Login,
 	})
 	if err != nil {
-		log.Printf("✗ [Enroll] %v", err)
+		a.log.Error("saving the channel failed", "platform", req.Platform, "channel_id", info.ID, "err", err)
 		writeError(w, http.StatusInternalServerError, "couldn't save the channel; try again")
 		return
 	}
-	log.Printf("[Enroll] %s channel %q (%s): created %v, blocked %v", c.Platform, c.Name, c.ExternalID, created, c.AdminBlocked)
+	a.log.Info("channel enrolled", "platform", c.Platform, "channel", c.Name, "channel_id", c.ExternalID, "created", created, "blocked", c.AdminBlocked)
 	writeJSON(w, http.StatusOK, enrollResponse{ConnectionID: c.ID, Name: c.Name, Created: created, Active: c.Active(), Blocked: c.AdminBlocked})
 }
 
@@ -125,10 +127,10 @@ func (a *API) disable(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, connections.ErrNotFound):
 		writeError(w, http.StatusNotFound, "no such channel")
 	case err != nil:
-		log.Printf("✗ [Enroll] %v", err)
+		a.log.Error("turning the channel off failed", "platform", platform, "channel_id", id, "err", err)
 		writeError(w, http.StatusInternalServerError, "couldn't turn the channel off; try again")
 	default:
-		log.Printf("[Enroll] %s channel %s turned off by its owner", platform, id)
+		a.log.Info("channel turned off by its owner", "platform", platform, "channel_id", id)
 		writeJSON(w, http.StatusOK, map[string]bool{"disabled": true})
 	}
 }

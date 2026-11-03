@@ -204,7 +204,7 @@ internal/commands/cmds/seventv/
 - Respect rate limiting and bounded timeouts. Never blindly repeat writes after an ambiguous timeout; check current state first.
 - Provide concise messages: `You aren't a 7TV editor for this channel`, `You need 7TV Manage Profile to switch sets`, `Lys needs 7TV permissions from the streamer`, `7TV authentication needs renewal`, etc.
 - Keep 7TV dependency optional: a failed 7TV integration must not prevent Twitch chat/Lys from starting.
-- Log actor Twitch ID, streamer Twitch ID, 7TV user ID, action, target set/emote, and success/failure, one `[7TV]` line per change. Never log bearer tokens. Nothing is shown in chat beyond the reply; the lines go to the central logging system later.
+- Log actor Twitch ID, streamer Twitch ID, 7TV user ID, action, target set/emote, and success/failure, one `7TV change` record per change (component `seventv`). Never log bearer tokens. Nothing is shown in chat beyond the reply; the lines go to the central logging system later.
 
 ## 7. Phases and acceptance
 

@@ -3,7 +3,6 @@ package eventsub
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -115,15 +114,15 @@ func (c *EventSubClient) resetWebSocket(ctx context.Context, url string) bool {
 		_ = c.WS.Close()
 
 		if err := c.dialNewWebSocketConnection(ctx, url); err != nil {
-			log.Printf("dial attempt %d failed: %q\n", attempt, err)
+			c.log.Warn("dial failed", "attempt", attempt, "err", err)
 			attempt += 1
 
 		} else if err := c.JoinAllChannels(ctx); err != nil {
-			log.Printf("join attempt %d failed: %q\n", attempt, err)
+			c.log.Warn("joining channels failed", "attempt", attempt, "err", err)
 			attempt = 1
 
 		} else {
-			log.Println("Websocket Reconnected Successfully")
+			c.log.Info("reconnected")
 			return true
 		}
 
@@ -131,7 +130,7 @@ func (c *EventSubClient) resetWebSocket(ctx context.Context, url string) bool {
 		case <-time.After(dialBackoff):
 			dialBackoff *= 2
 		case <-ctx.Done():
-			log.Println("context canceled, aborting websocket reset.")
+			c.log.Debug("shutting down: stopped reconnecting")
 			return true
 		}
 	}
