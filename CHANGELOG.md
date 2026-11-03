@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.5.0 (2026-11-02)
+
+Logging: Lys logs through blackboxlog, and no longer logs chat.
+
+### Added
+- `LOG_CHAT=true` (a plain setting in the compose file's `environment`, off by default) logs every chat message with its channel, user and text.
+- Each command use is logged once, with the command, channel, outcome (`ok`, `error`, `timeout`, `refused`, `cooling` or `busy`), how long it ran and how long after the message the reply went out. The command's arguments are never logged.
+
+### Changed
+- Normal chat messages are no longer logged, unless `LOG_CHAT=true`.
+- Every log line is a JSON record with a level (`ERROR`, `WARN`, `INFO` or `DEBUG`), a constant message, a `component` (`router`, `twitch`, `chat`, `eventsub`, `sleeper`, `seventv`, …) and its details as fields. Failures are `ERROR` or `WARN`, where most had no level before. `LOG_LEVEL` and `LOG_FORMAT` change the level and format.
+- A command that panics is one `ERROR` record, with the stack in a field, instead of many lines.
+- A message from Twitch that Lys can't read is logged by its type and length, instead of up to 200 characters of what it said.
+- Twitch's token errors are worded so that log redaction doesn't hide part of them.
+- `lys migrate up` says which migrations it applied, or that the database is up to date.
+
 ## v0.4.0 (2026-10-30)
 
 ### Added
