@@ -1,4 +1,4 @@
--- Lys database: the one-time Admin setup on sparkdb.
+-- Lys database: the one-time superuser setup.
 --
 -- Creates what's missing and fixes ownership and access:
 --   roles     lys_owner (NOLOGIN), lys_migrator (member of the owner,
@@ -15,10 +15,10 @@
 -- password is only needed for a role that doesn't exist yet, and every missing
 -- one is checked before anything changes.
 --
--- Run as the Admin superuser on a new server:
---   docker exec -i sparkdb psql -U Admin -d postgres \
+-- Run as a superuser:
+--   psql -U <superuser> -d postgres \
 --     -v migrator_password="..." -v app_password="..." -v reader_password="..." \
---     -f - < scripts/db/setup.sql
+--     -f scripts/db/setup.sql
 
 \set ON_ERROR_STOP on
 SET client_min_messages = warning;
