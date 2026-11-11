@@ -145,8 +145,7 @@ const channelQuery = `query Channel($twitchId: String!) {
 	}
 }`
 
-// Channel is the 7TV account linked to a Twitch channel, read fresh; nil if
-// there's none.
+// Channel is the 7TV account linked to a Twitch channel, read fresh; nil if there's none.
 func (c *Client) Channel(ctx context.Context, twitchID string) (*Channel, error) {
 	var data struct {
 		Users struct {
@@ -217,8 +216,7 @@ func (c *Client) Channel(ctx context.Context, twitchID string) (*Channel, error)
 	return ch, nil
 }
 
-// perPage is how many of a set's emotes one request asks for; 7TV gives up
-// to 1000 at once, the most a set holds today.
+// perPage is how many set emotes one request asks for: 7TV's maximum, and a full set today.
 const perPage = 1000
 
 const contentsQuery = `query Contents($setId: Id!, $page: Int!, $perPage: Int!) {
@@ -306,9 +304,7 @@ const searchQuery = `query Search($query: String!, $exact: Boolean!, $perPage: I
 	}
 }`
 
-// Search is the most used emotes matching a name, most used first, without
-// NSFW, unlisted, private or deleted ones. exact asks for that name only,
-// ignoring case.
+// Search is the most used usable emotes matching a name; exact asks for that name only, ignoring case.
 func (c *Client) Search(ctx context.Context, query string, exact bool, n int) ([]Emote, error) {
 	var data struct {
 		Emotes struct {
@@ -330,8 +326,7 @@ func (c *Client) Search(ctx context.Context, query string, exact bool, n int) ([
 	return out, nil
 }
 
-// Pick is the emote to add for a name: the most used one with exactly that
-// name, preferring one that matches its case.
+// Pick is the most used emote with exactly that name, preferring one that matches its case.
 func Pick(found []Emote, name string) (Emote, bool) {
 	for _, e := range found {
 		if e.Name == name {
@@ -357,8 +352,7 @@ func (c *Client) AddEmote(ctx context.Context, setID, emoteID, alias string) err
 
 const removeMutation = `mutation RemoveEmote($setId: Id!, $emote: EmoteSetEmoteId!) { emoteSets { emoteSet(id: $setId) { removeEmote(id: $emote) { id } } } }`
 
-// RemoveEmote takes the emote under alias out of a set. The alias is
-// required: without one, 7TV removes the emote under every name.
+// RemoveEmote takes the emote under alias out of a set; without an alias 7TV would remove every copy.
 func (c *Client) RemoveEmote(ctx context.Context, setID, emoteID, alias string) error {
 	if alias == "" {
 		return fmt.Errorf("7TV: remove emote %s: no name given", emoteID)

@@ -17,13 +17,6 @@ import (
 	"github.com/lsariol/lys/internal/core"
 )
 
-// CLI URLS
-// const (
-// 	HelixBaseURL       = "https://api.twitch.tv/helix"
-// 	EventSubAPIBaseURL = "http://127.0.0.1:8080/eventsub/subscriptions"
-// 	EventSubWSURL      = "ws://127.0.0.1:8080/ws"
-// )
-
 const (
 	HelixBaseURL       = "https://api.twitch.tv/helix"
 	EventSubAPIBaseURL = "https://api.twitch.tv/helix/eventsub/subscriptions"
@@ -77,8 +70,7 @@ func New(http *http.Client, cfg *config.TwitchConfig, auth *auth.AuthClient, dir
 
 func (c *EventSubClient) OutboundEvents() <-chan EventSubMessage { return c.out }
 
-// Connected reports whether the websocket is up, the channels are joined, and
-// the bot's authorization still stands.
+// Connected reports whether the websocket is up, the channels joined and the bot's authorization intact.
 func (c *EventSubClient) Connected() bool { return c.connected.Load() && !c.botRevoked.Load() }
 
 func (c *EventSubClient) Initialize(ctx context.Context) error {
@@ -110,9 +102,7 @@ func (c *EventSubClient) Run(ctx context.Context) error {
 	return nil
 }
 
-// Shutdown closes the websocket; it's safe to call more than once. The out
-// channel stays open, since the read loop may still be sending on it;
-// readers stop on the context instead.
+// Shutdown closes the websocket, safely more than once; out stays open, since readers stop on the context.
 func (c *EventSubClient) Shutdown(ctx context.Context) error {
 
 	c.shutdownOnce.Do(func() {
@@ -130,8 +120,7 @@ func (c *EventSubClient) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-// keepaliveGrace is added to Twitch's keepalive timeout before a silent
-// connection counts as dead.
+// keepaliveGrace is added to Twitch's keepalive timeout before a silent connection counts as dead.
 const keepaliveGrace = 5 * time.Second
 
 // defaultKeepalive is used until Twitch says otherwise.
@@ -145,8 +134,7 @@ func (c *EventSubClient) readLoop(ctx context.Context) error {
 			return nil
 		}
 
-		// Twitch sends a keepalive when there's nothing else; silence for longer
-		// than its timeout means the connection is dead.
+		// Silence longer than Twitch's keepalive timeout means the connection is dead.
 		keepalive := time.Duration(c.SessionData.KeepAliveTimeout) * time.Second
 		if keepalive <= 0 {
 			keepalive = defaultKeepalive
@@ -181,8 +169,7 @@ func (c *EventSubClient) readLoop(ctx context.Context) error {
 	}
 }
 
-// unreadable logs a message Lys can't read by its type and length; never its
-// payload, which carries chat.
+// unreadable logs an unreadable message by type and length, never its payload, which carries chat.
 func (c *EventSubClient) unreadable(data []byte, err error) {
 	var meta struct {
 		Metadata struct {
@@ -238,8 +225,7 @@ var revocationReasons = map[string]string{
 	"user_removed":     "the channel's account no longer exists",
 }
 
-// revoked handles Twitch ending a subscription; after a revocation it sends
-// nothing more for it.
+// revoked handles Twitch ending a subscription, which then sends nothing more.
 func (c *EventSubClient) revoked(ctx context.Context, sub Subscription) {
 	channel := sub.Condition.BroadcasterUserId
 	name := channel
@@ -259,8 +245,7 @@ func (c *EventSubClient) revoked(ctx context.Context, sub Subscription) {
 
 	switch sub.Status {
 	case "authorization_revoked":
-		// The subscriptions use the bot's own token, so this is the bot account
-		// taking back its authorization: every channel stops, not just this one.
+		// The subscriptions use the bot's token, so every channel stops, not just this one.
 		if !c.botRevoked.Swap(true) {
 			c.log.Error("Twitch revoked the bot account's authorization, so Lys hears no chat. Run lys bot authorize, then restart Lys.")
 		}

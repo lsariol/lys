@@ -41,10 +41,7 @@ func DescribeTrade(tx Transaction, n Names) string {
 	return "🏈 Trade: " + TradeSides(tx, n)
 }
 
-// DescribeMoves is one chat message for a team's free-agent moves or waiver
-// claims (kind "free_agent" or "waiver"): who it added and dropped, or how
-// many moves it made when that doesn't fit in one message. Empty when the
-// moves added and dropped no one.
+// DescribeMoves is one message for a team's free-agent moves or waiver claims; empty when nobody moved.
 func DescribeMoves(kind string, rosterID int, txs []Transaction, n Names) string {
 	var added, dropped []string
 	for _, tx := range txs {

@@ -46,8 +46,7 @@ func (c *AuthClient) LookupUserByID(ctx context.Context, id string) (TwitchUser,
 	return u, nil
 }
 
-// lookupUser asks Get Users for one user. On a 401 it gets a new app token
-// and, if retry is set, asks once more.
+// lookupUser asks Get Users for one user; on a 401 it gets a new app token and, if retry is set, asks again.
 func (c *AuthClient) lookupUser(ctx context.Context, query url.Values, retry bool) (TwitchUser, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, usersURL+"?"+query.Encode(), nil)
 	if err != nil {

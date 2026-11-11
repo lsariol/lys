@@ -26,8 +26,7 @@ const (
 	duplicateSchema = "42P06"
 )
 
-// migrationsTable is where goose records applied migrations. It lives in the
-// lys schema so everything Lys owns stays in one place.
+// migrationsTable is where goose records applied migrations, in the lys schema with everything else.
 const migrationsTable = "lys.goose_db_version"
 
 // Applied is one migration Migrate ran.
@@ -36,9 +35,7 @@ type Applied struct {
 	Duration time.Duration
 }
 
-// Migrate applies all pending migrations and returns the ones it ran, also
-// when one fails. connString must log in as the migrator role (lys_migrator),
-// which acts as lys_owner.
+// Migrate applies pending migrations as the migrator role and returns the ones it ran, also when one fails.
 func Migrate(ctx context.Context, connString string) ([]Applied, error) {
 	provider, db, err := newMigrationProvider(ctx, connString)
 	if err != nil {
@@ -82,9 +79,7 @@ func PrintMigrationStatus(ctx context.Context, connString string, w io.Writer) e
 	return nil
 }
 
-// CheckSchemaVersion returns an error if the database hasn't had every embedded
-// migration applied. It runs with the app role, so Lys refuses to start against
-// an old schema instead of failing on its first query.
+// CheckSchemaVersion fails unless every embedded migration is applied, so Lys won't start on an old schema.
 func (d *Database) CheckSchemaVersion(ctx context.Context) error {
 	want, err := latestMigrationVersion()
 	if err != nil {
@@ -115,9 +110,7 @@ func newMigrationProvider(ctx context.Context, connString string) (*goose.Provid
 		return nil, nil, fmt.Errorf("open migration connection: %w", err)
 	}
 
-	// goose creates its version table before running any migration, so the
-	// schema that holds it has to exist first. Two instances starting at once
-	// can race here; losing that race means the schema exists, which is fine.
+	// goose's version table needs the schema first; losing a race with another instance here is fine.
 	if _, err := db.ExecContext(ctx, "CREATE SCHEMA IF NOT EXISTS lys"); err != nil {
 		var pgErr *pgconn.PgError
 		if !errors.As(err, &pgErr) || (pgErr.Code != uniqueViolation && pgErr.Code != duplicateSchema) {

@@ -119,8 +119,7 @@ func main() {
 	log.Info("shutting down")
 }
 
-// run wires the router, its adapters and commands, the sources and the HTTP
-// server, and blocks until ctx is cancelled or an adapter fails for good.
+// run wires the router, adapters, commands, sources and HTTP server, and blocks until ctx ends or an adapter fails.
 func run(ctx context.Context, log *slog.Logger, cfg *config.Config, cove *coveclient.Client, db *database.Database, started time.Time) error {
 
 	httpClient := &http.Client{
@@ -230,8 +229,7 @@ func run(ctx context.Context, log *slog.Logger, cfg *config.Config, cove *covecl
 	return r.Run(ctx)
 }
 
-// useBotAccount points the Twitch config at the default bot account in
-// bot_accounts; without one, Lys can't start (lys bot authorize adds it).
+// useBotAccount points the Twitch config at the default bot account; without one Lys can't start (lys bot authorize).
 func useBotAccount(ctx context.Context, bots *botaccounts.Store, cfg *config.TwitchConfig) error {
 	bot, found, err := bots.Default(ctx, twitchbot.Platform)
 	if err != nil || !found {
@@ -262,8 +260,7 @@ func newCove() (*coveclient.Client, error) {
 	return coveclient.New(url, token), nil
 }
 
-// cliServices loads Cove, the config and the database for CLI commands, once
-// and only when a command first needs them.
+// cliServices loads Cove, the config and the database for CLI commands, once, when a command first needs them.
 func cliServices() func(ctx context.Context) (*cli.Services, error) {
 	var (
 		once     sync.Once

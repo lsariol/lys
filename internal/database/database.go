@@ -22,9 +22,7 @@ func NewDatabase(c *config.DatabaseConfig) *Database {
 	}
 }
 
-// poolSize is the most connections Lys opens, unless the URL sets
-// pool_max_conns. pgxpool's default (the larger of 4 and the CPU count) left 3
-// on a 4-CPU server once the channel listener holds one.
+// poolSize caps Lys's connections unless the URL sets pool_max_conns; the channel listener holds one.
 const poolSize = 12
 
 func (d *Database) Connect(ctx context.Context) error {

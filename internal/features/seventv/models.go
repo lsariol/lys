@@ -76,8 +76,7 @@ func (e Emote) Link() string { return "7tv.app/emotes/" + e.ID }
 // usable reports whether the emote may be picked from a search.
 func (e Emote) usable() bool { return !e.Deleted && !e.NSFW && !e.Private && e.Listed }
 
-// Active is the channel's active set; false if none is active or it isn't
-// one of the channel's normal sets.
+// Active is the channel's active set; false if none is active or it isn't a normal set.
 func (ch *Channel) Active() (Set, bool) {
 	for _, s := range ch.Sets {
 		if s.ID == ch.ActiveSetID {
@@ -87,8 +86,7 @@ func (ch *Channel) Active() (Set, bool) {
 	return Set{}, false
 }
 
-// Find is the emote with this name in the set: an exact match, or else the
-// only one that matches ignoring case.
+// Find is the set's emote by name: an exact match, else the only one that matches ignoring case.
 func (c *Contents) Find(alias string) (SetEmote, bool) {
 	var folded []SetEmote
 	for _, e := range c.Emotes {

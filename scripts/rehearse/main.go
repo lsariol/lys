@@ -1,6 +1,4 @@
-// Command rehearse runs what Lys's startup does to the database against a
-// restored copy of prod: the migrations (twice) and the schema check.
-// rehearse.sh runs it.
+// Command rehearse runs Lys's startup database steps on a restored copy: the migrations twice, then the schema check.
 package main
 
 import (

@@ -12,9 +12,7 @@ import (
 	"golang.org/x/term"
 )
 
-// runShell is `lys shell`: commands one after another, with line editing,
-// history (up and down, kept in memory) and Tab completion from the command
-// table. exit, quit or Ctrl+D leaves it.
+// runShell is `lys shell`: commands one after another, with line editing, history and Tab completion; exit or Ctrl+D leaves.
 func runShell(ctx context.Context, env *Env, in Input) error {
 	if len(in.Args) > 0 {
 		return usageError("shell takes no arguments.")
@@ -34,8 +32,7 @@ func runShell(ctx context.Context, env *Env, in Input) error {
 		io.Writer
 	}{os.Stdin, env.Err}, prompt(env))
 
-	// In raw mode everything goes through the terminal, which turns "\n" into
-	// the "\r\n" a raw terminal needs; questions are asked on its prompt.
+	// In raw mode the terminal turns "\n" into "\r\n", and questions are asked on its prompt.
 	shell := *env
 	shell.Out, shell.Err = t, t
 	shell.readLine = func(question string) (string, error) {
@@ -86,16 +83,13 @@ func prompt(env *Env) string {
 	return "lys (" + name + ")> "
 }
 
-// complete handles Tab: the words typed so far complete to a command name;
-// after a command, to what that command's Complete offers. One match is
-// completed; several complete their common prefix, and Tab again lists them.
+// complete handles Tab: a command name, then what the command's Complete offers; several matches complete their common prefix.
 func complete(env *Env, line string, pos int, out io.Writer) (string, int, bool) {
 	head, tail := line[:pos], line[pos:]
 	typed := strings.TrimLeft(head, " ")
 	lead := head[:len(head)-len(typed)]
 
-	// The text being completed, and the candidates that replace it: command
-	// names first, since some continue another ("migrate" and "migrate status").
+	// Command names come first, since some continue another ("migrate" and "migrate status").
 	text := typed
 	var candidates []string
 	for _, c := range table {

@@ -1,6 +1,4 @@
-// Package seventv is the !7tv command: a channel's 7TV editors manage its
-// emotes from chat. The channel's 7TV editor list decides who may change
-// what; Twitch roles don't count.
+// Package seventv is the !7tv command: the channel's 7TV editors, not its Twitch roles, manage its emotes from chat.
 package seventv
 
 import (
@@ -16,8 +14,7 @@ import (
 	api "github.com/lsariol/lys/internal/features/seventv"
 )
 
-// SevenTV runs !7tv. Changes go through Lys's own 7TV account, so it checks
-// the sender against the channel's editor list before every one.
+// SevenTV runs !7tv, checking the sender against the channel's editor list before each change it makes as Lys.
 type SevenTV struct {
 	client *api.Client
 	locks  locks
@@ -103,8 +100,7 @@ func failed(err error) commands.Reply {
 	return say("Couldn't reach 7TV, try again in a moment.")
 }
 
-// unknown reports whether a change may have happened despite err: the
-// request failed in transit, so 7TV's answer was lost.
+// unknown reports whether a change may have happened despite err, because 7TV's answer was lost in transit.
 func unknown(err error) bool {
 	var apiErr *api.APIError
 	return err != nil && !errors.As(err, &apiErr) && !errors.Is(err, api.ErrSession) &&
@@ -129,8 +125,7 @@ func (s *SevenTV) channel(ctx context.Context, e commands.Request) (*api.Channel
 	return ch, nil, nil
 }
 
-// authorize checks that the sender may make a change that needs p, then
-// that Lys's 7TV account may. When either may not, reply says why.
+// authorize checks that the sender, then Lys's 7TV account, may make a change that needs p; reply says why not.
 func (s *SevenTV) authorize(ctx context.Context, e commands.Request, ch *api.Channel, p api.Permission) (*commands.Reply, error) {
 	what := "change emotes"
 	permission := "Manage emote sets"

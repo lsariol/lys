@@ -1,6 +1,4 @@
-// Package seventv is Lys's client for 7TV's v4 GraphQL API: it reads a
-// channel's 7TV account, sets and editors, and edits emotes as Lys's own 7TV
-// account. It never deletes anything on 7TV.
+// Package seventv is Lys's client for 7TV's v4 GraphQL API; it never deletes anything on 7TV.
 package seventv
 
 import (
@@ -25,8 +23,7 @@ const Endpoint = "https://api.7tv.app/v4/gql"
 // TokenKey is the Cove key that holds the session of Lys's 7TV account.
 const TokenKey = "LYS_SEVENTV_TOKEN"
 
-// reloadEvery is the least time between reading the session from Cove again
-// after 7TV refused it or it was missing.
+// reloadEvery is the least time between reading the session from Cove again while it's refused or missing.
 const reloadEvery = 2 * time.Minute
 
 // maxBody bounds an answer; a full set of 1000 emotes is far smaller.
@@ -52,8 +49,7 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("7TV: %s: %s (%s)", e.Op, e.Message, e.Code)
 }
 
-// Client calls 7TV. Reads are anonymous; changes use Lys's 7TV session,
-// read from Cove when first needed and again after 7TV refuses it.
+// Client calls 7TV: reads are anonymous, changes use Lys's session from Cove, read again after a refusal.
 type Client struct {
 	http     *http.Client
 	endpoint string
@@ -101,8 +97,7 @@ func (c *Client) session(ctx context.Context) (string, error) {
 	return c.token, nil
 }
 
-// Reload reads the session from Cove again, so a new one takes effect
-// without a restart. A failed read keeps the session Lys has.
+// Reload reads the session from Cove again, keeping the current one if the read fails.
 func (c *Client) Reload(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -128,8 +123,7 @@ func (c *Client) reloadLocked(ctx context.Context) {
 	}
 }
 
-// refused handles 7TV refusing token: it reads Cove again, at most every
-// reloadEvery, and reports whether there's a different session to try.
+// refused reads Cove again, at most every reloadEvery, and reports whether there's a different session to try.
 func (c *Client) refused(ctx context.Context, token string) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -144,8 +138,7 @@ func (c *Client) refused(ctx context.Context, token string) bool {
 	return c.token != "" && c.token != token
 }
 
-// Expiry is when the current session expires, from its exp claim; false if
-// there's no session or it doesn't say.
+// Expiry is the session's exp claim; false if there's no session or no claim.
 func (c *Client) Expiry(ctx context.Context) (time.Time, bool) {
 	token, err := c.session(ctx)
 	if err != nil {
@@ -198,8 +191,7 @@ func (c *Client) read(ctx context.Context, op, name, query string, vars map[stri
 	return err
 }
 
-// authed runs a document with Lys's session; after a refusal it tries once
-// more if Cove has a newer session, since 7TV made no change.
+// authed runs a document with Lys's session, retrying once with a newer one from Cove after a refusal.
 func (c *Client) authed(ctx context.Context, op, name, query string, vars map[string]any, out any) error {
 	token, err := c.session(ctx)
 	if err != nil {
@@ -221,8 +213,7 @@ func (c *Client) authed(ctx context.Context, op, name, query string, vars map[st
 	return err
 }
 
-// send posts one request and decodes data into out. unauthorized reports
-// that 7TV refused the session.
+// send posts one request and decodes data into out; unauthorized reports that 7TV refused the session.
 func (c *Client) send(ctx context.Context, op string, body request, token string, out any) (unauthorized bool, err error) {
 	b, err := json.Marshal(body)
 	if err != nil {

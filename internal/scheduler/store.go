@@ -1,6 +1,4 @@
-// Package scheduler runs jobs at their time: reminders, repeating channel
-// autoposts, and any other kind with a handler. Jobs live in lys.scheduled_jobs,
-// so they survive restarts.
+// Package scheduler runs jobs at their time, such as reminders and autoposts, kept in lys.scheduled_jobs.
 package scheduler
 
 import (
@@ -88,8 +86,7 @@ func scanJobs(rows pgx.Rows) ([]Job, error) {
 	return out, rows.Err()
 }
 
-// Claim takes up to limit due jobs for this instance, leasing them for lease.
-// A job whose lease runs out (its instance died) can be claimed again.
+// Claim leases up to limit due jobs; a job whose lease runs out (its instance died) can be claimed again.
 func (s *Store) Claim(ctx context.Context, limit int, lease time.Duration) ([]Job, error) {
 	var jobs []Job
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
@@ -121,8 +118,7 @@ func (s *Store) Claim(ctx context.Context, limit int, lease time.Duration) ([]Jo
 // nextRun moves a repeating job to its next time after now.
 const nextRun = `run_at + repeat_every * (floor(extract(epoch FROM now() - run_at) / extract(epoch FROM repeat_every)) + 1)`
 
-// Done records a finished run: a one-off job is done, a repeating one moves
-// to its next time. failure, if set, is kept as the job's last error.
+// Done records a finished run, keeping failure as the last error; a repeating job moves to its next time.
 func (s *Store) Done(ctx context.Context, id int64, failure string) error {
 	_, err := s.pool.Exec(ctx, `
 		UPDATE lys.scheduled_jobs SET
@@ -176,8 +172,7 @@ func (s *Store) CountByCreator(ctx context.Context, kind string, createdBy int64
 // ErrNotFound means no unfinished job matches.
 var ErrNotFound = errors.New("no such job")
 
-// Cancel finishes a job early. It must belong to the channel, so a command
-// can't cancel another channel's jobs.
+// Cancel finishes a job early, only if it belongs to the channel.
 func (s *Store) Cancel(ctx context.Context, id, connectionID int64, kind string) error {
 	tag, err := s.pool.Exec(ctx, `
 		UPDATE lys.scheduled_jobs SET done_at = now(), last_error = 'cancelled'

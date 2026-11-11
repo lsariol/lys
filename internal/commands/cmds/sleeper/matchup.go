@@ -10,8 +10,7 @@ import (
 	api "github.com/lsariol/lys/internal/features/sleeper"
 )
 
-// matchup is "!ff matchup [@user] [week]": the score of a team's matchup,
-// this week's unless a week is given.
+// matchup is "!ff matchup [@user] [week]": a team's matchup score, this week's by default.
 func matchup(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply, error) {
 	const form = "matchup [@user] [week]"
 	if len(e.Args) > 3 {

@@ -12,10 +12,7 @@ import (
 	"github.com/lsariol/lys/internal/core"
 )
 
-// event is something posted once in a league's channels: a trade, a waiver
-// claim, a free-agent move, a lineup reminder or a part of a recap. Its row in
-// sleeper_events stops a second announcement, across restarts and Lys
-// instances; a queued row waits there for the sender (sender.go).
+// event is something posted once in a league's channels; its sleeper_events row prevents a repeat and queues it.
 type event struct {
 	league string // the Sleeper league ID
 	kind   string // trade, waiver, free_agent, lineup_reminder, recap
@@ -29,8 +26,7 @@ type querier interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
-// record notes the event, queued for the sender if queue is set; false if it
-// was there already.
+// record notes the event, queued for the sender if queue is set; false if it was there already.
 func record(ctx context.Context, db querier, e event, data []byte, at time.Time, queue bool) (bool, error) {
 	var id uuid.UUID
 	err := db.QueryRow(ctx, `

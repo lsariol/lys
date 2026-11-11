@@ -47,8 +47,7 @@ func (ch *Channel) EditorByID(id string) *Editor {
 	return nil
 }
 
-// May is whether the editor may make a change that needs p. A nil editor
-// is no editor.
+// May is whether the editor may make a change that needs p; a nil editor is no editor.
 func (e *Editor) May(p Permission) Denial {
 	switch {
 	case e == nil:
@@ -68,9 +67,7 @@ var (
 	hosts = map[string]bool{"7tv.app": true, "www.7tv.app": true, "old.7tv.app": true, "cdn.7tv.app": true}
 )
 
-// ParseEmote reads what an add names: an emote ID from a 7TV link or a
-// bare ID, or else a name. link is false for a name. A link anywhere but
-// 7TV is refused with ok false; links are never fetched.
+// ParseEmote reads an add's argument: an emote ID from a 7TV link or bare ID, else a name; other links fail, never fetched.
 func ParseEmote(s string) (id string, link, ok bool) {
 	if ulid.MatchString(s) || objectID.MatchString(s) {
 		return s, true, true

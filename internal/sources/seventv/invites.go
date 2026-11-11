@@ -1,7 +1,4 @@
-// Package seventv is the source that keeps Lys's 7TV account in order: it
-// accepts editor invites from the channels Lys serves, picks up a new
-// session from Cove, and warns before the session expires. It publishes
-// nothing.
+// Package seventv is the source that accepts 7TV editor invites from served channels and watches the session.
 package seventv
 
 import (
@@ -50,8 +47,7 @@ func (s *Invites) Run(ctx context.Context, _ sources.Publisher) error {
 	}
 }
 
-// check reads the session again, warns if it expires soon, and accepts the
-// pending invites from channels Lys serves.
+// check reads the session again, warns if it expires soon, and accepts invites from channels Lys serves.
 func (s *Invites) check(ctx context.Context) {
 	if err := s.client.Reload(ctx); err != nil {
 		s.fail(err)

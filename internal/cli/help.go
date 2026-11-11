@@ -127,8 +127,7 @@ func printGuide(w io.Writer, g guide) {
 	}
 }
 
-// columns prints two aligned columns, wrapping the right one at width. A left
-// cell too long for the column puts its text on the next line.
+// columns prints two aligned columns, wrapping the right one; a long left cell puts its text on the next line.
 func columns(w io.Writer, rows [][2]string, pad int) {
 	left := 0
 	for _, r := range rows {

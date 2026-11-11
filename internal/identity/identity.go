@@ -1,5 +1,4 @@
-// Package identity records the people Lys sees on each platform and finds
-// their Lys identity.
+// Package identity records the people Lys sees on each platform and finds their Lys identity.
 package identity
 
 import (
@@ -13,8 +12,7 @@ import (
 	"github.com/lsariol/lys/internal/core"
 )
 
-// refreshAfter is how long a looked-up identity is trusted before Lys checks
-// the database again (to see a new display name or a newly linked account).
+// refreshAfter is how long a looked-up identity is trusted before the database is checked again.
 const refreshAfter = 10 * time.Minute
 
 // maxCached caps the cache; when it's full it starts over.
@@ -42,8 +40,7 @@ func New(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool, cache: make(map[key]entry)}
 }
 
-// Resolve returns the user's identity, adding them to platform_users the first
-// time and keeping their display name current.
+// Resolve returns the user's identity, adding them the first time and keeping their display name current.
 func (s *Store) Resolve(ctx context.Context, platform string, u core.User) (core.Identity, error) {
 	if u.ID == "" {
 		return core.Identity{}, errors.New("identity: the message has no user ID")

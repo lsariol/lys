@@ -10,20 +10,16 @@ import (
 	"github.com/lsariol/lys/internal/backoff"
 )
 
-// changedChannel is the Postgres notification channel for connection changes;
-// the payload is the platform.
+// changedChannel is the Postgres channel for connection changes; the payload is the platform.
 const changedChannel = "lys_connections_changed"
 
-// notify tells every listening Lys that a platform's connections changed. It
-// is sent when tx commits, and not at all if it rolls back.
+// notify tells every listening Lys that a platform's connections changed, once tx commits.
 func notify(ctx context.Context, tx pgx.Tx, platform string) error {
 	_, err := tx.Exec(ctx, `SELECT pg_notify($1, $2)`, changedChannel, platform)
 	return err
 }
 
-// Watch calls changed with the platform whenever a connection changes, in this
-// process or another (the CLI), and with "" every resync as a safety net and
-// after a lost listener reconnects. It returns when ctx ends.
+// Watch calls changed on each connection change, from any process, and with "" every resync and after a reconnect.
 func (s *Store) Watch(ctx context.Context, log *slog.Logger, resync time.Duration, changed func(platform string)) error {
 	log = log.With("component", "connections")
 	go func() {

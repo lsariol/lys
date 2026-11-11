@@ -1,5 +1,4 @@
-// Package botaccounts keeps the accounts Lys speaks as on each platform. The
-// token values live in Cove; this stores the Cove key names.
+// Package botaccounts keeps the accounts Lys speaks as, with the Cove key names of their tokens.
 package botaccounts
 
 import (

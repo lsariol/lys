@@ -30,8 +30,7 @@ func unreachable() commands.Reply { return say("Couldn't reach Sleeper, try agai
 // broken answers when Lys's database fails.
 func broken() commands.Reply { return say("Something went wrong, try again in a moment.") }
 
-// names gives the league's rosters their chat names; linked viewers that
-// can't be read are logged and show as team names.
+// names gives the rosters their chat names; linked viewers that can't be read show as team names.
 func (sl *Sleeper) names(ctx context.Context, league *SleeperLeague, rosters []api.Roster, users []api.LeagueUser, players map[string]api.Player) api.Names {
 	mentions, err := api.Mentions(ctx, sl.db, league.SleeperLeagueID)
 	if err != nil {

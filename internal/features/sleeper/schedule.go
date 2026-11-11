@@ -12,9 +12,7 @@ import (
 	_ "time/tzdata" // the image has no time zone files; kickoffs are shown in Eastern time
 )
 
-// Sleeper's schedule has dates but no times, so kickoffs come from ESPN's
-// public scoreboard. It's unofficial: an answer that doesn't parse is an
-// error, never a guessed time.
+// scheduleURL is ESPN's unofficial scoreboard, for the kickoff times Sleeper lacks; a bad answer is an error, never a guess.
 const scheduleURL = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard"
 
 // scheduleFor is how long a week's kickoffs are kept before asking again.

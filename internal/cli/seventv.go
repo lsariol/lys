@@ -131,8 +131,7 @@ func runSevenTVCheck(ctx context.Context, env *Env, in Input) error {
 	return nil
 }
 
-// channelID is a Twitch channel's ID: the argument if it's one, or else
-// the channel Lys knows by that name.
+// channelID is a Twitch channel's ID: the argument if it's one, else the channel Lys knows by that name.
 func channelID(ctx context.Context, env *Env, arg string) (string, error) {
 	if strings.Trim(arg, "0123456789") == "" {
 		return arg, nil

@@ -11,10 +11,7 @@ import (
 // dropReportEvery is how often messages dropped for a full router are logged.
 const dropReportEvery = time.Minute
 
-// ingestLoop turns each chat message into a core.Message for the router,
-// skipping the bot's own messages so it never answers itself. It never waits
-// on the router: a message the router has no room for is dropped and counted,
-// so the EventSub socket keeps being read and Twitch's pings answered.
+// ingestLoop forwards chat to the router, skipping the bot's own; it never waits, dropping what doesn't fit, so EventSub keeps being read.
 func (c *TwitchClient) ingestLoop(ctx context.Context, events <-chan eventsub.EventSubMessage, in chan<- core.Message) error {
 	report := time.NewTicker(dropReportEvery)
 	defer report.Stop()
@@ -85,8 +82,7 @@ func roles(badges []eventsub.ChatBadge) core.Roles {
 	return r
 }
 
-// logMessage logs a chat message; only with LOG_CHAT=true, since chat is
-// most of what Lys would log otherwise.
+// logMessage logs a chat message, only with LOG_CHAT=true since chat would be most of the log.
 func (c *TwitchClient) logMessage(e eventsub.EventSubMessage) {
 	ev := e.Payload.Event
 	c.log.Info("chat message", "channel", ev.BroadcasterUserName, "user", ev.ChatterUserName, "text", ev.Message.Text)

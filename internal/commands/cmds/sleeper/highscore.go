@@ -9,8 +9,7 @@ import (
 	api "github.com/lsariol/lys/internal/features/sleeper"
 )
 
-// highscore is "!ff highscore [week]": the week's top score, last week's by
-// default (this week's so far when asked for it).
+// highscore is "!ff highscore [week]": a week's top score, last week's by default.
 func highscore(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply, error) {
 	if len(e.Args) > 2 {
 		return usage(e, "highscore [week]"), nil

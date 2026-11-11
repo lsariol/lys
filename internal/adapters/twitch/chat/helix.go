@@ -13,8 +13,7 @@ import (
 
 const sendChatURL = "https://api.twitch.tv/helix/chat/messages"
 
-// SendChat posts one message as the bot, with the app token. A non-200 answer
-// comes back as a HelixError.
+// SendChat posts one message as the bot with the app token; a non-200 answer comes back as a HelixError.
 func (c *ChatClient) SendChat(ctx context.Context, broadcasterID, text string) (*SendChatMessageResponse, *HelixError, error) {
 
 	payload, err := json.Marshal(SendChatBody{

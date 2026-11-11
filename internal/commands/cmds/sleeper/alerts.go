@@ -10,8 +10,7 @@ import (
 	"github.com/lsariol/lys/internal/commands"
 )
 
-// alertKinds are the league's announcements a channel can turn off, with
-// how they're shown; all are on by default.
+// alertKinds are the league announcements a channel can turn off, with their labels; all are on by default.
 var alertKinds = []struct{ key, label string }{
 	{"trades", "trades"},
 	{"waivers", "waivers"},
@@ -20,8 +19,7 @@ var alertKinds = []struct{ key, label string }{
 	{"recap", "weekly recaps"},
 }
 
-// alerts shows or changes which of the league's announcements are made in chat:
-// "!ff alerts", or "!ff alerts <kind> <on|off>" for the channel's owner.
+// alerts is "!ff alerts", and "!ff alerts <kind> <on|off>" for the channel's owner.
 func alerts(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply, error) {
 	var keys []string
 	for _, k := range alertKinds {

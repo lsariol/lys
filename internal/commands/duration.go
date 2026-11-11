@@ -11,8 +11,7 @@ import (
 
 var durationPart = regexp.MustCompile(`(\d+)([dhms])`)
 
-// ParseDuration reads a duration like "10m", "1h30m" or "2d" (days, hours,
-// minutes, seconds).
+// ParseDuration reads a duration like "10m", "1h30m" or "2d" (days, hours, minutes, seconds).
 func ParseDuration(s string) (time.Duration, error) {
 	s = strings.ToLower(strings.TrimSpace(s))
 	if s == "" {

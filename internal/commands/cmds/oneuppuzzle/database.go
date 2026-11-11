@@ -8,8 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// store holds OneUpPuzzle games in lys.game_events, keyed by connection and
-// platform user. The old user/channel columns are still written for rollback.
+// store keeps OneUpPuzzle games in lys.game_events, still writing the old user and channel columns for rollback.
 type store struct {
 	pool *pgxpool.Pool
 }

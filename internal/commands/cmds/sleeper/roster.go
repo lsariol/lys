@@ -8,8 +8,7 @@ import (
 	api "github.com/lsariol/lys/internal/features/sleeper"
 )
 
-// roster is "!ff roster [@user]": starters by position, then the bench,
-// injured reserve and taxi squad. A long roster takes two messages.
+// roster is "!ff roster [@user]": starters by position, then bench, injured reserve and taxi squad.
 func roster(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply, error) {
 	if len(e.Args) > 2 {
 		return usage(e, "roster [@user]"), nil

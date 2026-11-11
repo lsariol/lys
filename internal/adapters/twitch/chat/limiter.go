@@ -8,11 +8,7 @@ import (
 	"github.com/lsariol/lys/internal/core"
 )
 
-// Twitch's chat limits are per account, across all channels (dev.twitch.tv/docs/chat,
-// checked 2026-10-28): 20 messages per 30 seconds, or 100 for messages in
-// channels where the bot is a moderator, VIP or broadcaster, which still count
-// towards the 20. Going over makes Twitch ignore the bot for an hour wherever
-// it isn't privileged. Lys stays a little under both.
+// Twitch's account-wide chat limits per 30 s (dev.twitch.tv/docs/chat): 20, or 100 where privileged; over them, Twitch ignores the bot for an hour.
 const (
 	limitWindow       = 30 * time.Second
 	limitAll          = 90 // of 100
@@ -25,8 +21,7 @@ const (
 	privilegedGap   = 300 * time.Millisecond
 )
 
-// limiter is the account-wide limit every channel's sender waits on. When
-// messages wait, the highest priority goes first.
+// limiter is the account-wide limit every channel's sender waits on, highest priority first.
 type limiter struct {
 	window            time.Duration
 	all, unprivileged int

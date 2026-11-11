@@ -11,8 +11,7 @@ import (
 // statsEvery is how often the Send Chat Message rate limit is logged while sending.
 const statsEvery = time.Minute
 
-// helixStats sums up Helix's Ratelimit headers on Send Chat Message: its own
-// bucket, separate from the chat limits the limiter keeps to.
+// helixStats sums Send Chat Message's Ratelimit headers, a bucket separate from the chat limits.
 type helixStats struct {
 	mu            sync.Mutex
 	since         time.Time

@@ -7,9 +7,7 @@ import (
 	"github.com/lsariol/lys/internal/commands"
 )
 
-// unlink is "!ff unlink" (or "!ff unlink user") for your own team,
-// "!ff unlink @user" for moderators and the owner, and "!ff unlink league"
-// for the owner.
+// unlink is "!ff unlink" for your team, "!ff unlink @user" for moderators and "!ff unlink league" for the owner.
 func unlink(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply, error) {
 	args := e.Args[1:]
 	if len(args) > 1 {

@@ -8,8 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Store keeps feature requests. Status is one of 'new', 'in_progress',
-// 'completed' or 'rejected'.
+// Store keeps feature requests, with a status of 'new', 'in_progress', 'completed' or 'rejected'.
 type Store interface {
 	StoreRequest(ctx context.Context, fr FeatureRequest) (int64, error)
 	UpdateStatus(ctx context.Context, newStatus string, requestID int64) error
@@ -17,8 +16,7 @@ type Store interface {
 	NewRequests(ctx context.Context, limit int) ([]FeatureRequest, error)
 }
 
-// PGStore is the Store in lys.feature_requests. Requesters and channels show
-// under their current names.
+// PGStore is the Store in lys.feature_requests, showing requesters and channels by their current names.
 type PGStore struct {
 	pool *pgxpool.Pool
 }

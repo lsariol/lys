@@ -1,7 +1,4 @@
-// Package enroll is the API the website calls when a channel owner connects
-// Lys or turns it off. The website verifies the owner (OAuth) first; Lys
-// trusts a caller that has the shared enrollment token, and takes the
-// channel's names from the platform, not from the caller.
+// Package enroll is the API the website calls to connect or remove a channel, trusting its token and the platform's names.
 package enroll
 
 import (
@@ -39,8 +36,7 @@ type API struct {
 	log     *slog.Logger
 }
 
-// New returns the API for the platforms of lookups. With an empty token it
-// refuses every request.
+// New returns the API for the platforms of lookups; with an empty token it refuses every request.
 func New(store Store, token string, log *slog.Logger, lookups ...core.ChannelLookup) *API {
 	log = log.With("component", "enroll")
 	if token == "" {

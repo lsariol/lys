@@ -18,8 +18,7 @@ import (
 // Kind is the scheduled_jobs kind of a channel autopost.
 const Kind = "autopost"
 
-// MinMessages is how many chat messages a channel needs since an autopost's last
-// post for it to post again, so quiet and offline channels get nothing.
+// MinMessages is the chat a channel needs since an autopost's last post before it posts again, so quiet channels get none.
 const MinMessages = 5
 
 const (
@@ -43,8 +42,7 @@ type Activity interface {
 	Since(platform, channelID string, after time.Time) int
 }
 
-// Post is the scheduler handler for autoposts: it posts the autopost's message
-// unless the channel had fewer than MinMessages since the last post.
+// Post is the autopost handler: it posts unless the channel had fewer than MinMessages since the last post.
 func Post(chat Activity) scheduler.Handler {
 	return func(ctx context.Context, j scheduler.Job, pub sources.Publisher) error {
 		if chat.Since(j.Platform, j.Channel.ID, j.RunAt.Add(-j.RepeatEvery)) < MinMessages {
@@ -54,8 +52,7 @@ func Post(chat Activity) scheduler.Handler {
 	}
 }
 
-// Autopost posts a channel's message on repeat. Only the channel's owner and
-// moderators manage them; the bot's owner gets no say in other channels.
+// Autopost posts a channel's message on repeat, managed by the channel's owner and moderators only.
 type Autopost struct {
 	jobs Jobs
 	now  func() time.Time

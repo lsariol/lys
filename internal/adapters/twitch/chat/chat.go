@@ -1,5 +1,4 @@
-// Package chat sends the bot's messages through Helix: one queue per channel,
-// paced for the bot's role there, under one limit for the whole account.
+// Package chat sends the bot's messages through Helix: a paced queue per channel, under one limit for the account.
 package chat
 
 import (
@@ -18,8 +17,7 @@ import (
 // queueSize is how many messages may wait per channel before new ones are dropped.
 const queueSize = 32
 
-// Roles keeps, across restarts, whether the bot is a moderator, VIP or
-// broadcaster in each channel.
+// Roles keeps, across restarts, whether the bot is a moderator, VIP or broadcaster in each channel.
 type Roles interface {
 	BotRoles(ctx context.Context) (map[string]bool, error)
 	SetBotRole(ctx context.Context, channelID string, privileged bool) error
@@ -97,8 +95,7 @@ func (c *ChatClient) SetRoles(channelID string, roles core.Roles) {
 	}()
 }
 
-// isPrivileged reports whether the bot may send faster in the channel: its
-// own channel, or one it was last seen moderating there (or as a VIP).
+// isPrivileged reports whether the bot may send faster in the channel: its own, or one where it was last seen privileged.
 func (c *ChatClient) isPrivileged(channelID string) bool {
 	if channelID == c.Config.BotAccountID {
 		return true
@@ -130,17 +127,13 @@ func (c *ChatClient) queue(ctx context.Context, channelID string) chan core.Outb
 	return q
 }
 
-// pauseFor is how long a channel's messages are dropped after Twitch refuses
-// the bot there (403, or a 401 a fresh token doesn't fix), instead of failing
-// on every message.
+// pauseFor is how long a channel's messages are dropped after Twitch refuses the bot there (403, or a lasting 401).
 const pauseFor = 10 * time.Minute
 
 // maxRateLimitWait caps how long a 429 waits for Twitch's reset time.
 const maxRateLimitWait = time.Minute
 
-// drain sends one channel's messages in order, paced for the bot's role there
-// and within the account's limit. A message too long for Twitch goes out in
-// parts, one after another.
+// drain sends one channel's messages in order, paced for the bot's role and the account's limit, long ones in parts.
 func (c *ChatClient) drain(ctx context.Context, q <-chan core.Outbound) {
 	var pausedUntil time.Time
 	dropped := 0
@@ -190,9 +183,7 @@ func (c *ChatClient) drain(ctx context.Context, q <-chan core.Outbound) {
 	}
 }
 
-// deliver sends out. On a 401 it refreshes the app token and, if retry is
-// set, tries once more; on a 429 it waits for Twitch's reset and tries once
-// more. pause is how long to stop sending to the channel.
+// deliver sends out, retrying once after a 401 (new app token) or a 429 (Twitch's reset); pause is how long to stop the channel.
 func (c *ChatClient) deliver(ctx context.Context, out core.Outbound, retry bool) (pause time.Duration, err error) {
 	sent, helixErr, err := c.SendChat(ctx, out.Channel.ID, out.Text)
 	if err != nil {

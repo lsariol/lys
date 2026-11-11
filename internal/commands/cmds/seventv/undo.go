@@ -86,8 +86,7 @@ func (u *undoLog) clear(channelID string, c change) {
 	}
 }
 
-// undoLast reverts the channel's last change, if it's recent, for someone
-// allowed to make that change now.
+// undoLast reverts the channel's recent last change, for someone allowed to make that change now.
 func (s *SevenTV) undoLast(ctx context.Context, e commands.Request) (commands.Reply, error) {
 	if len(e.Args) != 1 {
 		return usage(e, "undo"), nil

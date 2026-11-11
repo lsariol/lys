@@ -16,8 +16,7 @@ type Server struct {
 	log *slog.Logger
 }
 
-// New returns a server on addr. health reports each adapter's connection;
-// /health answers 503 while any is down, and always reports version.
+// New returns a server on addr whose /health reports version and answers 503 while an adapter is down.
 func New(addr, version string, health func() map[string]bool, routes map[string]http.Handler, log *slog.Logger) *Server {
 	log = log.With("component", "server")
 	mux := http.NewServeMux()

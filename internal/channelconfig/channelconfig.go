@@ -1,5 +1,4 @@
-// Package channelconfig keeps each channel's settings and IDs in memory,
-// backed by the connections tables.
+// Package channelconfig keeps each channel's settings and IDs in memory, backed by the connections tables.
 package channelconfig
 
 import (

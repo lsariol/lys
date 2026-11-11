@@ -2,8 +2,7 @@ package auth
 
 import "fmt"
 
-// storeUserTokens saves the bot's user token pair to Cove: the refresh token
-// first, and only when it changed.
+// storeUserTokens saves the bot's token pair to Cove: the refresh token first, and only when it changed.
 func (c *AuthClient) storeUserTokens(access, refresh string) error {
 
 	if refresh != c.storedRefresh {

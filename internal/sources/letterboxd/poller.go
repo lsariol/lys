@@ -1,6 +1,4 @@
-// Package letterboxd is the source that announces new Letterboxd diary
-// entries from the feeds viewers subscribed with !letterboxd watch. It
-// replaces LetterboxdWatcher.
+// Package letterboxd is the source that announces new diary entries from the feeds viewers watch.
 package letterboxd
 
 import (
@@ -20,8 +18,7 @@ import (
 	"github.com/lsariol/lys/internal/sources"
 )
 
-// Poller checks every feed once per window, spread evenly across it. A feed
-// several channels follow is fetched once for all of them.
+// Poller checks each feed once per window, spread across it, once for all the channels that follow it.
 type Poller struct {
 	pool *pgxpool.Pool
 	http *http.Client
@@ -119,9 +116,7 @@ func group(subs []subscription) []feed {
 	return feeds
 }
 
-// checkFeed fetches a feed once and announces its new entries to each
-// subscriber. The feed counts as unchanged next time only if all of that worked,
-// so a failed announcement is tried again.
+// checkFeed fetches a feed once and announces it to each subscriber; any failure makes the next fetch a full one.
 func (p *Poller) checkFeed(ctx context.Context, f feed, pub sources.Publisher) {
 	movies, v, err := p.fetch(ctx, f.url)
 	if err != nil {
@@ -167,8 +162,7 @@ func (p *Poller) subscriptions(ctx context.Context) ([]subscription, error) {
 	return subs, nil
 }
 
-// announce posts the feed's entries this subscription hasn't seen, then
-// records the newest as seen. No movies (an unchanged feed) announces nothing.
+// announce posts the entries this subscription hasn't seen and records the newest; no movies announces nothing.
 func (p *Poller) announce(ctx context.Context, s subscription, movies []movie, pub sources.Publisher) error {
 	if len(movies) == 0 {
 		return nil
@@ -188,9 +182,7 @@ func (p *Poller) announce(ctx context.Context, s subscription, movies []movie, p
 	return p.markSeen(ctx, s, movies[0].GUID)
 }
 
-// fetch reads a feed's entries, newest first, and what tells this version of
-// it apart. It asks only for a feed that changed since the last fetch; an
-// unchanged one returns no movies.
+// fetch reads a feed's entries, newest first, with its validators; an unchanged feed returns no movies.
 func (p *Poller) fetch(ctx context.Context, url string) ([]movie, validators, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {

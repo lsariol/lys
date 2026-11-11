@@ -91,8 +91,7 @@ func (l *Letterboxd) handleWatch(ctx context.Context, e commands.Request, input 
 	return commands.Reply{Text: fmt.Sprintf("%s subscribed! New Letterboxd reviews from %s will appear in chat.", e.User.Name, lbUsername)}, nil
 }
 
-// feedExists reports whether Letterboxd answers for the feed (anything but a
-// failed request or a 404).
+// feedExists reports whether Letterboxd answers for the feed with anything but a failure or a 404.
 func (l *Letterboxd) feedExists(ctx context.Context, feedURL string) bool {
 	req, err := http.NewRequestWithContext(ctx, http.MethodHead, feedURL, nil)
 	if err != nil {

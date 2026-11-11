@@ -13,8 +13,7 @@ import (
 // refreshBefore is how long before the user token runs out it's renewed.
 const refreshBefore = 10 * time.Minute
 
-// EnsureUserToken refreshes the bot's user token if it runs out within
-// refreshBefore (or its expiry isn't known), and otherwise does nothing.
+// EnsureUserToken refreshes the bot's user token if it runs out within refreshBefore or its expiry is unknown.
 func (c *AuthClient) EnsureUserToken(ctx context.Context) error {
 	c.refreshMu.Lock()
 	expires := c.userExpires
@@ -25,8 +24,7 @@ func (c *AuthClient) EnsureUserToken(ctx context.Context) error {
 	return c.RefreshUserAccessToken(ctx)
 }
 
-// RefreshUserAccessToken trades the bot's refresh token for a new pair and
-// saves it to Cove. Use EnsureUserToken unless Twitch just refused the token.
+// RefreshUserAccessToken trades the refresh token for a new pair and saves it; prefer EnsureUserToken unless Twitch refused.
 func (c *AuthClient) RefreshUserAccessToken(ctx context.Context) error {
 
 	c.refreshMu.Lock()

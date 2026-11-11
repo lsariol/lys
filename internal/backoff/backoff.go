@@ -1,5 +1,4 @@
-// Package backoff spaces retries out: each attempt waits about twice as long
-// as the one before, up to a cap, with jitter so retries don't line up.
+// Package backoff spaces retries out: doubling waits up to a cap, with jitter so retries don't line up.
 package backoff
 
 import (
@@ -7,8 +6,7 @@ import (
 	"time"
 )
 
-// Delay is how long to wait before retry number attempt (1 for the first),
-// between half and all of base doubled per attempt, never more than max.
+// Delay is the wait before retry attempt (1 first): between half and all of base doubled per attempt, at most max.
 func Delay(attempt int, base, max time.Duration) time.Duration {
 	if attempt < 1 {
 		attempt = 1

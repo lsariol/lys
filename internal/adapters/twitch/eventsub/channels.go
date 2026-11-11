@@ -13,12 +13,10 @@ import (
 	"github.com/lsariol/lys/internal/core"
 )
 
-// joinAtOnce is how many channels are subscribed to at the same time. One at a
-// time, 300 channels took 45 s; Twitch wants them within 10 s of the welcome.
+// joinAtOnce is how many subscriptions run at once: Twitch wants them within 10 s of the welcome.
 const joinAtOnce = 8
 
-// JoinAllChannels subscribes to chat in every channel in c.Channels, for the
-// current websocket session.
+// JoinAllChannels subscribes to chat in every channel in c.Channels, for the current session.
 func (c *EventSubClient) JoinAllChannels(ctx context.Context) error {
 	if err := c.Auth.EnsureUserToken(ctx); err != nil {
 		return fmt.Errorf("user access token refresh: %w", err)
@@ -35,8 +33,7 @@ func (c *EventSubClient) JoinAllChannels(ctx context.Context) error {
 	return nil
 }
 
-// Sync joins the channels the directory now lists and leaves the ones it no
-// longer does, without reconnecting. Before the first connection it does nothing.
+// Sync joins and leaves channels to match the directory without reconnecting; before the first connection it does nothing.
 func (c *EventSubClient) Sync(ctx context.Context) error {
 	if !c.Connected() {
 		return nil
@@ -78,8 +75,7 @@ func (c *EventSubClient) Sync(ctx context.Context) error {
 	return nil
 }
 
-// join subscribes to the channels, joinAtOnce at a time, and records each one
-// that worked. The lock is held only to record, never across a request.
+// join subscribes to the channels, joinAtOnce at a time, recording each that worked, never holding the lock across a request.
 func (c *EventSubClient) join(ctx context.Context, channels []core.Channel) {
 	slots := make(chan struct{}, joinAtOnce)
 	var wg sync.WaitGroup
@@ -109,8 +105,7 @@ func (c *EventSubClient) join(ctx context.Context, channels []core.Channel) {
 	wg.Wait()
 }
 
-// diffChannels returns the channels to join (in want, not joined) and the IDs
-// to leave (joined, not in want).
+// diffChannels returns the channels in want that aren't joined, and the IDs joined that aren't in want.
 func diffChannels(joined map[string]Channel, want []core.Channel) (join []core.Channel, leave []string) {
 	wanted := make(map[string]bool, len(want))
 	for _, w := range want {
@@ -127,8 +122,7 @@ func diffChannels(joined map[string]Channel, want []core.Channel) (join []core.C
 	return join, leave
 }
 
-// subscribe asks Twitch for a broadcaster's chat on this session and returns
-// the subscription's ID.
+// subscribe asks Twitch for a broadcaster's chat on this session and returns the subscription's ID.
 func (c *EventSubClient) subscribe(ctx context.Context, broadcasterID string) (string, error) {
 	body, err := json.Marshal(map[string]any{
 		"type":    "channel.chat.message",
@@ -196,8 +190,7 @@ func (c *EventSubClient) unsubscribe(ctx context.Context, subscriptionID string)
 // errUnauthorized is a subscription Twitch refused for the bot's token.
 var errUnauthorized = errors.New("Twitch: subscribe: status 401, the bot's token was refused")
 
-// subscribeError turns a refused subscription into an error with Twitch's
-// reason and, where it's clear, how to fix it.
+// subscribeError turns a refused subscription into an error with Twitch's reason and, where clear, the fix.
 func subscribeError(resp *http.Response) error {
 	var body struct {
 		Message string `json:"message"`

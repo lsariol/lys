@@ -9,8 +9,7 @@ import (
 	"github.com/lsariol/lys/internal/commands"
 )
 
-// link is "!ff link <Sleeper name>" (or the older "!ff link user <name>"),
-// and "!ff link league <league URL or ID>" for the channel's owner.
+// link is "!ff link <Sleeper name>" (or "link user <name>"), and "!ff link league <URL or ID>" for the owner.
 func link(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply, error) {
 	args := e.Args[1:]
 	if len(args) > 0 && strings.EqualFold(args[0], "league") {

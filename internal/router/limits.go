@@ -19,8 +19,7 @@ const (
 // forgetAfter is how long a use is remembered once no cooldown can need it.
 const forgetAfter = time.Hour
 
-// limits applies the commands' cooldowns and concurrency caps. The channel's
-// owner and moderators skip cooldowns, never the caps.
+// limits applies cooldowns and concurrency caps; the owner and moderators skip cooldowns, never caps.
 type limits struct {
 	now func() time.Time
 
@@ -37,8 +36,7 @@ func newLimits(now func() time.Time) *limits {
 	return &limits{now: now, used: make(map[useKey]time.Time), running: make(map[string]int)}
 }
 
-// take admits a use of the command, or says why not. An allowed use counts
-// towards the cooldowns and, until release, the cap.
+// take admits a command use or says why not; an allowed use counts towards cooldowns and, until release, the cap.
 func (l *limits) take(spec commands.Spec, req commands.Request) verdict {
 	if spec.Cooldown <= 0 && spec.UserCooldown <= 0 && spec.Concurrency <= 0 {
 		return allowed

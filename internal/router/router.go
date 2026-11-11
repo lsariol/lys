@@ -1,5 +1,4 @@
-// Package router turns chat messages into commands and sends their replies,
-// and the messages sources publish, out through the right adapter.
+// Package router turns chat into commands and sends replies and sources' messages through the right adapter.
 package router
 
 import (
@@ -16,8 +15,7 @@ import (
 	"github.com/lsariol/lys/internal/core"
 )
 
-// Adapter connects one chat platform: it forwards every message it receives
-// and sends what it's given.
+// Adapter connects one chat platform: it forwards every message it receives and sends what it's given.
 type Adapter interface {
 	Platform() string
 	// Run receives messages into in until ctx is cancelled or the connection fails for good.
@@ -28,20 +26,17 @@ type Adapter interface {
 	Healthy() bool
 }
 
-// Syncer is an adapter that can join and leave channels while it runs. An
-// adapter without it picks up channel changes when it next starts.
+// Syncer is an adapter that joins and leaves channels while it runs; others pick up changes when they next start.
 type Syncer interface {
 	SyncChannels(ctx context.Context) error
 }
 
-// Observer sees every incoming message, command or not, before it's handled.
-// It runs as each message arrives, before any command, so it must be quick.
+// Observer sees every incoming message before it's handled, before any command, so it must be quick.
 type Observer interface {
 	Observe(m core.Message)
 }
 
-// Queue sizes: past these, new messages are dropped (and logged) rather than
-// blocking the platform or the commands.
+// Queue sizes: past these, new messages are dropped and logged rather than block the platform or commands.
 const (
 	inboxSize  = 256
 	jobsSize   = 256
@@ -51,8 +46,7 @@ const (
 // panicReply is sent when a command panics.
 const panicReply = "Something went wrong running that command."
 
-// resolveTimeout limits looking up who sent a command, which happens before
-// the command's own time limit starts.
+// resolveTimeout limits looking up a command's sender, before the command's own time limit starts.
 const resolveTimeout = 5 * time.Second
 
 // busyReply is sent when a command is at its Concurrency, or every worker is busy.
@@ -109,8 +103,7 @@ func (r *Router) Observe(o Observer) {
 	r.observers = append(r.observers, o)
 }
 
-// Run starts the adapters, the workers and the outboxes, and blocks until ctx
-// is cancelled or an adapter stops with an error.
+// Run starts the adapters, workers and outboxes, and blocks until ctx ends or an adapter fails.
 func (r *Router) Run(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -172,8 +165,7 @@ func (r *Router) Publish(ctx context.Context, out core.Outbound) error {
 	}
 }
 
-// SyncChannels tells the platform's adapter (every adapter, for "") that its
-// channel list changed.
+// SyncChannels tells the platform's adapter (every adapter, for "") that its channel list changed.
 func (r *Router) SyncChannels(ctx context.Context, platform string) {
 	for p, a := range r.adapters {
 		if platform != "" && platform != p {
@@ -196,9 +188,7 @@ func (r *Router) Health() map[string]bool {
 	return h
 }
 
-// dispatch takes each message as it arrives: the observers see it, and a
-// command it calls is checked and queued for a worker. Nothing here waits on a
-// command, so a slow one never holds up chat.
+// dispatch shows each message to the observers and queues its command, never waiting on one, so chat keeps flowing.
 func (r *Router) dispatch(ctx context.Context) {
 	for {
 		select {
@@ -234,8 +224,7 @@ func (r *Router) deliver(ctx context.Context, a Adapter, box <-chan core.Outboun
 	}
 }
 
-// admit shows a message to the observers and, if it calls a command the
-// sender may use now, queues it for a worker.
+// admit shows a message to the observers and queues its command if the sender may use it now.
 func (r *Router) admit(ctx context.Context, m core.Message) {
 	for _, o := range r.observers {
 		o.Observe(m)
@@ -302,8 +291,7 @@ func (r *Router) execute(ctx context.Context, j job) {
 	r.reply(ctx, m, reply)
 }
 
-// reply answers a message in its channel, Text then More; an empty reply
-// sends nothing.
+// reply answers a message in its channel, Text then More; an empty reply sends nothing.
 func (r *Router) reply(ctx context.Context, m core.Message, reply commands.Reply) {
 	for _, text := range append([]string{reply.Text}, reply.More...) {
 		if err := r.Publish(ctx, core.Outbound{Platform: m.Platform, Channel: m.Channel, Text: text, Priority: core.PriorityReply}); err != nil {
@@ -334,8 +322,7 @@ type result struct {
 	workers int    // set when every worker was busy
 }
 
-// record logs one use of a command, without its arguments: they're chat
-// text. It runs just before the reply is queued.
+// record logs one command use, without its arguments (they're chat text), just before the reply is queued.
 func (r *Router) record(spec commands.Spec, req commands.Request, reply commands.Reply, res result, ran time.Duration) {
 	level := slog.LevelInfo
 	switch {
@@ -370,8 +357,7 @@ func (r *Router) record(spec commands.Spec, req commands.Request, reply commands
 	r.log.LogAttrs(context.Background(), level, "command", attrs...)
 }
 
-// subcommand is the request's first argument when the command lists it as a
-// subcommand, lower-cased; else "".
+// subcommand is the first argument, lower-cased, when the command lists it as a subcommand; else "".
 func subcommand(spec commands.Spec, req commands.Request) string {
 	if req.Pattern {
 		return ""
@@ -390,9 +376,7 @@ func first(args []string) string {
 	return args[0]
 }
 
-// match finds the command a message calls: by prefix and name first; a
-// message that starts with the prefix but names no command calls nothing.
-// Otherwise the first matching pattern.
+// match finds the command a message calls: by prefix and name, else the first matching pattern.
 func (r *Router) match(m core.Message) (commands.Command, commands.Request, bool) {
 	prefix := r.config.Prefix(m.Platform, m.Channel.ID)
 	conn, _ := r.config.Connection(m.Platform, m.Channel.ID)
@@ -424,8 +408,7 @@ func (r *Router) match(m core.Message) (commands.Command, commands.Request, bool
 	return cmd, req, true
 }
 
-// run calls the command with its timeout, and turns a panic into an error
-// reply.
+// run calls the command with its timeout, and turns a panic into an error reply.
 func (r *Router) run(ctx context.Context, cmd commands.Command, req commands.Request) (reply commands.Reply, res result) {
 	timeout := cmd.Spec().Timeout
 	if timeout <= 0 {

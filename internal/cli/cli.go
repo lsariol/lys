@@ -1,5 +1,4 @@
-// Package cli is Lys's command line: one command table that parsing, help
-// and completion all come from. `lys <command>` runs one command and exits.
+// Package cli is Lys's command line: one command table that parsing, help and completion come from.
 package cli
 
 import (
@@ -198,9 +197,7 @@ func (env *Env) Error(format string, a ...any)   { env.message("✗", red, forma
 // errCancelled means the operator said no; the message is already printed.
 var errCancelled = errors.New("cancelled")
 
-// Confirm asks a yes/no question, defaulting to no. With --yes it doesn't ask;
-// without a terminal it refuses rather than guess. verb names the action,
-// e.g. "Block".
+// Confirm asks a yes/no question, defaulting to no; --yes skips it, and without a terminal it refuses. verb is e.g. "Block".
 func (env *Env) Confirm(in Input, verb, question string) error {
 	if in.Has("yes") {
 		return nil

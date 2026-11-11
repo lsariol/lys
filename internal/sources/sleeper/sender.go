@@ -15,11 +15,7 @@ import (
 	"github.com/lsariol/lys/internal/sources"
 )
 
-// Sender is the source that posts the leagues' queued announcements (rows in
-// sleeper_events with send_after set and no published_at), oldest first, one
-// per league every gap. Free-agent moves and waiver claims waiting for the
-// same team go out as one message. The queue is in the database, so a
-// restart loses nothing.
+// Sender posts the leagues' queued announcements, oldest first, one per league every gap, merging a team's moves.
 type Sender struct {
 	client *api.Client
 	db     *pgxpool.Pool
@@ -42,8 +38,7 @@ type queuedText struct {
 	Text string `json:"text"`
 }
 
-// alerts is each kind's switch in sleeper_leagues.notifications, and expires
-// how long it may wait in the queue before it's too stale to post.
+// alerts is each kind's switch in sleeper_leagues.notifications; expires is how long it may wait in the queue.
 var (
 	alerts  = map[string]string{"trade": "trades", "waiver": "waivers", "free_agent": "freeagents", "lineup_reminder": "lineups", "recap": "recap"}
 	expires = map[string]time.Duration{"trade": 12 * time.Hour, "waiver": 12 * time.Hour, "free_agent": 12 * time.Hour, "lineup_reminder": lateBy, "recap": recapLate}

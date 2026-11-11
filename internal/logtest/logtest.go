@@ -1,5 +1,4 @@
-// Package logtest gives tests a logger: one that discards, or one that keeps
-// what's logged, through blackboxlog as Lys logs in prod.
+// Package logtest gives tests a logger that discards, or one that keeps records through blackboxlog.
 package logtest
 
 import (

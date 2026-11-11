@@ -1,5 +1,4 @@
-// Package sleeper is Lys's client for the Sleeper fantasy football API and the
-// types it returns. The !sleeper command and the Sleeper source share one.
+// Package sleeper is the Sleeper fantasy football client the !ff command and the Sleeper sources share.
 package sleeper
 
 import (
@@ -18,8 +17,7 @@ const baseURL = "https://api.sleeper.app/v1"
 // ErrNotFound means Sleeper has no such league (or other object).
 var ErrNotFound = errors.New("Sleeper: not found")
 
-// Client calls the Sleeper API, and ESPN for kickoff times. Share one: it
-// keeps the player catalog and the schedule.
+// Client calls Sleeper, and ESPN for kickoff times; share one, as it keeps the player catalog and schedule.
 type Client struct {
 	http     *http.Client
 	catalog  catalog
@@ -131,8 +129,7 @@ func (c *Client) Transactions(ctx context.Context, leagueID string, week int) ([
 	return txs, nil
 }
 
-// catalogTimeout limits one download of the player catalog. It runs on its
-// own, so a command's shorter time limit doesn't cut it off.
+// catalogTimeout limits one player catalog download, which runs apart from any command's time limit.
 const catalogTimeout = 2 * time.Minute
 
 // catalog is the player catalog, downloaded at most once a day.
@@ -145,10 +142,7 @@ type catalog struct {
 	err       error         // why the last download failed
 }
 
-// Players is every NFL player by ID. The catalog is 15 MB, so it's kept for a
-// day and downloaded in the background. Until there is one, Players waits for
-// the download (or ctx); a day-old one is returned while it's refreshed. A
-// failed download is retried in 5 minutes.
+// Players is every NFL player by ID, from a 15 MB catalog downloaded in the background and kept a day.
 func (c *Client) Players(ctx context.Context) (map[string]Player, error) {
 	pc := &c.catalog
 	pc.Lock()

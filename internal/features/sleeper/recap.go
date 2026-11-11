@@ -18,9 +18,7 @@ var (
 	ErrNoGames = errors.New("Sleeper: the league has no games that week")
 )
 
-// RecapDue is when a week's recap goes out: 10 AM Eastern on the first
-// Tuesday at least 4 hours after the week's last kickoff, once its last game
-// is over. games is the week's schedule, earliest first.
+// RecapDue is 10 AM Eastern on the first Tuesday 4 hours after the week's last kickoff; games is earliest first.
 func RecapDue(games []Game) time.Time {
 	after := games[len(games)-1].Kickoff.Add(4 * time.Hour).In(Eastern)
 	due := time.Date(after.Year(), after.Month(), after.Day(), 10, 0, 0, 0, Eastern)
@@ -56,9 +54,7 @@ func (c *Client) Recap(ctx context.Context, leagueID string, week int, n Names) 
 	return BuildRecap(week, weeks, playoffs, *rosters, n)
 }
 
-// BuildRecap is a week's recap, one string per message: the results, the
-// highlights and, in the regular season, the standings. weeks has the week's
-// matchups, and in the regular season every week before it.
+// BuildRecap is a week's recap messages: results, highlights and, in the regular season, standings.
 func BuildRecap(week int, weeks map[int][]Matchup, playoffStart int, rosters []Roster, n Names) ([]string, error) {
 	matchups := weeks[week]
 	if len(matchups) == 0 {
@@ -105,12 +101,10 @@ func BuildRecap(week int, weeks map[int][]Matchup, playoffStart int, rosters []R
 	return out, nil
 }
 
-// messageLength is how long one recap message may be: the chat adapter's
-// limit, a little under Twitch's 500 characters, in UTF-16 units.
+// messageLength is one recap message's limit: the chat adapter's, in UTF-16 units.
 const messageLength = 480
 
-// pack joins items after head with " | ", starting a new message (head with
-// "(cont.)") where the next item wouldn't fit, so no item is cut in two.
+// pack joins items after head with " | ", continuing in a "(cont.)" message rather than cutting an item.
 func pack(head string, items []string) []string {
 	var out []string
 	msg := head
@@ -157,8 +151,7 @@ func (g game) result(n Names) string {
 	return s
 }
 
-// highlights are the week's top score, closest game, biggest blowout, best
-// starter and most points left on a bench.
+// highlights are the week's top score, closest game, blowout, best starter and most points left on a bench.
 func highlights(games []game, matchups []Matchup, rosters []Roster, n Names) []string {
 	var out []string
 
@@ -212,8 +205,7 @@ func highlights(games []game, matchups []Matchup, rosters []Roster, n Names) []s
 	return out
 }
 
-// bench is the points scored by the team's players it didn't start, leaving
-// out its injured reserve and taxi squad.
+// bench is the points the team's unstarted players scored, leaving out injured reserve and taxi squad.
 func bench(m Matchup, rosters []Roster) float64 {
 	skip := make(map[string]bool)
 	for _, p := range m.Starters {
@@ -235,9 +227,7 @@ func bench(m Matchup, rosters []Roster) float64 {
 	return total
 }
 
-// standings is every team after week, by record then points scored, counted
-// from each week's matchups (Sleeper's own records can lag a day). The top 3
-// get medals.
+// standings ranks every team by record, then points, from the matchups, since Sleeper's records can lag a day.
 func standings(week int, weeks map[int][]Matchup, n Names) []string {
 	type standing struct {
 		roster             int

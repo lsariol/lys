@@ -1,5 +1,4 @@
-// Package sources defines what feeds messages into Lys from outside chat:
-// reminders, pollers, and the inlet other services post to.
+// Package sources defines what feeds messages into Lys from outside chat: reminders, pollers and the inlet.
 package sources
 
 import (

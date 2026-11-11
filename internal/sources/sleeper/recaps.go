@@ -14,11 +14,7 @@ import (
 	"github.com/lsariol/lys/internal/sources"
 )
 
-// Recaps is the source that queues each league's weekly recap: its results,
-// highlights and standings, due at 10 AM Eastern on the Tuesday after the
-// week's last game (api.RecapDue). It checks every minute, so nothing is
-// scheduled ahead; the recap's first row in sleeper_events is what makes it
-// go out once.
+// Recaps queues each league's weekly recap when it's due (api.RecapDue), checking every minute.
 type Recaps struct {
 	client *api.Client
 	db     *pgxpool.Pool
@@ -53,8 +49,7 @@ func (r *Recaps) Run(ctx context.Context, _ sources.Publisher) error {
 	}
 }
 
-// tick queues the recaps that are due and not yet made. Last week and this
-// week are checked, since Sleeper may already show the next week on Tuesday.
+// tick queues due recaps for last week and this one, since Sleeper may show the next week on Tuesday.
 func (r *Recaps) tick(ctx context.Context) error {
 	state, err := r.client.NFLState(ctx)
 	if err != nil {
@@ -88,8 +83,7 @@ func (r *Recaps) tick(ctx context.Context) error {
 	return nil
 }
 
-// queue makes the week's recap for each league with recaps on that hasn't had
-// one, and queues its messages. late records it as skipped instead.
+// queue makes and queues the week's recap for each league that hasn't had one; late records it as skipped.
 func (r *Recaps) queue(ctx context.Context, season string, week int, due time.Time, late bool) error {
 	id := fmt.Sprintf("%s-w%d", season, week)
 	rows, err := r.db.Query(ctx, `

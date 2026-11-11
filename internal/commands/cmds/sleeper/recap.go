@@ -10,8 +10,7 @@ import (
 	api "github.com/lsariol/lys/internal/features/sleeper"
 )
 
-// recap is "!ff recap [week]": a week's results, highlights and standings,
-// the last finished week's by default. It's the recap Lys posts on Tuesdays.
+// recap is "!ff recap [week]": the Tuesday recap, of the last finished week by default.
 func recap(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply, error) {
 	if len(e.Args) > 2 {
 		return usage(e, "recap [week]"), nil

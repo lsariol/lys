@@ -1,5 +1,4 @@
-// Package commands defines chat commands and the registry the router looks
-// them up in.
+// Package commands defines chat commands and the registry the router looks them up in.
 package commands
 
 import (

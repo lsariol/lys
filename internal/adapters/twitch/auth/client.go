@@ -37,8 +37,7 @@ func New(cc *coveclient.Client, cfg *config.TwitchConfig, http *http.Client) *Au
 	}
 }
 
-// Initialize loads the bot's user tokens from Cove, refreshes them, checks they
-// belong to the bot account, and fetches an app token.
+// Initialize loads, refreshes and checks the bot's user tokens from Cove, and fetches an app token.
 func (c *AuthClient) Initialize(ctx context.Context) error {
 
 	if c.Config.BotAccountID == "" {

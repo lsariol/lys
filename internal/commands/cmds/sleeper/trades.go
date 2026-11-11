@@ -10,8 +10,7 @@ import (
 	api "github.com/lsariol/lys/internal/features/sleeper"
 )
 
-// trades is "!ff trades [@user]": the league's last 3 trades, or one
-// team's, from the trades Lys has seen. Each trade is its own message.
+// trades is "!ff trades [@user]": the league's (or a team's) last 3 trades Lys has seen, one message each.
 func trades(ctx context.Context, e commands.Request, sl *Sleeper) (commands.Reply, error) {
 	if len(e.Args) > 2 {
 		return usage(e, "trades [@user]"), nil

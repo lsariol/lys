@@ -9,8 +9,7 @@ import (
 	"github.com/lsariol/lys/internal/commands"
 )
 
-// rawMessage is how a game's message is stored in game_events.raw_message:
-// "channel:chatter-text", as the bot has always written it.
+// rawMessage is a game's message as game_events.raw_message stores it: "channel:chatter-text".
 func rawMessage(e commands.Request) string {
 	return fmt.Sprintf("%s:%s-%s", e.Channel.Name, e.User.Name, e.Text)
 }

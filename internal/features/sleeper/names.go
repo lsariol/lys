@@ -23,8 +23,7 @@ func TeamName(roster Roster, users []LeagueUser) string {
 	return fmt.Sprintf("Team %d", roster.RosterID)
 }
 
-// PlayerName is the player's name ("KC D/ST" for a defense), or "Player <id>"
-// when the catalog doesn't have them.
+// PlayerName is the player's name ("KC D/ST" for a defense), or "Player <id>" when the catalog lacks them.
 func PlayerName(playerID string, players map[string]Player) string {
 	if playerID == "" || playerID == "0" {
 		return "Empty"
@@ -123,8 +122,7 @@ func Mentions(ctx context.Context, db *pgxpool.Pool, leagueID string) (map[int]s
 	return mentions, nil
 }
 
-// LoadNames reads a league's teams, linked viewers and the player catalog.
-// What can't be loaded is logged, and shows as IDs instead.
+// LoadNames reads a league's teams, linked viewers and players, logging what fails, which then shows as IDs.
 func (c *Client) LoadNames(ctx context.Context, db *pgxpool.Pool, leagueID string) Names {
 	var rosters []Roster
 	if r, err := c.Rosters(ctx, leagueID); err != nil {

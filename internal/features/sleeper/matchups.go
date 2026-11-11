@@ -14,8 +14,7 @@ func Points(m Matchup) float64 {
 	return m.Points
 }
 
-// GroupMatchups pairs the teams that play each other, by roster ID; a team
-// without an opponent is a group of one.
+// GroupMatchups pairs the teams that play each other; a team without an opponent is a group of one.
 func GroupMatchups(matchups []Matchup) [][]Matchup {
 	sorted := append([]Matchup(nil), matchups...)
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].RosterID < sorted[j].RosterID })

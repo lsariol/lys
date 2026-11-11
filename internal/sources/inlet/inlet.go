@@ -1,5 +1,4 @@
-// Package inlet is the source other services post messages to, such as
-// LetterboxdWatcher's new reviews.
+// Package inlet is the source other services post messages to.
 package inlet
 
 import (
@@ -25,8 +24,7 @@ type notification struct {
 	GUID          string   `json:"guid"`
 }
 
-// Inlet is an http.Handler for POST /notifications and the Source that
-// publishes what it receives.
+// Inlet is the http.Handler for POST /notifications and the Source that publishes what it receives.
 type Inlet struct {
 	token string
 	inbox chan notification
@@ -35,8 +33,7 @@ type Inlet struct {
 
 var _ sources.Source = (*Inlet)(nil)
 
-// New returns an inlet that accepts requests carrying "Authorization: Bearer
-// <token>". With an empty token it refuses every request.
+// New returns an inlet that needs "Authorization: Bearer <token>"; with an empty token it refuses everything.
 func New(token string, log *slog.Logger) *Inlet {
 	return &Inlet{token: token, inbox: make(chan notification, 256), log: log.With("component", "inlet")}
 }
@@ -102,8 +99,7 @@ func (in *Inlet) Run(ctx context.Context, pub sources.Publisher) error {
 	}
 }
 
-// outbounds turns a notification into one message per alert channel,
-// skipping (and logging) malformed entries.
+// outbounds turns a notification into one message per alert channel, skipping and logging malformed ones.
 func (in *Inlet) outbounds(n notification) []core.Outbound {
 	out := make([]core.Outbound, 0, len(n.AlertChannels))
 	for _, ch := range n.AlertChannels {

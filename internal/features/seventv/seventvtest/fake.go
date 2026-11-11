@@ -1,5 +1,4 @@
-// Package seventvtest is a fake 7TV GraphQL API for tests: it answers the
-// operations Lys sends, from state the test sets up.
+// Package seventvtest is a fake 7TV GraphQL API that answers Lys's operations from state a test sets up.
 package seventvtest
 
 import (

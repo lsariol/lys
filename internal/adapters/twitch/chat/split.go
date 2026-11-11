@@ -5,17 +5,13 @@ import (
 	"unicode/utf16"
 )
 
-// maxLength is how long one message may be, a little under Twitch's 500
-// characters. Length is counted in UTF-16 units, which is never less than
-// Twitch's count, so an emoji can't push a part over.
+// maxLength is one message's length in UTF-16 units, never less than Twitch's count, a little under its 500.
 const maxLength = 480
 
-// maxParts caps how many messages one long text becomes; past it, the last
-// part ends with "…".
+// maxParts caps how many messages one text becomes; the last part then ends with "…".
 const maxParts = 4
 
-// split breaks text into messages Twitch accepts, at the last space that fits
-// (or mid-word when a word is longer than a message).
+// split breaks text into messages Twitch accepts, at the last space that fits, or mid-word for an over-long word.
 func split(text string) []string {
 	text = strings.TrimSpace(text)
 	var parts []string
@@ -31,8 +27,7 @@ func split(text string) []string {
 	return parts
 }
 
-// cut returns the longest start of s within max units, ending at a space when
-// there is one, and what's left after it.
+// cut returns the longest start of s within max units, ending at a space when there is one, and the rest.
 func cut(s string, max int) (head, rest string) {
 	n, end, space := 0, len(s), -1
 	for i, r := range s {

@@ -58,10 +58,7 @@ func parse(feed rss) []movie {
 	return out
 }
 
-// newMovies returns the entries since lastSeen, newest first. With no lastSeen
-// (a new subscription) it's the newest entry, so the channel sees it works.
-// When lastSeen has left the feed (the entry was deleted), it's the entries
-// published after lastAlerted.
+// newMovies is the entries since lastSeen, newest first: the newest alone for a new subscription, else those after lastAlerted.
 func newMovies(movies []movie, lastSeen string, lastAlerted *time.Time) []movie {
 	if len(movies) == 0 {
 		return nil
@@ -91,8 +88,7 @@ func newMovies(movies []movie, lastSeen string, lastAlerted *time.Time) []movie 
 // maxMessage keeps announcements within Twitch's 500-character limit.
 const maxMessage = 480
 
-// message announces new entries the way LetterboxdWatcher did. name is who
-// subscribed; profile is their Letterboxd profile address.
+// message announces new entries; name is the subscriber, profile their Letterboxd address.
 func message(name, profile string, movies []movie) string {
 	if len(movies) == 1 {
 		m := movies[0]

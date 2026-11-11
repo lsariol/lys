@@ -69,9 +69,6 @@ func (o *OneUpPuzzle) Run(ctx context.Context, e commands.Request) (commands.Rep
 			return commands.Reply{Text: "Valid arguments for the !oneup command are: help, leaders, stats, or <username>"}, nil
 		case "leaders":
 
-			//if "!oneup leaders" - return top 3
-			// if "!oneup leaders <int>" return top int players
-
 			return commands.Reply{Text: "Leaderboards aren't available yet."}, nil
 
 		case "stats":
@@ -133,10 +130,6 @@ func (o *OneUpPuzzle) Run(ctx context.Context, e commands.Request) (commands.Rep
 		}
 	}
 
-	// help - return usage
-	// leaders - return top 3 fastest averages
-	// username - return total completed, average time, longest time, shortest time
-	// stats - total games tracked, channel average, slowest, fastest
 	return commands.Reply{Text: "Im not even sure how you managed to input a command to get here... but you did. "}, nil
 }
 

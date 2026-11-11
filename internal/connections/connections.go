@@ -1,5 +1,4 @@
-// Package connections keeps the channels Lys is in: communities and their
-// connections on each platform. Every change is one explicit transaction.
+// Package connections keeps the channels Lys is in: communities and their platform connections, changed in transactions.
 package connections
 
 import (
@@ -28,8 +27,7 @@ type Connection struct {
 	ExternalID  string // the platform's ID for the channel
 	Name        string
 	Authorized  bool // the platform still honours the channel's grant
-	// WasAuthorized: it has been authorized at some point; false for channels
-	// only seen in feature data and never added.
+	// WasAuthorized: authorized at some point; false for channels only seen in feature data.
 	WasAuthorized bool
 	Enabled       bool // the owner wants Lys there
 	AdminBlocked  bool // Lys refuses to be there
@@ -107,8 +105,7 @@ func (s *Store) Channels(ctx context.Context, platform string) ([]core.Channel, 
 	return out, nil
 }
 
-// Find looks a connection up by its platform ID or, failing that, its name in
-// any case. A name that several connections share is refused: use the ID.
+// Find looks a connection up by platform ID, else by name in any case; a shared name is refused.
 func (s *Store) Find(ctx context.Context, platform, idOrName string) (Connection, error) {
 	rows, err := s.pool.Query(ctx, selectConnection+`
 		WHERE pc.platform = $1 AND (pc.external_id = $2 OR lower(pc.name) = lower($2))
@@ -139,8 +136,7 @@ func (s *Store) Find(ctx context.Context, platform, idOrName string) (Connection
 	}
 }
 
-// Enroll adds a channel, or turns an existing one back on. created reports
-// whether it's new.
+// Enroll adds a channel or turns an existing one back on; created reports whether it's new.
 func (s *Store) Enroll(ctx context.Context, e Enrollment) (c Connection, created bool, err error) {
 	if e.Platform == "" || e.ExternalID == "" || e.Name == "" {
 		return Connection{}, false, errors.New("connections: an enrollment needs a platform, an ID and a name")
@@ -249,8 +245,7 @@ func (s *Store) SetBlocked(ctx context.Context, id int64, blocked bool, reason s
 	return nil
 }
 
-// Disable records that the channel's owner turned Lys off. Lys leaves; the
-// channel's settings and history stay, and Enroll turns it back on.
+// Disable records that the owner turned Lys off: Lys leaves, the settings stay, and Enroll turns it back on.
 func (s *Store) Disable(ctx context.Context, platform, externalID string) error {
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		var id int64
@@ -277,9 +272,7 @@ func (s *Store) Disable(ctx context.Context, platform, externalID string) error 
 	return nil
 }
 
-// Revoke records that Lys may no longer be in a channel (its grant was taken
-// back, the bot was banned there, or the channel is gone). Lys leaves it;
-// Enroll turns it back on. It implements core.Revoker.
+// Revoke records that Lys may no longer be in a channel (grant taken back, banned, gone); it implements core.Revoker.
 func (s *Store) Revoke(ctx context.Context, platform, externalID, reason string) error {
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		var id int64
@@ -322,8 +315,7 @@ func (s *Store) SetPrefix(ctx context.Context, platform, externalID, prefix stri
 	return nil
 }
 
-// BotRoles is, by Twitch channel ID, whether the bot was last seen there as
-// a moderator, VIP or broadcaster.
+// BotRoles is, by Twitch channel ID, whether the bot was last seen there as a moderator, VIP or broadcaster.
 func (s *Store) BotRoles(ctx context.Context) (map[string]bool, error) {
 	rows, err := s.pool.Query(ctx, `SELECT pc.external_id, d.bot_is_moderator
 		FROM lys.twitch_connection_details d JOIN lys.platform_connections pc ON pc.id = d.connection_id`)
@@ -343,8 +335,7 @@ func (s *Store) BotRoles(ctx context.Context) (map[string]bool, error) {
 	return roles, rows.Err()
 }
 
-// SetBotRole records whether the bot is a moderator, VIP or broadcaster in a
-// Twitch channel (bot_is_moderator covers all three).
+// SetBotRole records whether the bot is privileged in a Twitch channel (bot_is_moderator covers all three roles).
 func (s *Store) SetBotRole(ctx context.Context, channelID string, privileged bool) error {
 	if _, err := s.pool.Exec(ctx, `UPDATE lys.twitch_connection_details d SET bot_is_moderator = $2
 		FROM lys.platform_connections pc

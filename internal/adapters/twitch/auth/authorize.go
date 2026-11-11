@@ -13,8 +13,7 @@ import (
 // BotScopes are what the bot account grants Lys: reading and sending chat as a bot.
 var BotScopes = []string{"user:bot", "user:read:chat", "user:write:chat"}
 
-// AuthorizeURL is where the bot account grants Lys its scopes. Twitch sends the
-// browser back to redirectURI with a code and state.
+// AuthorizeURL is where the bot account grants Lys its scopes; Twitch redirects to redirectURI with a code and state.
 func AuthorizeURL(clientID, redirectURI, state string, scopes []string) string {
 	q := url.Values{}
 	q.Set("response_type", "code")
@@ -26,9 +25,7 @@ func AuthorizeURL(clientID, redirectURI, state string, scopes []string) string {
 	return "https://id.twitch.tv/oauth2/authorize?" + q.Encode()
 }
 
-// ParseRedirect takes what the user pasted (the whole address Twitch sent the
-// browser to, or just the code) and returns the code, checking state when the
-// address carries one.
+// ParseRedirect returns the code from what was pasted (Twitch's redirect address or the code), checking state if present.
 func ParseRedirect(pasted, wantState string) (string, error) {
 	pasted = strings.TrimSpace(pasted)
 	if pasted == "" {

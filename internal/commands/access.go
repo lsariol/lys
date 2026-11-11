@@ -2,9 +2,7 @@ package commands
 
 import "github.com/lsariol/lys/internal/core"
 
-// Access is who may use a command or one of its subcommands. The router
-// checks Spec.Access and Spec.Sub before running a command; a command with
-// finer rules checks req.Allowed itself.
+// Access is who may use a command or subcommand; the router checks Spec.Access and Spec.Sub, finer rules use req.Allowed.
 type Access uint8
 
 const (
@@ -52,8 +50,7 @@ func (a Access) Who() string {
 	return "everyone"
 }
 
-// Refuse is the reply when the sender lacks access; action is what they
-// tried, such as "use !ff link league".
+// Refuse is the reply when the sender lacks access; action is what they tried, such as "use !ff link league".
 func Refuse(a Access, action string) Reply {
 	return Reply{Text: "Only " + a.Who() + " can " + action + "."}
 }

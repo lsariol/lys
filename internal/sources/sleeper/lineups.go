@@ -13,11 +13,7 @@ import (
 	"github.com/lsariol/lys/internal/sources"
 )
 
-// Lineups is the source that reminds each league's channels to set their
-// lineups: 1 day and 1 hour before the week's first game, and 1 hour before
-// Sunday's first game when that's a different one. Sleeper locks each player
-// at their own game's kickoff, so these are the two times most lineups lock.
-// Reminders are queued for the sender (sender.go), like every announcement.
+// Lineups queues lineup reminders 1 day and 1 hour before the week's first game, and 1 hour before Sunday's.
 type Lineups struct {
 	client *api.Client
 	db     *pgxpool.Pool
@@ -34,8 +30,7 @@ func NewLineups(client *api.Client, db *pgxpool.Pool, log *slog.Logger) *Lineups
 
 func (l *Lineups) Name() string { return "sleeper lineups" }
 
-// lateBy is how late a reminder may still go out (after a restart, say);
-// later than that, a "1 day" reminder hours before kickoff would mislead.
+// lateBy is how late a reminder may still go out; later, "1 day" hours before kickoff would mislead.
 const lateBy = 30 * time.Minute
 
 // regularWeeks is the length of the NFL regular season.

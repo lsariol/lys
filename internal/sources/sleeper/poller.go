@@ -15,8 +15,7 @@ import (
 	"github.com/lsariol/lys/internal/sources"
 )
 
-// Poller is the source that checks each league's trades, waiver claims and
-// free-agent moves, and queues the new ones for the sender (sender.go).
+// Poller is the source that queues each league's new trades, waiver claims and free-agent moves.
 type Poller struct {
 	client *api.Client
 	db     *pgxpool.Pool
@@ -47,10 +46,7 @@ func (p *Poller) Run(ctx context.Context, _ sources.Publisher) error {
 	}
 }
 
-// catchUp is how far before a league's last check a new move may have
-// happened and still be announced: Sleeper can list a move a little after it
-// happened. Anything older is recorded quietly, such as the moves already
-// there when a kind of move is first tracked.
+// catchUp is how long before a league's last check a move may be and still be announced, as Sleeper lists some late.
 const catchUp = time.Hour
 
 // moveKinds are the transactions that are announced, with their alert's name.

@@ -49,8 +49,7 @@ func (s *SevenTV) landed(ctx context.Context, setID string, check func(*api.Cont
 	return err == nil && c != nil && check(c)
 }
 
-// add puts an emote in the active set: a link adds that emote, a name the
-// most used emote with exactly that name.
+// add puts an emote in the active set: a link's emote, or the most used one with exactly that name.
 func (s *SevenTV) add(ctx context.Context, e commands.Request) (commands.Reply, error) {
 	args := e.Args[1:]
 	if len(args) < 1 || len(args) > 2 {

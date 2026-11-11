@@ -1,5 +1,4 @@
-// Package bot is the Twitch adapter: it forwards chat messages to the router
-// and sends what the router gives it.
+// Package bot is the Twitch adapter: it forwards chat messages to the router and sends its replies.
 package bot
 
 import (
@@ -36,9 +35,7 @@ type TwitchClient struct {
 	log      *slog.Logger
 }
 
-// New returns the Twitch adapter. It joins the channels that channels lists for
-// "twitch", revokes the ones Twitch says it may no longer be in, and keeps the
-// bot's role in each in roles.
+// New returns the Twitch adapter, which joins the channels' Twitch channels, revokes refused ones and keeps the bot's roles.
 func New(http *http.Client, cfg *config.TwitchConfig, cove *coveclient.Client, channels eventsub.Channels, bots BotAccounts, roles chat.Roles, log *slog.Logger) *TwitchClient {
 
 	auth := auth.New(cove, cfg, http)

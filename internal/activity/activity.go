@@ -1,5 +1,4 @@
-// Package activity remembers when each channel's latest chat messages
-// arrived, so jobs can tell an active channel from a quiet one.
+// Package activity remembers when each channel's latest chat messages arrived, to tell active channels from quiet ones.
 package activity
 
 import (
@@ -9,8 +8,7 @@ import (
 	"github.com/lsariol/lys/internal/core"
 )
 
-// Tracker keeps the arrival times of each channel's latest messages, in
-// memory only: after a restart every channel starts out quiet.
+// Tracker keeps each channel's latest message times in memory, so after a restart every channel starts out quiet.
 type Tracker struct {
 	mu    sync.Mutex
 	keep  int
@@ -37,8 +35,7 @@ func (t *Tracker) Observe(m core.Message) {
 	t.times[k] = times
 }
 
-// Since returns how many of the channel's messages arrived after after, up
-// to the number it keeps.
+// Since is how many of the channel's messages arrived after after, up to the number it keeps.
 func (t *Tracker) Since(platform, channelID string, after time.Time) int {
 	t.mu.Lock()
 	defer t.mu.Unlock()
