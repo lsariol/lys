@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.5.1 (2026-11-11)
+
+### Added
+- `lys health` checks that the running Lys answers and its chat connections are up, exiting 0 when healthy and 1 otherwise. The container's healthcheck runs it instead of `wget`.
+- The MIT license.
+
+### Changed
+- The weekly Sleeper recap (and `!ff recap`) is easier to read: results as a scoreboard (`@a 162.38–111.32 @b`), each highlight with an emoji and a short label (🔥 Top score, 😬 Closest, 💥 Blowout, ⭐ Best player, 🪑 Bench), and items separated by `|`.
+- The recap's standings list every team, not only the top 3, with each team's record and points scored (`🥇 @a 6-3 (1,284)`), medals for the top 3. A list too long for one message continues in another, without splitting a team or game.
+- The README describes Lys's features, requirements, setup and every setting.
+
 ## v0.5.0 (2026-11-02)
 
 Logging: Lys logs through blackboxlog, and no longer logs chat.
