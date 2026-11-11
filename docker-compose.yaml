@@ -8,7 +8,7 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
-      APP_ENV: PROD
+      APP_ENV: prod
       COVE_URL: http://cove:2100
       COVE_TOKEN: ${LYS_COVE_TOKEN}
       NOTIFICATION_PORT: 2400
