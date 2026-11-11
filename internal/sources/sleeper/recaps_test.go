@@ -110,9 +110,9 @@ func TestRecaps(t *testing.T) {
 		t.Fatalf("before it's due: %q", got)
 	}
 	got := recaps("rc-on", due.Add(time.Minute))
-	if len(got) != 3 || got[0] != "🏈 Week 9 results: alice 132.40 def. bob 98.10 · cy 120.60 def. dee 119.90" ||
-		!strings.HasPrefix(got[1], "🏈 Week 9 highlights: top score alice (132.40)") ||
-		!strings.HasPrefix(got[2], "🏈 Standings after week 9: 1. alice 9-0 · 2. cy 9-0") {
+	if len(got) != 3 || got[0] != "🏈 Week 9 results | alice 132.40–98.10 bob | cy 120.60–119.90 dee" ||
+		!strings.HasPrefix(got[1], "🏈 Week 9 highlights | 🔥 Top score: alice 132.40") ||
+		!strings.HasPrefix(got[2], "🏈 Standings after week 9 | 🥇 alice 9-0 (1,192) | 🥈 cy 9-0") {
 		t.Fatalf("due: %q", got)
 	}
 	if got := recaps("rc-on", due.Add(2*time.Minute)); len(got) != 3 {

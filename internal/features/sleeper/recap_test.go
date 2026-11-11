@@ -2,6 +2,7 @@ package sleeper
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -62,9 +63,9 @@ func TestBuildRecap(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []string{
-		"🏈 Week 2 results: @lu 132.40 def. @kyle 98.10 · @sam 120.60 def. Benchwarmers 119.90",
-		"🏈 Week 2 highlights: top score @lu (132.40) · closest game @sam over Benchwarmers by 0.70 · biggest blowout @lu over @kyle by 34.30 · best player Ja'Marr Chase, 38.20 for @kyle · most left on the bench @sam (41.50)",
-		"🏈 Standings after week 2: 1. @lu 2-0 · 2. @sam 1-1 · 3. @kyle 1-1", // Sam has more points
+		"🏈 Week 2 results | @lu 132.40–98.10 @kyle | @sam 120.60–119.90 Benchwarmers",
+		"🏈 Week 2 highlights | 🔥 Top score: @lu 132.40 | 😬 Closest: @sam beat Benchwarmers by 0.70 | 💥 Blowout: @lu beat @kyle by 34.30 | ⭐ Best player: Ja'Marr Chase 38.20 (@kyle) | 🪑 Bench: @sam left 41.50",
+		"🏈 Standings after week 2 | 🥇 @lu 2-0 (232) | 🥈 @sam 1-1 (201) | 🥉 @kyle 1-1 (183) | 4. Benchwarmers 0-2 (210)", // Sam has more points than Kyle
 	}
 	if len(got) != len(want) {
 		t.Fatalf("got %d messages: %q", len(got), got)
@@ -77,12 +78,12 @@ func TestBuildRecap(t *testing.T) {
 
 	// In the playoffs: no standings, and the results say so.
 	playoffs, err := BuildRecap(15, map[int][]Matchup{15: week2[:2]}, 15, nil, n)
-	if err != nil || len(playoffs) != 2 || !strings.HasPrefix(playoffs[0], "🏈 Week 15 playoff results: @lu") || strings.Contains(playoffs[1], "biggest blowout") {
+	if err != nil || len(playoffs) != 2 || !strings.HasPrefix(playoffs[0], "🏈 Week 15 playoff results | @lu") || strings.Contains(playoffs[1], "Blowout") {
 		t.Fatalf("playoffs: %q, %v", playoffs, err)
 	}
 
 	tied := []Matchup{testMatchup(1, 1, 100, nil, nil, nil), testMatchup(1, 2, 100, nil, nil, nil)}
-	if got, _ := BuildRecap(3, map[int][]Matchup{3: tied}, 0, nil, n); !strings.Contains(got[0], "@lu and Benchwarmers tied at 100.00") {
+	if got, _ := BuildRecap(3, map[int][]Matchup{3: tied}, 0, nil, n); !strings.Contains(got[0], "@lu 100.00–100.00 Benchwarmers (tie)") {
 		t.Fatalf("tie: %q", got)
 	}
 
@@ -92,5 +93,37 @@ func TestBuildRecap(t *testing.T) {
 	}
 	if _, err := BuildRecap(3, nil, 0, nil, n); !errors.Is(err, ErrNoGames) {
 		t.Fatalf("no games: %v", err)
+	}
+}
+
+// A long list continues in another message at a whole item, with the header
+// marked "(cont.)", and no message passes the limit.
+func TestPack(t *testing.T) {
+	var items []string
+	for i := range 14 {
+		items = append(items, fmt.Sprintf("%d. @a_rather_long_viewer_name_%02d 7-3 (1,284)", i+4, i))
+	}
+	got := pack("🏈 Standings after week 9", items)
+	if len(got) != 2 || !strings.HasPrefix(got[1], "🏈 Standings after week 9 (cont.) | ") {
+		t.Fatalf("got %q", got)
+	}
+	if joined := strings.Join(got, " | "); strings.Count(joined, "(1,284)") != len(items) {
+		t.Fatalf("an item was cut or lost: %q", got)
+	}
+	for _, m := range got {
+		if units(m) > messageLength {
+			t.Errorf("%d units: %q", units(m), m)
+		}
+	}
+	if got := pack("🏈 Week 1 results", []string{"a", "b"}); len(got) != 1 || got[0] != "🏈 Week 1 results | a | b" {
+		t.Errorf("short list: %q", got)
+	}
+}
+
+func TestThousands(t *testing.T) {
+	for n, want := range map[int64]string{0: "0", 998: "998", 1284: "1,284", 1234567: "1,234,567", -1284: "-1,284"} {
+		if got := thousands(n); got != want {
+			t.Errorf("thousands(%d) = %q, want %q", n, got, want)
+		}
 	}
 }

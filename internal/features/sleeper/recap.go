@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"math"
 	"sort"
-	"strings"
+	"strconv"
 	"time"
+	"unicode/utf16"
 )
 
 var (
@@ -56,8 +57,8 @@ func (c *Client) Recap(ctx context.Context, leagueID string, week int, n Names) 
 }
 
 // BuildRecap is a week's recap, one string per message: the results, the
-// highlights and, in the regular season, the top 3 in the standings. weeks
-// has the week's matchups, and in the regular season every week before it.
+// highlights and, in the regular season, the standings. weeks has the week's
+// matchups, and in the regular season every week before it.
 func BuildRecap(week int, weeks map[int][]Matchup, playoffStart int, rosters []Roster, n Names) ([]string, error) {
 	matchups := weeks[week]
 	if len(matchups) == 0 {
@@ -91,17 +92,45 @@ func BuildRecap(week int, weeks map[int][]Matchup, playoffStart int, rosters []R
 	for _, g := range games {
 		results = append(results, g.result(n))
 	}
-	out := []string{fmt.Sprintf("🏈 %s results: %s", label, strings.Join(results, " · "))}
+	out := pack("🏈 "+label+" results", results)
 
 	if h := highlights(games, matchups, rosters, n); len(h) > 0 {
-		out = append(out, fmt.Sprintf("🏈 Week %d highlights: %s", week, strings.Join(h, " · ")))
+		out = append(out, pack(fmt.Sprintf("🏈 Week %d highlights", week), h)...)
 	}
 	if playoffStart == 0 || week < playoffStart {
-		if s := topStandings(week, weeks, n, 3); s != "" {
-			out = append(out, fmt.Sprintf("🏈 Standings after week %d: %s", week, s))
+		if s := standings(week, weeks, n); len(s) > 0 {
+			out = append(out, pack(fmt.Sprintf("🏈 Standings after week %d", week), s)...)
 		}
 	}
 	return out, nil
+}
+
+// messageLength is how long one recap message may be: the chat adapter's
+// limit, a little under Twitch's 500 characters, in UTF-16 units.
+const messageLength = 480
+
+// pack joins items after head with " | ", starting a new message (head with
+// "(cont.)") where the next item wouldn't fit, so no item is cut in two.
+func pack(head string, items []string) []string {
+	var out []string
+	msg := head
+	for _, item := range items {
+		if msg != head && msg != head+" (cont.)" && units(msg+" | "+item) > messageLength {
+			out = append(out, msg)
+			msg = head + " (cont.)"
+		}
+		msg += " | " + item
+	}
+	return append(out, msg)
+}
+
+// units is s's length as Twitch's limit counts it at most.
+func units(s string) int {
+	n := 0
+	for _, r := range s {
+		n += utf16.RuneLen(r)
+	}
+	return n
 }
 
 // game is one decided pairing, the higher score first.
@@ -119,11 +148,13 @@ func newGame(a, b Matchup) game {
 
 func (g game) margin() float64 { return Points(g.winner) - Points(g.loser) }
 
+// result is the game as a scoreboard, the winner first: "@a 162.38–111.32 @b".
 func (g game) result(n Names) string {
+	s := fmt.Sprintf("%s %.2f–%.2f %s", n.Who(g.winner.RosterID), Points(g.winner), Points(g.loser), n.Who(g.loser.RosterID))
 	if g.tied {
-		return fmt.Sprintf("%s and %s tied at %.2f", n.Who(g.winner.RosterID), n.Who(g.loser.RosterID), Points(g.winner))
+		s += " (tie)"
 	}
-	return fmt.Sprintf("%s %.2f def. %s %.2f", n.Who(g.winner.RosterID), Points(g.winner), n.Who(g.loser.RosterID), Points(g.loser))
+	return s
 }
 
 // highlights are the week's top score, closest game, biggest blowout, best
@@ -137,7 +168,7 @@ func highlights(games []game, matchups []Matchup, rosters []Roster, n Names) []s
 			top = m
 		}
 	}
-	out = append(out, fmt.Sprintf("top score %s (%.2f)", n.Who(top.RosterID), Points(top)))
+	out = append(out, fmt.Sprintf("🔥 Top score: %s %.2f", n.Who(top.RosterID), Points(top)))
 
 	closest, blowout := games[0], games[0]
 	for _, g := range games {
@@ -149,12 +180,12 @@ func highlights(games []game, matchups []Matchup, rosters []Roster, n Names) []s
 		}
 	}
 	if closest.tied {
-		out = append(out, fmt.Sprintf("closest game %s and %s, tied", n.Who(closest.winner.RosterID), n.Who(closest.loser.RosterID)))
+		out = append(out, fmt.Sprintf("😬 Closest: %s and %s tied", n.Who(closest.winner.RosterID), n.Who(closest.loser.RosterID)))
 	} else {
-		out = append(out, fmt.Sprintf("closest game %s over %s by %.2f", n.Who(closest.winner.RosterID), n.Who(closest.loser.RosterID), closest.margin()))
+		out = append(out, fmt.Sprintf("😬 Closest: %s beat %s by %.2f", n.Who(closest.winner.RosterID), n.Who(closest.loser.RosterID), closest.margin()))
 	}
 	if len(games) > 1 {
-		out = append(out, fmt.Sprintf("biggest blowout %s over %s by %.2f", n.Who(blowout.winner.RosterID), n.Who(blowout.loser.RosterID), blowout.margin()))
+		out = append(out, fmt.Sprintf("💥 Blowout: %s beat %s by %.2f", n.Who(blowout.winner.RosterID), n.Who(blowout.loser.RosterID), blowout.margin()))
 	}
 
 	bestPoints, bestPlayer, bestRoster := 0.0, "", 0
@@ -166,7 +197,7 @@ func highlights(games []game, matchups []Matchup, rosters []Roster, n Names) []s
 		}
 	}
 	if bestPlayer != "" {
-		out = append(out, fmt.Sprintf("best player %s, %.2f for %s", n.Player(bestPlayer), bestPoints, n.Who(bestRoster)))
+		out = append(out, fmt.Sprintf("⭐ Best player: %s %.2f (%s)", n.Player(bestPlayer), bestPoints, n.Who(bestRoster)))
 	}
 
 	benchPoints, benchRoster := 0.0, 0
@@ -176,7 +207,7 @@ func highlights(games []game, matchups []Matchup, rosters []Roster, n Names) []s
 		}
 	}
 	if benchPoints > 0 {
-		out = append(out, fmt.Sprintf("most left on the bench %s (%.2f)", n.Who(benchRoster), benchPoints))
+		out = append(out, fmt.Sprintf("🪑 Bench: %s left %.2f", n.Who(benchRoster), benchPoints))
 	}
 	return out
 }
@@ -204,9 +235,10 @@ func bench(m Matchup, rosters []Roster) float64 {
 	return total
 }
 
-// topStandings is the top teams after week, by record then points scored,
-// counted from each week's matchups (Sleeper's own records can lag a day).
-func topStandings(week int, weeks map[int][]Matchup, n Names, top int) string {
+// standings is every team after week, by record then points scored, counted
+// from each week's matchups (Sleeper's own records can lag a day). The top 3
+// get medals.
+func standings(week int, weeks map[int][]Matchup, n Names) []string {
 	type standing struct {
 		roster             int
 		wins, losses, ties int
@@ -260,14 +292,25 @@ func topStandings(week int, weeks map[int][]Matchup, n Names, top int) string {
 		return all[i].roster < all[j].roster
 	})
 
+	medals := []string{"🥇", "🥈", "🥉"}
 	var entries []string
 	for i, s := range all {
-		if i == top {
-			break
+		rank := strconv.Itoa(i+1) + "."
+		if i < len(medals) {
+			rank = medals[i]
 		}
-		entries = append(entries, fmt.Sprintf("%d. %s %s", i+1, n.Who(s.roster), Record(s.wins, s.losses, s.ties)))
+		entries = append(entries, fmt.Sprintf("%s %s %s (%s)", rank, n.Who(s.roster), Record(s.wins, s.losses, s.ties), thousands(int64(math.Round(s.points)))))
 	}
-	return strings.Join(entries, " · ")
+	return entries
+}
+
+// thousands writes n with commas: 1,284.
+func thousands(n int64) string {
+	s := strconv.FormatInt(n, 10)
+	for i := len(s) - 3; i > 0 && s[i-1] != '-'; i -= 3 {
+		s = s[:i] + "," + s[i:]
+	}
+	return s
 }
 
 // cents compares scores at the two decimals chat shows.
