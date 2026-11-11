@@ -121,6 +121,16 @@ func init() {
 			Run: runSevenTVCheck,
 		},
 		{
+			Names:   []string{"health"},
+			Group:   "Bot",
+			Summary: "Check that the running Lys answers and its chat connections are up",
+			Usage:   []string{"health"},
+			Examples: []Example{
+				{"health", "Exits 0 when healthy, 1 otherwise; Docker's healthcheck runs it."},
+			},
+			Run: runHealth,
+		},
+		{
 			Names:   []string{"migrate status", "migrate"},
 			Group:   "Database",
 			Summary: "List the database migrations and when each was applied",

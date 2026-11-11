@@ -4,6 +4,9 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -126,5 +129,31 @@ func TestHelp(t *testing.T) {
 func TestWrap(t *testing.T) {
 	if got := wrap("one two three four", 9); got != "one two\nthree\nfour" {
 		t.Fatalf("got %q", got)
+	}
+}
+
+// health exits 0 only while Lys answers 200, and needs no services.
+func TestHealth(t *testing.T) {
+	status := http.StatusOK
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/health" {
+			t.Errorf("asked for %s", r.URL.Path)
+		}
+		w.WriteHeader(status)
+	}))
+	u, _ := url.Parse(srv.URL)
+	t.Setenv("NOTIFICATION_PORT", u.Port())
+
+	env, _, errOut := testEnv(t)
+	if code := Run(context.Background(), env, []string{"health"}); code != 0 {
+		t.Fatalf("healthy: exit %d, %q", code, errOut)
+	}
+	status = http.StatusServiceUnavailable
+	if code := Run(context.Background(), env, []string{"health"}); code != 1 || !strings.Contains(errOut.String(), "isn't healthy") {
+		t.Fatalf("unhealthy: exit %d, %q", code, errOut)
+	}
+	srv.Close()
+	if code := Run(context.Background(), env, []string{"health"}); code != 1 || !strings.Contains(errOut.String(), "doesn't answer") {
+		t.Fatalf("down: exit %d, %q", code, errOut)
 	}
 }
